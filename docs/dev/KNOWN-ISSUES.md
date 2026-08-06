@@ -12,19 +12,6 @@ at removed entries.
 
 ---
 
-## 2. Waterfall engine (BUG 3) — fixed; two cosmetic leftovers
-
-The periodic comb/stripe waterfall artifact was root-caused (FPGA WF engine
-latches decimate only at restart; websdr re-armed every frame) and fixed in
-three places (`config/kernel/zynqsdr.c` WF_PARAM reset pulse,
-`config/websdr/patches/0012-wf-engine-decim-rearm.patch`). Verified clean on
-hardware at all zooms. Remaining, cosmetic only:
-
-- What triggered the old build's regime A→B transition at zoom 8 (moot
-  post-fix, recorded for completeness).
-- Stock-firmware A/B capture of the same band for reference (needs an SD
-  swap to the stock card).
-
 ## 3. noip2 DDNS and frpc reverse proxy unavailable
 
 The stock firmware's `noip2` (dynamic DNS) and `frpc` (FRP reverse-proxy

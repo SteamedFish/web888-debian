@@ -9,6 +9,30 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-07] — Waterfall engine (BUG 3): known-issue entry retired
+
+Operator-verified the waterfall engine fix is clean at all zooms on the
+dev unit, including z7 (the regime that originally exhibited the
+16-frame-period comb+stripe artifact — see
+[`docs/research/zynqsdr-port-notes.md` §14](../research/zynqsdr-port-notes.md)
+for the full root cause and the three-place fix). The §2 entry's
+"two cosmetic leftovers" were both non-defects: the regime A→B
+transition is moot post-fix, and the stock-firmware A/B capture is a
+reference wishlist item rather than an open defect.
+
+### Removed
+
+- `KNOWN-ISSUES.md` former §2 (Waterfall engine — BUG 3) — fully
+  resolved and hardware-verified. Per the file's intro policy, resolved
+  items are removed from the file; section numbers are stable so
+  historical references (e.g. `CHANGELOG.md` 2026-08-06 doc-scrub entry
+  referencing §2) may point at removed entries by design.
+- The fix itself is preserved as the canonical reference in
+  `docs/research/zynqsdr-port-notes.md` §14, and the three code changes
+  remain in place: `config/kernel/zynqsdr.c` WF_PARAM reset pulse,
+  `config/websdr/patches/0012-wf-engine-decim-rearm.patch`, and the
+  `rx_waterfall.cpp` non-shared non-overlapped param+rearm logic.
+
 ## [2026-08-06] — README: clarify that this is a software-only project on stock Web-888 hardware
 
 ### Changed
