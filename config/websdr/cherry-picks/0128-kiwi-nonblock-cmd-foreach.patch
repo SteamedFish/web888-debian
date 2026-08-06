@@ -1,0 +1,99 @@
+diff --git a/support/non_block.cpp b/support/non_block.cpp
+index ed6f6ae..6cf835a 100644
+--- a/support/non_block.cpp
++++ b/support/non_block.cpp
+@@ -184,7 +184,7 @@ static void _non_blocking_cmd_forall(void* param) {
+     fcntl(pfd, F_SETFL, O_NONBLOCK);
+ 
+     do {
+-        TaskSleepMsec(NON_BLOCKING_POLL_MSEC);
++        TaskSleepMsec(args->cmd_poll_msec);
+         n = read(pfd, chunk, NCHUNK);
+         if (n > 0) {
+             chunk[n] = '\0';
+@@ -213,6 +213,7 @@ static void _non_blocking_cmd_forall(void* param) {
+ int non_blocking_cmd_func_forall(const char* pname, const char* cmd, funcPR_t func, int param, int poll_msec) {
+     nbcmd_args_t* args = (nbcmd_args_t*)kiwi_imalloc("non_blocking_cmd_func_forall", sizeof(nbcmd_args_t));
+     args->cmd = cmd;
++    args->cmd_poll_msec = NON_BLOCKING_POLL_MSEC;
+     args->func = func;
+     args->func_param = param;
+     int status = child_task(pname, _non_blocking_cmd_forall, poll_msec, (void*)args);
+@@ -224,7 +225,7 @@ int non_blocking_cmd_func_forall(const char* pname, const char* cmd, funcPR_t fu
+ 
+ // child task that calls a function for every chunk of non-blocking command input read
+ static void _non_blocking_cmd_foreach(void* param) {
+-    int i, n, func_rv = 0;
++    int i, n;
+     nbcmd_args_t* args = (nbcmd_args_t*)param;
+ 
+ #define NCHUNK (1024 + 1) // NB: must be odd
+@@ -251,9 +252,11 @@ static void _non_blocking_cmd_foreach(void* param) {
+         }
+         else {
+             if (call) {
+-                char* t_kstr = args->kstr;
+                 char* sp = kstr_sp(args->kstr);
+ 
++#if 0
++                char* t_kstr = args->kstr;
++
+                 // remove possible padding spaces sent to flush stream
+                 // e.g. from our common.php::realtime_msg() used by tdoa.php on server
+                 char* ep = sp + strlen(sp) - 1;
+@@ -271,22 +274,25 @@ static void _non_blocking_cmd_foreach(void* param) {
+                 kstr_free(t_kstr);
+                 offset++;
+                 sp = kstr_sp(args->kstr);
++#endif
++
+                 int sl = strlen(sp);
+                 // printf("_non_blocking_cmd_foreach FUNC sl=%d <%s>\n", sl, sp);
+-                if (sl) func_rv = args->func((void*)args);
++                if (sl) args->func((void*)args);
+                 kstr_free(args->kstr);
+                 args->kstr = NULL;
+                 call = false;
+             }
+-            TaskSleepMsec(NON_BLOCKING_POLL_MSEC);
++            TaskSleepMsec(args->cmd_poll_msec);
+         }
+     } while (n > 0 || (n == -1 && errno == EAGAIN));
+     // end-of-input when n == 0 or error
+     // printf("_non_blocking_cmd_foreach END\n");
+ 
+-    pclose(pf);
+-
+-    child_exit(func_rv);
++    // give func() the option of returning cmd stat or something else
++    args->cmd_stat = pclose(pf); // yes, pclose returns exit status of cmd
++    args->kstr = NULL;
++    child_exit(args->func((void*)args));
+ #undef NCHUNK
+ }
+ 
+@@ -299,6 +305,7 @@ static void _non_blocking_cmd_foreach(void* param) {
+ int non_blocking_cmd_func_foreach(const char* pname, const char* cmd, funcPR_t func, int param, int poll_msec) {
+     nbcmd_args_t* args = (nbcmd_args_t*)kiwi_imalloc("non_blocking_cmd_func_foreach", sizeof(nbcmd_args_t));
+     args->cmd = cmd;
++    args->cmd_poll_msec = NON_BLOCKING_POLL_MSEC;
+     args->func = func;
+     args->func_param = param;
+     int status = child_task(pname, _non_blocking_cmd_foreach, poll_msec, (void*)args);
+diff --git a/support/non_block.h b/support/non_block.h
+index 72b0d43..c70c17b 100644
+--- a/support/non_block.h
++++ b/support/non_block.h
+@@ -34,10 +34,12 @@ typedef struct {
+ 
+ typedef struct {
+     const char* cmd;
++    int cmd_poll_msec;
+     funcPR_t func;
+     int func_param, func_rval;
+     int poll_msec;
+     char* kstr;
++    int cmd_stat;
+ } nbcmd_args_t;
+ 
+ #define NO_WAIT      0

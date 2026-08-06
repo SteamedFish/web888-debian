@@ -1,0 +1,73 @@
+# Web-888 kernel config fragment on top of Debian's armmp config
+# (linux-source-6.12, step 6 — see docs/dev/kernel-update-sop.md).
+# Base: /boot/config-6.12.9x+deb13-armmp (6117 enabled symbols). This fragment
+# holds ONLY the deltas; everything else inherits Debian (=m modules for
+# netfilter/nft, AppArmor, USB WiFi/serial/sound/BT, FUSE, exFAT/NTFS3,
+# WireGuard, … all stay exactly as Debian ships them).
+#
+# Already =y/=m in Debian armmp (kept, asserted by build-kernel-6.12.sh):
+# NVMEM=y, PPS=y, PPS_CLIENT_GPIO=m, ZRAM=m, CRYPTO_LZO=y, ZSWAP=y,
+# NETFILTER=y, NF_TABLES=m, USB_ULPI=y, VFAT_FS=m, CPUFREQ_DT_PLATDEV=y.
+
+# --- Zynq platform ON (checklist per ikwzm armv7_fpga_defconfig, research §8).
+# Debian armmp has ARCH_ZYNQ off (research §2) — without this nothing on the
+# board works: no UART, no GEM, no SDHCI, no DTB.
+CONFIG_ARCH_ZYNQ=y
+CONFIG_SERIAL_XILINX_PS_UART=y
+CONFIG_SERIAL_XILINX_PS_UART_CONSOLE=y
+CONFIG_GPIO_ZYNQ=y
+CONFIG_PINCTRL_ZYNQ=y
+CONFIG_CADENCE_WATCHDOG=y
+CONFIG_I2C_CADENCE=y
+CONFIG_XILINX_XADC=y
+
+# --- Initrd-less boot-critical built-ins (Debian defaults =m — Debian assumes
+# initramfs; we keep our proven no-initrd flow, research §1 boot contract):
+# SDHCI for the SD rootfs, EXT4 root fs, MACB+PHY ethernet, chipidea USB.
+CONFIG_MMC_SDHCI_OF_ARASAN=y
+CONFIG_EXT4_FS=y
+CONFIG_SQUASHFS=y
+CONFIG_OVERLAY_FS=y
+CONFIG_MACB=y
+CONFIG_REALTEK_PHY=y
+CONFIG_USB_CHIPIDEA=y
+# Debian armmp leaves this off (initramfs mounts /dev); we boot without one.
+CONFIG_DEVTMPFS_MOUNT=y
+# Board MAC lives in the 24c64 EEPROM (nvmem cell in web888.dts). Debian ships
+# at24 =m, so macb's nvmem lookup defers until udev coldplug loads at24.ko from
+# the rootfs — eth0 then appears seconds into systemd and races
+# networking.service (no udev-settle ordering): boot wins, no DHCP, board
+# invisible. 6.6 chain had this =y. Built-in => defer resolves pre-init.
+CONFIG_EEPROM_AT24=y
+# websdr talks to the Si5351/EEPROM via /dev/i2c-0 (6.6 chain had this =y;
+# Debian's =m is never autoloaded — no modalias for chardev — so /dev/i2c-0
+# was missing and websdr crash-looped on hardware).
+CONFIG_I2C_CHARDEV=y
+
+# --- Our drivers (step 2 ports, materialized into drivers/char/ by
+# build-kernel-6.12.sh from config/kernel/ + patches 0001/0002).
+CONFIG_XILINX_DEVCFG=m
+CONFIG_ZYNQSDR=m
+# The built-in fpga-manager zynq-fpga driver binds the SAME compatible
+# "xlnx,zynq-devcfg-1.0" and would claim the devcfg node before the
+# xilinx_devcfg module can probe (websdr contract is /dev/xdevcfg, not
+# fpga-manager — plan non-goal: FPGA_MGR_ZYNQ_FPGA stays OFF).
+CONFIG_FPGA_MGR_ZYNQ_FPGA=n
+
+# --- Board needs that Debian lacks/defaults differently:
+# CMA headroom for the zynqsdr DMA engine (Debian: 16 MB).
+CONFIG_CMA_SIZE_MBYTES=64
+# ramoops/pstore: crash logs survive reboot in RAM — our only blind-debug
+# channel (Debian armmp: PSTORE off entirely).
+CONFIG_PSTORE=y
+CONFIG_PSTORE_RAM=y
+# cpufreq-dt built-in (Debian: =m) + default governor ondemand (Debian:
+# schedutil; websdr reads scaling_cur_freq and we pin deterministic boot
+# behaviour). The GOV_SCHEDUTIL/GOV_ONDEMAND choice is asserted
+# deterministically by build-kernel-6.12.sh (same Kconfig-choice trap as
+# the 6.6 build — a fragment alone leaves both =y until olddefconfig).
+CONFIG_CPUFREQ_DT=y
+CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y
+
+CONFIG_LOCALVERSION="-web888"
+CONFIG_LOCALVERSION_AUTO=n

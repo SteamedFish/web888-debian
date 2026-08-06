@@ -1,0 +1,7 @@
+# WebSDR (RaspSDR/server) upstream pin — web888 step 3
+url: https://github.com/RaspSDR/server.git
+channel: alpha
+commit: 68a64e1b39a3f291762904576f47c9d437fd3509
+submodule: externals/dumphfdl 84a295f02a2b320dc92a9f2a9745d133458905aa
+submodule: pkgs/jsmn 25647e692c7906b96ffd2b05ca54c097948e879c
+submodule: pkgs/utf8 2aa5709fe39c66d2868c0d52d42788899b90dc92

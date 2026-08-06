@@ -1,0 +1,28 @@
+diff --git a/drivers/char/Kconfig b/drivers/char/Kconfig
+index 625af7583..ea6dd2a1d 100644
+--- a/drivers/char/Kconfig
++++ b/drivers/char/Kconfig
+@@ -422,4 +422,14 @@ config ADI
+ 	  and SSM (Silicon Secured Memory).  Intended consumers of this
+ 	  driver include crash and makedumpfile.
+ 
++config XILINX_DEVCFG
++	tristate "Xilinx Device Configuration"
++	depends on ARCH_ZYNQ
++	help
++	  This is the driver for the Zynq-7000 Processor Configuration
++	  Access Port (PCAP), providing the legacy /dev/xdevcfg character
++	  device used to load FPGA bitstreams from userspace. Ported back
++	  from linux-xlnx xilinx-v2016.4 (removed from the 6.6 tree, which
++	  only carries the fpga-manager zynq-fpga driver).
++
+ endmenu
+diff --git a/drivers/char/Makefile b/drivers/char/Makefile
+index c5f532e41..5e04c5801 100644
+--- a/drivers/char/Makefile
++++ b/drivers/char/Makefile
+@@ -44,3 +44,4 @@ obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
+ obj-$(CONFIG_XILLYBUS_CLASS)	+= xillybus/
+ obj-$(CONFIG_POWERNV_OP_PANEL)	+= powernv-op-panel.o
+ obj-$(CONFIG_ADI)		+= adi.o
++obj-$(CONFIG_XILINX_DEVCFG)	+= xilinx_devcfg.o

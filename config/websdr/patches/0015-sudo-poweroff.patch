@@ -1,0 +1,54 @@
+Subject: power actions via sudo root helper on Debian (D10)
+ zynq/system.cpp reboot/halt/poweroff + services.cpp kiwisdr.com-reg reboot
+ call the root-owned web888-poweroff helper; Alpine keeps plain system().
+ (update.cpp 'sleep 3; reboot' site no longer exists — removed by 0004.)
+
+diff --git a/net/services.cpp b/net/services.cpp
+index 89f99a9..40d36a2 100644
+--- a/net/services.cpp
++++ b/net/services.cpp
+@@ -775,7 +775,9 @@ static void reg_public(void* param) {
+                     kiwi_restart();
+                 }
+                 if (reg_kiwisdr_com_status == 43) {
+-                    system("reboot");
++                    // Debian: privileged power action via the sudo root helper
++                    system(access("/etc/alpine-release", F_OK) == 0 ? "reboot" :
++                           "sudo -n /usr/lib/web888/root-helpers/web888-poweroff reboot");
+                     while (true)
+                         kiwi_usleep(100000);
+                 }
+diff --git a/zynq/system.cpp b/zynq/system.cpp
+index f7876c1..e8e5515 100644
+--- a/zynq/system.cpp
++++ b/zynq/system.cpp
+@@ -18,18 +18,26 @@ Boston, MA  02110-1301, USA.
+ // Copyright (c) 2023 John Seamons, ZL4VO/KF6VO
+ 
+ #include <stdlib.h>
++#include <unistd.h>
++
++// Debian port (web888): privileged power actions go through the sudo root
++// helper — the websdr unit runs unprivileged and cannot reboot directly.
++// Alpine stock keeps the plain system() calls.
++static int on_alpine(void) {
++    return access("/etc/alpine-release", F_OK) == 0;
++}
+ 
+ void system_reboot() {
+-    system("reboot");
++    system(on_alpine() ? "reboot" : "sudo -n /usr/lib/web888/root-helpers/web888-poweroff reboot");
+     exit(0);
+ }
+ 
+ void system_halt() {
+-    system("halt");
++    system(on_alpine() ? "halt" : "sudo -n /usr/lib/web888/root-helpers/web888-poweroff halt");
+     exit(0);
+ }
+ 
+ void system_poweroff() {
+-    system("poweroff");
++    system(on_alpine() ? "poweroff" : "sudo -n /usr/lib/web888/root-helpers/web888-poweroff poweroff");
+     exit(0);
+ }

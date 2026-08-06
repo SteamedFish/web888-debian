@@ -1,0 +1,57 @@
+[Unit]
+Description=Web-888 WebSDR server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=web888
+Group=web888
+SupplementaryGroups=i2c
+WorkingDirectory=/var/lib/web888
+ExecStartPre=/usr/lib/web888/web888-websdr-seed-defaults
+ExecStart=/usr/bin/websdr.bin
+ExecStopPost=/bin/sh -c 'if [ -f /etc/web888/frpc.toml ] && command -v frpc >/dev/null; then frpc -c /etc/web888/frpc.toml stop || true; fi'
+Restart=always
+RestartSec=5
+Environment=LD_LIBRARY_PATH=/usr/lib/web888
+# CAP_SYS_NICE: rtprio for the RX threads (stock parity).
+# CAP_NET_ADMIN: websdr manages its KIWI iptables chain itself
+# (net/ip_blacklist.cpp, admin blacklist, 24h auto-ban in rx_cmd.cpp) —
+# the capability suffices, no root helper needed for this feature.
+AmbientCapabilities=CAP_SYS_NICE CAP_NET_ADMIN
+# Bound mlock: stock runs as root (infinite RLIMIT_MEMLOCK) and hard-hung a
+# 512 MB box. With a bound, an oversized lock fails fast (websdr exits) while
+# the rest of the system survives. Tune after measuring /proc/PID VmLck.
+LimitMEMLOCK=384M
+LimitCORE=0
+MemoryMax=420M
+
+# NoNewPrivileges is INTENTIONALLY absent: the Debian root-action
+# architecture (step-3.5 Debian-compat fix D10) is sudo + root-owned helper
+# scripts (/usr/lib/web888/root-helpers/*), and sudo is setuid-root — NNP
+# blocks every setuid/file-cap privilege transition, making the approved
+# mechanism impossible. Mitigations instead: the sudoers surface is exactly
+# two validated root-owned helpers (/etc/sudoers.d/web888), and
+# ProtectSystem=strict + DevicePolicy=closed below stay in force.
+ProtectSystem=strict
+# Helpers run in this service's mount namespace, which is read-only under
+# ProtectSystem=strict — carve out exactly the two paths web888-netconfig
+# installs to (it also writes /etc/resolv.conf IN PLACE because a rename
+# would need a writable /etc directory entry).
+ReadWritePaths=/etc/network/interfaces.d /etc/resolv.conf
+ProtectHome=true
+PrivateTmp=true
+StateDirectory=web888
+CacheDirectory=web888
+DevicePolicy=closed
+DeviceAllow=/dev/zynqsdr rw
+DeviceAllow=/dev/xdevcfg rw
+DeviceAllow=/dev/i2c-0 rw
+# CAT serial control (support/stats.cpp) — only used when CAT_baud is
+# configured; harmless otherwise.
+DeviceAllow=/dev/ttyUSB* rw
+DeviceAllow=/dev/ttyACM* rw
+
+[Install]
+WantedBy=multi-user.target

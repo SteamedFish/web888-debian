@@ -1,0 +1,23 @@
+Source: web888-redpitaya
+Section: hamradio
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/RaspSDR/red-pitaya-notes
+
+Package: web888-redpitaya
+Architecture: armhf
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Red Pitaya app stack for Web-888 (RX-888) SDR - Debian build
+ From-source build of the RaspSDR/red-pitaya-notes SDR applications
+ (vendor fork of pavel-demin/red-pitaya-notes, MIT license), with
+ vendored factory FPGA bitstreams, fully systemd-managed and disabled
+ by default: WebSDR stays the default-on service, RP apps are opt-in.
+ .
+ Ships web888-rpapp@.service template units (bitstream load in
+ ExecStartPre, Conflicts=web888-websdr.service both directions) and
+ /usr/sbin/web888-mode for runtime switching between WebSDR mode and
+ any RP app. v1 apps: sdr_receiver_hpsdr (Thetis/cuSDR/SparkSDR
+ clients), sdr_receiver (raw I/Q TCP), sdr_transceiver_wide (GNU Radio
+ gr-osmosdr), led_blinker (FPGA-load smoke test).

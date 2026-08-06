@@ -1,0 +1,112 @@
+diff --git a/extensions/DRM/dream/datadecoding/DABMOT.cpp b/extensions/DRM/dream/datadecoding/DABMOT.cpp
+index 2080713..f45bc97 100644
+--- a/extensions/DRM/dream/datadecoding/DABMOT.cpp
++++ b/extensions/DRM/dream/datadecoding/DABMOT.cpp
+@@ -628,7 +628,7 @@ CMOTDABDec::DeliverIfReady(TTransportID TransportID)
+ 		//cerr << o << endl;;
+ 		//ostringstream ss; ss << o << endl;
+ 		ofstream file;
+-        string fn = "/tmp/kiwi.data/drm.ch"+ to_string(DRM_rx_chan()) +"_"+ o.strName;
++        string fn = "/var/cache/web888/drm.ch"+ to_string(DRM_rx_chan()) +"_"+ o.strName;
+         printf("DRM write file <%s>\n", fn.c_str());
+ 		file.open(fn.c_str());
+ 		file.write((char*)&o.Body.vecData[0], o.Body.vecData.Size());
+diff --git a/extensions/DRM/dream/datadecoding/DataDecoder.cpp b/extensions/DRM/dream/datadecoding/DataDecoder.cpp
+index 4a3fa80..49bd5c3 100644
+--- a/extensions/DRM/dream/datadecoding/DataDecoder.cpp
++++ b/extensions/DRM/dream/datadecoding/DataDecoder.cpp
+@@ -336,7 +336,7 @@ CDataDecoder::DecodeEPG(const CParameter & Parameters)
+ 
+ 		//string path = Parameters.GetDataDirectory("EPG") + fileName;
+ 		//mkdirs(path);
+-        string path = "/tmp/kiwi.data/drm.ch"+ to_string(DRM_rx_chan()) +"_"+ fileName;
++        string path = "/var/cache/web888/drm.ch"+ to_string(DRM_rx_chan()) +"_"+ fileName;
+ 		//cerr << "writing EPG file " << path << endl;
+ 		printf("DRM write EPG file <%s>\n", path.c_str());
+ 		FILE *f = fopen(path.c_str(), "wb");
+diff --git a/extensions/SSTV/sstv.cpp b/extensions/SSTV/sstv.cpp
+index cb7806f..804c24a 100644
+--- a/extensions/SSTV/sstv.cpp
++++ b/extensions/SSTV/sstv.cpp
+@@ -320,7 +320,7 @@ void SSTV_main() {
+ #endif
+ 
+ #ifdef SSTV_TEST_FILE2
+-    sstv_testfile(1, DIR_CFG "/samples/SSTV.test2.au");
++    sstv_testfile(1, DIR_SAMPLES "/SSTV.test2.au");
+     sstv.n_test = 2;
+ #endif
+ }
+diff --git a/init/cfg.cpp b/init/cfg.cpp
+index ec69c0e..767f574 100644
+--- a/init/cfg.cpp
++++ b/init/cfg.cpp
+@@ -1503,10 +1503,8 @@ static void _cfg_write_file(void* param) {
+     fclose(fp);
+     // real_printf("_cfg_write_file DONE\n");
+ 
+-    // copy config file to sd card
+-    sd_enable(true);
+-    system("cp -f /root/config/* /media/mmcblk0p1/config/");
+-    sd_enable(false);
++    // Debian: snapshot config into the state backup dir (was: copy to FAT partition)
++    system("cp -f " DIR_CFG "/* " DIR_STATE "/backup/ 2>/dev/null || true");
+ }
+ 
+ void _cfg_save_json(cfg_t* cfg, char* json) {
+diff --git a/net/services.cpp b/net/services.cpp
+index 3798271..e07c667 100644
+--- a/net/services.cpp
++++ b/net/services.cpp
+@@ -245,7 +245,7 @@ static void misc_NET(void* param) {
+     CK(F_PR, VR_DOT_PROFILES, (system("rm -rf " F_PR)));
+ 
+ #define F_CT "/var/spool/cron/crontabs/root"
+-    CK(F_CT, VR_CRONTAB_ROOT, (system("sed -i -f " DIR_CFG "/v.sed " F_CT)));
++    CK(F_CT, VR_CRONTAB_ROOT, (system("test -f " DIR_CFG "/v.sed && sed -i -f " DIR_CFG "/v.sed " F_CT)));
+ 
+     printf("vr=0x%x vc=0x%x\n", vr, vc);
+ 
+diff --git a/pkgs/sdrpp_server/sdrpp_server.cpp b/pkgs/sdrpp_server/sdrpp_server.cpp
+index b556701..90c843e 100644
+--- a/pkgs/sdrpp_server/sdrpp_server.cpp
++++ b/pkgs/sdrpp_server/sdrpp_server.cpp
+@@ -67,7 +67,7 @@ typedef struct {
+     75/1472 = 96/x, 1472*96/75 = 1884.16
+ */
+ 
+-#define FNAME DIR_CFG "/samples/CQWW_CW_2005.iq16b.fs96k.cf7040.full.iq"
++#define FNAME DIR_SAMPLES "/CQWW_CW_2005.iq16b.fs96k.cf7040.full.iq"
+ 
+ // options
+ //#define FILE_IN
+diff --git a/rx/rx_util.cpp b/rx/rx_util.cpp
+index 1e05179..4d553e3 100644
+--- a/rx/rx_util.cpp
++++ b/rx/rx_util.cpp
+@@ -827,7 +827,7 @@ static void dump_info_handler(int arg) {
+ 
+     sb = kstr_asprintf(sb, ", \"fixes\": %d, \"fixes_min\": %d }", gps.fixes, gps.fixes_min);
+ 
+-    sb = kstr_cat(sb, " }' > /root/config/info.json");
++    sb = kstr_cat(sb, " }' > " DIR_CFG "/info.json");
+     non_blocking_cmd_system_child("kiwi.info", kstr_sp(sb), POLL_MSEC(200));
+     kstr_free(sb);
+     sig_arm(SIGHUP, dump_info_handler);
+diff --git a/ui/admin.cpp b/ui/admin.cpp
+index 78e708d..e27eafc 100644
+--- a/ui/admin.cpp
++++ b/ui/admin.cpp
+@@ -478,10 +478,8 @@ void c2s_admin(void* param) {
+                 kiwi_asfree(host_m);
+                 admcfg_string_free(proxy_server);
+ 
+-                // copy config file to sd card
+-                sd_enable(true);
+-                system("cp -u /root/config/* /media/mmcblk0p1/config/");
+-                sd_enable(false);
++                // Debian: snapshot config into the state backup dir (was: copy to FAT partition)
++                system("cp -u " DIR_CFG "/* " DIR_STATE "/backup/ 2>/dev/null || true");
+ 
+                 system("/etc/init.d/frpc restart");
+ 

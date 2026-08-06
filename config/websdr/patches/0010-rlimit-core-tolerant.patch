@@ -1,0 +1,28 @@
+diff --git a/main.cpp b/main.cpp
+index 68ddbf1..d96d8f2 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -96,11 +96,19 @@ int main(int argc, char* argv[]) {
+     // enable generation of core file in /tmp
+     // scall("core_pattern", system("echo /tmp/core-%e-%s-%p-%t > /proc/sys/kernel/core_pattern"));
+ 
+-    // use same filename to prevent looping dumps from filling up filesystem
+-    scall("core_pattern", system("echo /tmp/core-%e > /proc/sys/kernel/core_pattern"));
++    // Debian: websdr.bin runs as an unprivileged user under systemd. The
++    // core_pattern write and the RLIMIT_CORE raise both require privileges we
++    // deliberately do not grant, so they must not be fatal (upstream scall()
++    // panics here, which livelocked the service when LimitCORE=0 was set).
++    if (geteuid() == 0) {
++        // use same filename to prevent looping dumps from filling up filesystem
++        scall("core_pattern", system("echo /tmp/core-%e > /proc/sys/kernel/core_pattern"));
++    }
+     const struct rlimit unlim = { RLIM_INFINITY, RLIM_INFINITY };
+-    scall("setrlimit", setrlimit(RLIMIT_CORE, &unlim));
+-    system("rm -f /tmp/core-*"); // remove old core files
++    if (setrlimit(RLIMIT_CORE, &unlim) != 0)
++        perror("setrlimit(RLIMIT_CORE) - continuing without core dumps");
++    if (geteuid() == 0)
++        system("rm -f /tmp/core-*"); // remove old core files
+ 
+     kiwi.platform = PLATFORM_ZYNQ7010;
+ 

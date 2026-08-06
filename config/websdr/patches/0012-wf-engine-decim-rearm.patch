@@ -1,0 +1,49 @@
+diff --git a/rx/rx_waterfall.cpp b/rx/rx_waterfall.cpp
+index 25f5d85..54abf5b 100644
+--- a/rx/rx_waterfall.cpp
++++ b/rx/rx_waterfall.cpp
+@@ -921,8 +921,17 @@ static void sample_wf(int rx_chan) {
+         else {
+             wf_chan = rx_chan;
+ 
+-            fpga_wf_param(wf_chan, wf->decim, wf->i_offset);
+-            fpga_reset_wf(wf_chan, false);
++            // Re-arming every frame restarts the WF engine producer from the
++            // ring head each frame (~43 ms): it never reaches the ring tail
++            // before the next re-arm, so the driver's sequential consumer
++            // reads never-refreshed stale tail data on 5/16 frames (visible
++            // as 16-frame-period stripes, BUG 3). Arm once, re-arm only when
++            // the decimation actually changes (zoom), and run continuous.
++            if (wf->decim != wf->fpga_decim_sent) {
++                fpga_wf_param(wf_chan, wf->decim, wf->i_offset);
++                fpga_reset_wf(wf_chan, true);
++                wf->fpga_decim_sent = wf->decim;
++            }
+ 
+             fpga_read_wf(wf_chan, fft->sample_data, sizeof(iq_t) * WF_C_NSAMPS);
+             start = 0;
+diff --git a/rx/rx_waterfall.h b/rx/rx_waterfall.h
+index 42f4d3e..2e13e02 100644
+--- a/rx/rx_waterfall.h
++++ b/rx/rx_waterfall.h
+@@ -161,6 +161,7 @@ struct wf_inst_t {
+     int last_noise, last_signal;
+     u64_t i_offset;
+     u4_t decim;
++    u4_t fpga_decim_sent;
+ };
+ 
+ #define WINF_WF_HANNING         0
+diff --git a/zynq/peri.cpp b/zynq/peri.cpp
+index 583b8a5..5a84537 100644
+--- a/zynq/peri.cpp
++++ b/zynq/peri.cpp
+@@ -337,7 +337,7 @@ int fpga_reset_wf(int wf_chan, bool cont) {
+         data |= WF_READ_CONTINUES;
+     }
+ 
+-    rc = ioctl(ad8370_fd, WF_START, wf_chan);
++	rc = ioctl(ad8370_fd, WF_START, data);
+     if (rc)
+         lprintf("WF Start failed");
+ 

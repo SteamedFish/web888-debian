@@ -1,0 +1,84 @@
+diff --git a/rx/rx_init.cpp b/rx/rx_init.cpp
+index d9a5ca3..02063ff 100644
+--- a/rx/rx_init.cpp
++++ b/rx/rx_init.cpp
+@@ -250,6 +250,18 @@ void update_vars_from_config(bool called_at_init) {
+     cfg_default_string("owner_info", "", &update_cfg);
+     cfg_default_string("reason_disabled", "", &update_cfg);
+ 
++    // reject default/placeholder lat/lon values that should never be registered
++	if ((s = cfg_string("rx_gps", NULL, CFG_OPTIONAL)) != NULL) {
++	    if (
++            strcmp(s, "(-37.631120, 176.172210)") == 0 ||
++            strcmp(s, "(-37.631016, 176.172019)") == 0
++	        ) {
++		    cfg_set_string("rx_gps", "(0.000000, 0.000000)");
++	        update_cfg = true;
++	    }
++	    cfg_string_free(s);
++	}
++
+     // pcb.jpg => pcb.png since new pcb photo has alpha channel that only .png supports.
+     // Won't disturb an RX_PHOTO_FILE set to kiwi.config/photo.upload by admin photo upload process.
+     if ((s = cfg_string("index_html_params.RX_PHOTO_FILE", NULL, CFG_OPTIONAL)) != NULL) {
+diff --git a/support/misc.cpp b/support/misc.cpp
+index 3a1a13f..9ab5260 100644
+--- a/support/misc.cpp
++++ b/support/misc.cpp
+@@ -594,6 +594,17 @@ static const char* field = "ABCDEFGHIJKLMNOPQR";
+ static const char* square = "0123456789";
+ static const char* subsquare = "abcdefghijklmnopqrstuvwx";
+ 
++bool gps_isValid(const char *lat_lon)
++{
++    return (
++        lat_lon != NULL &&
++        strcmp(lat_lon, "(-37.631120, 176.172210)") != 0 &&
++        strcmp(lat_lon, "(-37.631016, 176.172019)") != 0 &&
++        strcmp(lat_lon, "(0.00, 0.00)") != 0 &&
++        strcmp(lat_lon, "(0.000000, 0.000000)") != 0
++    );
++}
++
+ bool grid_to_latLon(const char* grid, latLon_t* loc) {
+     double lat, lon;
+     char c;
+diff --git a/support/misc.h b/support/misc.h
+index 7f38550..ed3326c 100644
+--- a/support/misc.h
++++ b/support/misc.h
+@@ -100,6 +100,7 @@ typedef struct {
+ #define FLD_DEG_LON (SQ_PER_FLD * SQ_LON_DEG)
+ #define FLD_DEG_LAT (SQ_PER_FLD * SQ_LAT_DEG)
+ 
++bool gps_isValid(const char *lat_lon);
+ bool grid_to_latLon(const char* grid, latLon_t* loc);
+ int latLon_to_grid6(latLon_t* loc, char* grid);
+ int grid_to_distance_km(latLon_t* r_loc, char* grid);
+diff --git a/web/kiwi/admin_sdr.js b/web/kiwi/admin_sdr.js
+index f1b2825..fa21609 100644
+--- a/web/kiwi/admin_sdr.js
++++ b/web/kiwi/admin_sdr.js
+@@ -1066,7 +1066,7 @@ function kiwisdr_com_register_cb(path, idx, first)
+    var no_url = (cfg.server_url == '');
+    var bad_ip = (kiwi_inet4_d2h(cfg.server_url) != null && kiwi_inet4_d2h(cfg.server_url, true) == null);
+    var no_passwordless_channels = (adm.user_password != '' && cfg.chan_no_pwd == 0);
+-   var no_rx_gps = (cfg.rx_gps == '' || cfg.rx_gps == '(0.000000, 0.000000)' || cfg.rx_gps == '(0.000000%2C%200.000000)');
++   var no_rx_gps = (cfg.rx_gps == '' || cfg.rx_gps == '(0.000000, 0.000000)' || cfg.rx_gps == '(0.000000%2C%200.000000)' || cfg.rx_gps == '(0.00, 0.00)' || cfg.rx_gps == '(0.00%2C%200.00)');
+    var autorun_full = ((cfg.WSPR.autorun + cfg.ft8.autorun) >= rx_chans);
+    //console.log('kiwisdr_com_register_cb has_u_pwd='+ (adm.user_password != '') +' chan_no_pwd='+ cfg.chan_no_pwd +' no_passwordless_channels='+ no_passwordless_channels);
+    //console.log('cfg.server_url='+ cfg.server_url);
+@@ -1169,10 +1169,11 @@ function public_check_gps_cb(path, val, first)
+    
+    val = '('+ lat.toFixed(6) +', '+ lon.toFixed(6) +')';
+ 
+-	if (val == '(-37.631120, 176.172210)' || val == '(-37.631120%2C%20176.172210)')
++	if (val == '(-37.631120, 176.172210)' || val == '(-37.631120%2C%20176.172210)' ||
++	    val == '(-37.631016, 176.172019)' || val == '(-37.631016%2C%20176.172019)')
+ 	   val = '(0.000000, 0.000000)';
+ 
+-	if (val == '(0.000000, 0.000000)') {
++	if (val == '(0.000000, 0.000000)' || val == '(0.00, 0.00)') {
+ 		w3_flag('rx_gps');
+ 
+       // clear registration state

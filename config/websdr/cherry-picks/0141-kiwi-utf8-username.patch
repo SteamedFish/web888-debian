@@ -1,0 +1,41 @@
+diff --git a/rx/rx_cmd.cpp b/rx/rx_cmd.cpp
+index 65a260b..a9fa450 100644
+--- a/rx/rx_cmd.cpp
++++ b/rx/rx_cmd.cpp
+@@ -44,6 +44,7 @@ Boston, MA  02110-1301, USA.
+ 
+ #include "data_pump.h"
+ #include "dx.h"
++#include "utf8.h"
+ 
+ #include <string.h>
+ #include <stdio.h>
+@@ -1888,6 +1889,7 @@ bool rx_common_cmd(int stream_type, conn_t* conn, char* cmd) {
+             // name sent: save new, replace previous (if any)
+             if (!noname) {
+                 kiwi_str_decode_inplace(ident_user_m);
++                utf8makevalid(ident_user_m, '?');
+                 int printable, UTF;
+                 char* esc = kiwi_str_escape_HTML(ident_user_m, &printable, &UTF);
+                 if (esc) {
+diff --git a/support/printf.cpp b/support/printf.cpp
+index 54f757a..8c80b8e 100644
+--- a/support/printf.cpp
++++ b/support/printf.cpp
+@@ -235,11 +235,14 @@ static void ll_printf(u4_t type, conn_t* conn, const char* fmt, va_list ap) {
+     // for logging, don't print an empty line at all
+     if ((type & (PRINTF_REG | PRINTF_LOG)) && (!background_mode || strcmp(start_s, "\n") != 0)) {
+ 
+-        // remove non-ASCII since "systemctl status" gives [blob] message
+-        // unlike "systemctl log" which prints correctly
++        // Remove non-ASCII since "systemctl status" gives [blob] message
++        // unlike "systemctl log" which prints correctly.
++        // Seems to no longer be true, at least with Debian 11 (jks, cdde3a7d)
++        /*
+         int sl = strlen(buf);
+         for (i = 0; i < sl; i++)
+             if (buf[i] > 0x7f) buf[i] = '?';
++        */
+ 
+         kstr_t* ks = NULL;
+         bool want_logged = (type & PRINTF_LOG);

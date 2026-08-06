@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Debian: dumphfdl's CMakeLists hardcodes the non-multiarch static path
+	# /usr/lib/libconfig++.a; switch it to the pkg-config result (its own
+	# upstream fallback, one line below) so it builds on Debian multiarch.
+	# Not a config/websdr/patches/ quilt patch because externals/dumphfdl is a
+	# git submodule — its files are untracked in the parent repo.
+	sed -i 's|"/usr/lib/libconfig++\.a"|$${CONFIG_LIBRARIES}|' externals/dumphfdl/src/CMakeLists.txt
+	cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+override_dh_auto_build:
+	cmake --build build -j$(shell nproc)
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+
+override_dh_install:
+	dh_install
+	# Ship upstream's factory data files (unix_env/kiwi.config/dist.*) with
+	# their dist. prefix intact; web888-websdr-seed-defaults strips the prefix
+	# when materializing them into /var/lib/web888/config.
+	install -d debian/web888-websdr/usr/share/web888/dist/config
+	for f in unix_env/kiwi.config/dist.* unix_env/kiwi.config/frpc.template.ini; do \
+		install -m 644 "$$f" debian/web888-websdr/usr/share/web888/dist/config/; \
+	done
+	# /etc/sudoers.d/web888: deb-shipped (step-3.5 Debian-compat fix D10) so one
+	# package owns the whole privilege story; sudo requires mode 0440.
+	install -d -m 0755 debian/web888-websdr/etc/sudoers.d
+	install -m 0440 debian/sudoers-web888 debian/web888-websdr/etc/sudoers.d/web888

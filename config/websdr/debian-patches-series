@@ -1,0 +1,77 @@
+# Debian-adaptation patches (config/websdr/patches/) — apply first.
+0001-cmake-debian-paths.patch
+0002-main-distro-detect.patch
+0003-state-paths.patch
+0004-update-bitstream-only.patch
+0005-peri-firmware-lookup.patch
+0006-hfdl-libexec-path.patch
+0007-gnu-source-qsort.patch
+0008-stats-missing-sysfs.patch
+0009-gps-no-gpsd-guard.patch
+0010-rlimit-core-tolerant.patch
+0011-cfg-save-no-panic.patch
+0012-wf-engine-decim-rearm.patch
+0013-startup-speedup-log-quiet.patch
+
+# KiwiSDR → Web-888 cherry-picks (config/websdr/cherry-picks/) — apply after the
+# Debian set, i.e. against the Debian-adapted tree. See cherry-picks/PROVENANCE.md
+# and cherry-picks.manifest. Only "applied" candidates are listed here; "pending"
+# entries are added as their patch files land.
+0101-kiwi-remove-chu.patch
+0104-kiwi-ip-parse-security.patch
+0110-kiwi-copyright-url-rename.patch
+0111-kiwi-types-macros.patch
+0113-kiwi-ksplit-parse-numeric.patch
+0114-kiwi-str-helpers.patch
+0117-kiwi-ansi-h-split.patch
+0119-kiwi-ft8-freq-sort.patch
+0120-kiwi-symmetrical-fir-taps.patch
+0121-kiwi-admin-pwd-serno-detection.patch
+0122-kiwi-admin-pwd-serno-popup.patch
+0123-kiwi-inet4-d-valid.patch
+0124-kiwi-bad-api-bot-logging.patch
+0125-kiwi-show-ip-denied.patch
+0126-kiwi-reject-default-latlon.patch
+0128-kiwi-nonblock-cmd-foreach.patch
+0129-kiwi-dx-search-debug.patch
+0130-kiwi-pskreporter-buflen.patch
+0131-kiwi-ft8-vuhf-qo100-freqs.patch
+0132-kiwi-wspr-qo100-band.patch
+0133-kiwi-sstv-r36bw.patch
+0134-kiwi-mode-flags-scan.patch
+0135-kiwi-users-connecting-placeholder.patch
+0136-kiwi-disable-conn-autorun.patch
+0137-kiwi-drm-kick-autorun.patch
+0138-kiwi-wspr-upload-checkbox.patch
+0139-kiwi-wspr-clear-button.patch
+0140-kiwi-photo-upload-crash.patch
+0141-kiwi-utf8-username.patch
+0142-kiwi-timecode-phase-correction.patch
+0143-kiwi-dx-label-mode-sort.patch
+
+# Plan section B feature ports (not cherry-picks — wholesale file adoption
+# with Web-888 deltas re-applied). 0144 switches the whole web layer to
+# mongoose 7.14; everything after it assumes the 7.14 API.
+0144-kiwi-mongoose-7.14-upgrade.patch
+
+# Plan section B.2 feature port: wholesale re-sync of the admin-page stack
+# (web/kiwi/{admin.js,admin.html,w3_util.js,kiwi.css,w3_ext.css} + one-line
+# admin_sdr.js id fix) to KiwiSDR v1.902 with Web-888 deltas re-applied.
+# See cherry-picks/PROVENANCE.md.
+0145-kiwi-admin-resync.patch
+
+# 0146: restore EXT_LIST_JS registration in web.cpp (0144 brought upstream's
+# USE_SDR guard; Web-888's cmake build never defines it -> literal %[EXT_LIST_JS]
+# on admin.html + extension JS no longer loaded on the admin page).
+0146-webcpp-restore-ext-list-js.patch
+
+# Step 3.5 Debian compatibility fixes.
+# These apply AFTER the cherry-picks: 0104 rewrites admin.cpp's DNS block
+# (inet4_d2h_strict) in the same region 0014 touches — applying 0014 first
+# would break 0104's context. Contexts here match the cherry-picked tree.
+0014-network-interfaces-writer.patch
+0015-sudo-poweroff.patch
+0016-chpasswd-guard.patch
+
+# Bundle Leaflet locally (web/pkgs_maps/leaflet/) instead of unpkg.com CDN.
+0017-bundle-leaflet.patch

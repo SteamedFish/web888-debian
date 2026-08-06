@@ -1,0 +1,130 @@
+diff --git a/extensions/ALE_2G/ALE_2G.cpp b/extensions/ALE_2G/ALE_2G.cpp
+index d39c92f..76ab1f9 100644
+--- a/extensions/ALE_2G/ALE_2G.cpp
++++ b/extensions/ALE_2G/ALE_2G.cpp
+@@ -319,14 +319,15 @@ bool ale_2g_msgs(char *msg, int rx_chan)
+ 	}
+ 	
+ 	double freq;
+-	if (sscanf(msg, "SET tune=%lf", &freq) == 1) {
++	int scan = 0;
++	if (sscanf(msg, "SET tune=%lf,%d", &freq, &scan) >= 1) {
+ 		//printf("ALE_2G: rx tune %.2f\n", freq);
+ 		//e->decode.set_freq(freq);
+         ext_send_msg(rx_chan, false, "EXT tune_ack=%.2f", freq);
+         //snd_send_msg_encoded(rx_chan, true, "MSG", "audio_flags2", "tune_ack:%.2f", frequency);
+ 
+ 		conn_t *conn = rx_channels[rx_chan].conn;
+-        input_msg_internal(conn, "SET mod=x low_cut=0 high_cut=0 freq=%.2f", freq);
++        input_msg_internal(conn, "SET mod=x low_cut=0 high_cut=0 freq=%.2f param=%d", freq, scan ? MODE_FLAGS_SCAN : 0);
+ 		e->freq = freq;
+ 		
+ 		//#define TEST_SCAN_STOP
+diff --git a/rx/conn.h b/rx/conn.h
+index 854295a..e6f856f 100644
+--- a/rx/conn.h
++++ b/rx/conn.h
+@@ -76,6 +76,7 @@ typedef struct conn_st {
+     bool snd_cmd_recv_ok;
+     bool inactivity_timeout;
+     int freqHz, last_freqHz;
++    bool freqChangeLatch;
+     int mode, last_mode;
+     int zoom, last_zoom; // zoom set in both
+     int last_tune_time, last_log_time;
+diff --git a/rx/rx_sound.h b/rx/rx_sound.h
+index c94782e..c9583a5 100644
+--- a/rx/rx_sound.h
++++ b/rx/rx_sound.h
+@@ -37,6 +37,7 @@ Boston, MA  02110-1301, USA.
+ #define CLIPPER_NBFM_VAL 8192
+ 
+ #define MODE_FLAGS_SAM 0x0000000f
++#define MODE_FLAGS_SCAN 0x00000010
+ 
+ 
+ typedef struct {
+diff --git a/rx/rx_sound_cmd.cpp b/rx/rx_sound_cmd.cpp
+index bb68873..3e77ad2 100644
+--- a/rx/rx_sound_cmd.cpp
++++ b/rx/rx_sound_cmd.cpp
+@@ -260,9 +260,21 @@ void rx_sound_cmd(conn_t* conn, double frate, int n, char* cmd) {
+             double nomfreq = s->freq;
+             if (!no_pb_change && (s->hicut - s->locut) < 1000) nomfreq += (s->hicut + s->locut) / 2 / kHz; // cw filter correction
+             nomfreq = round(nomfreq * kHz);
++            if (!no_mode_change) conn->mode = s->mode;
++
++            // if freq change result of a scan don't let this reset inactivity timeout
++            if (s->mparam & MODE_FLAGS_SCAN) {
++                conn->freqChangeLatch = false;
++            }
++            else {
++                conn->freqChangeLatch = true;
++            }
+ 
+             conn->freqHz = round(nomfreq / 10.0) * 10; // round 10 Hz
+-            if (!no_mode_change) conn->mode = s->mode;
++            if (conn->freqChangeLatch && (conn->freqHz != conn->last_freqHz)) {
++                conn->last_tune_time = timer_sec();
++                conn->last_freqHz = conn->freqHz;
++            }
+         }
+         kiwi_asfree(mode_m);
+         break;
+diff --git a/rx/rx_waterfall.cpp b/rx/rx_waterfall.cpp
+index b1add5d..5f76241 100644
+--- a/rx/rx_waterfall.cpp
++++ b/rx/rx_waterfall.cpp
+@@ -360,7 +360,9 @@ void c2s_waterfall(void* param) {
+ 
+                     // changing waterfall resets inactivity timer
+                     conn_t* csnd = conn_other(conn, STREAM_SOUND);
+-                    if (csnd) csnd->last_tune_time = timer_sec();
++                    if (csnd && conn->freqChangeLatch) {
++                        csnd->last_tune_time = timer_sec();
++                    }
+ 
+                     if (zoom != _zoom) {
+                         zoom = _zoom;
+diff --git a/support/stats.cpp b/support/stats.cpp
+index b760929..b09a10b 100644
+--- a/support/stats.cpp
++++ b/support/stats.cpp
+@@ -60,7 +60,8 @@ static void webserver_collect_print_stats(int print) {
+         // assert(c->type == STREAM_SOUND || c->type == STREAM_WATERFALL);
+ 
+         u4_t now = timer_sec();
+-        if (c->freqHz != c->last_freqHz || c->mode != c->last_mode || c->zoom != c->last_zoom) {
++        bool freqChange = (c->freqChangeLatch && (c->freqHz != c->last_freqHz));
++        if (freqChange || c->mode != c->last_mode || c->zoom != c->last_zoom) {
+             if (print) rx_loguser(c, LOG_UPDATE);
+ 
+ #ifdef OPTION_LOG_WF_ONLY_UPDATES
+diff --git a/web/extensions/ALE_2G/ALE_2G.js b/web/extensions/ALE_2G/ALE_2G.js
+index 36f1fa4..01659fa 100644
+--- a/web/extensions/ALE_2G/ALE_2G.js
++++ b/web/extensions/ALE_2G/ALE_2G.js
+@@ -803,7 +803,7 @@ function ale_2g_pre_select_cb(path, val, first)
+       var s, show_msg = 0;
+       if (isNumber(o2)) {
+          if (dbgUs) console.log(o2);
+-         ale_2g_tune(o2);
++         ale_2g_tune(o2, true);
+          s = (+o2).toFixedNZ(1) +' kHz';
+          ale_2g_scanner(ale.SET, o1, j);  // specify scanlist so we can resume from here by clicking scan button
+          show_msg = 1;
+@@ -832,12 +832,12 @@ function ale_2g_pre_select_cb(path, val, first)
+    ale_2g_clear_menus(menu_n);
+ }
+ 
+-function ale_2g_tune(f_kHz)
++function ale_2g_tune(f_kHz, from_menu)
+ {
+    ale.freq_next = f_kHz;
+    ale.tune_ack_expecting++;
+    if (dbgUs) console.log('ale_2g_tune tx f='+ f_kHz.toFixed(2));
+-   ext_send('SET tune='+ f_kHz.toFixed(2));
++   ext_send('SET tune='+ f_kHz.toFixed(2) + (from_menu? ',0' : ',1'));
+ }
+ 
+ function ale_2g_tune_ack(f_kHz, go_back_override)

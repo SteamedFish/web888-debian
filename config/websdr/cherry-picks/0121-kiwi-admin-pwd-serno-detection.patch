@@ -1,0 +1,92 @@
+Description: KiwiSDR 37f65b4b — detect admin password == serial number (C++ backend)
+ Ported from upstream commit "important security fixes/improvements"
+ (37f65b4b90bb68ff81a42f8f77fe2d080bcc7809). Backend-only: adds the
+ admin_pwd_unsafe() helper and the kiwi_t.serno / kiwi_t.admin_advisory
+ fields it needs.
+ .
+ Web-888 adaptations:
+  - the receiver serial number lives in net.serno (type u4_t), not
+    kiwi.serno, so admin_pwd_unsafe() compares against net.serno;
+  - the rev_auto / rev_auto_host / rev_host admin config keys used by the
+    upstream host-comparison branch are absent on Web-888, so only the
+    simplified admin_password-vs-serial comparison is retained (matching
+    the upstream final logic);
+  - asprintf()'d strings are freed with free(), cfg-allocated strings with
+    admcfg_string_free();
+  - the ui/admin.cpp call site is not wired up in this first port (the
+    Web-888 admin password verification flow differs); admin_pwd_unsafe()
+    is callable but currently unused, to be invoked by a future patch.
+ .
+ The JS pieces (admin.js, kiwi.js, openwebrx.js), cfg/cfg.cpp, the
+ net/net.cpp check_if_forwarded hunk and the rx/rx_cmd.cpp serno rename
+ from the upstream commit are intentionally NOT included (divergent /
+ JS / absent on Web-888).
+Origin: https://github.com/kiwisdr/kiwiSDR-wb66v4/ commit 37f65b4b
+Forwarded: not-needed
+
+diff --git a/kiwi.h b/kiwi.h
+--- a/kiwi.h
++++ b/kiwi.h
+@@ -49,6 +49,8 @@
+ 
+ typedef struct {
+     platform_e platform;
++    int serno;
++    bool admin_advisory;
+     bool dbgUs;
+     bool airband;
+ 
+
+diff --git a/support/security.cpp b/support/security.cpp
+--- a/support/security.cpp
++++ b/support/security.cpp
+@@ -57,6 +57,36 @@
+ }
+ 
+ 
++// Detect the unsafe condition where the admin password is the same as the
++// receiver serial number. Ported from KiwiSDR commit 37f65b4b ("important
++// security fixes/improvements") and adapted for Web-888:
++//   - the receiver serial number lives in net.serno (not kiwi.serno);
++//   - the rev_auto/rev_host config keys used by the upstream host-comparison
++//     branch are absent on Web-888, so only the admin-password-vs-serial
++//     comparison is performed (matching the simplified upstream logic);
++//   - on a positive match kiwi.admin_advisory is set and the function returns
++//     true so callers can warn the operator to change the password.
++bool admin_pwd_unsafe()
++{
++    kiwi.admin_advisory = false;
++    if (cfg_int("sdr_hu_dom_sel", NULL, CFG_REQUIRED) != DOM_SEL_REV) return false;
++
++    char* serno_s;
++    asprintf(&serno_s, "%d", net.serno);
++    const char* apw = admcfg_string("admin_password", NULL, CFG_OPTIONAL);
++
++    if (apw != NULL && strcmp(apw, serno_s) == 0) {
++        kiwi.admin_advisory = true;
++    }
++
++    //printf("admin_pwd_unsafe serno=%d apw=<%s> advisory=%d\n",
++    //    net.serno, apw, kiwi.admin_advisory);
++    admcfg_string_free(apw);
++    free(serno_s);
++    return kiwi.admin_advisory;
++}
++
++
+ // see: man 3 crypt
+ 
+ #define HASH_FUNC_SHA_512 "6"
+
+diff --git a/support/security.h b/support/security.h
+--- a/support/security.h
++++ b/support/security.h
+@@ -30,6 +30,8 @@
+ 
+ char* kiwi_authkey();
+ 
++bool admin_pwd_unsafe();
++
+ bool kiwi_crypt_file_read(const char* fn, int* seq, char** salt, char** hash);
+ char* kiwi_crypt_generate(const char* key, int seq);
+ bool kiwi_crypt_validate(const char* key, char* salt, char* hash);

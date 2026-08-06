@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# rpapp-hold — ExecStart placeholder for RP apps with no userspace daemon
+# (currently: led_blinker). The bitstream load in ExecStartPre IS the app;
+# this just keeps the systemd unit active so `web888-mode` status, the
+# Conflicts= declarations, and `systemctl stop` all behave uniformly.
+set -eu
+echo "rpapp-hold: bitstream-only app active (no daemon); holding unit open"
+exec sleep infinity

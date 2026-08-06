@@ -1,0 +1,38 @@
+#!/bin/sh
+# Web-888 first-boot initramfs init.
+# Contract with the stock SSBL (docs/research/bootbin-repack-spec.md): we are loaded at
+# 0x03000000 (<=4 MiB), kernel came from the same boot.bin. Our only jobs:
+# find the Debian rootfs, mount it, and switch_root into it. Without serial
+# output, the heartbeat LED trigger below is our proof of life.
+PATH=/bin:/sbin
+export PATH
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev 2>/dev/null || true
+
+root=/dev/mmcblk0p2
+for arg in $(cat /proc/cmdline); do
+    case "$arg" in root=*) root="${arg#root=}" ;; esac
+done
+
+for t in /sys/class/leds/*/trigger; do
+    [ -w "$t" ] && echo heartbeat >"$t" 2>/dev/null
+done
+
+echo "web888-initramfs: waiting for $root"
+n=0
+while [ ! -b "$root" ]; do
+    n=$((n + 1))
+    [ "$n" -gt 100 ] && break
+    sleep 0.1
+done
+
+mkdir -p /newroot
+if mount -t ext4 -o rw "$root" /newroot && [ -x /newroot/sbin/init ]; then
+    echo "web888-initramfs: switch_root to $root"
+    exec switch_root /newroot /sbin/init
+fi
+
+echo "web888-initramfs: cannot start Debian from $root — emergency shell"
+exec sh

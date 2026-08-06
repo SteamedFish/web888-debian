@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Web-888 SDR (Zynq-7010) U-Boot device tree — step 6.
+ * No-SPL build: the stock FSBL loads u-boot.bin directly, so this DT
+ * is only for U-Boot proper. Console MUST be uart0 @e0000000 (mainline
+ * zynq boards default to uart1 — wrong for this board).
+ * Node facts mirror config/web888.dts / the stock boot.bin DTB:
+ *  - ps_clk = 33.333 MHz (stock dts ps-clk-frequency 0x1fca055)
+ *  - gem0 @e000b000 rgmii-id PHY @ addr 1, sdhci0 @e0100000 (TF card)
+ *  - 24c64 EEPROM on i2c0 @0x50 (factory MAC @0x10; U-Boot does not read
+ *    it today — node kept for future netboot use)
+ */
+/dts-v1/;
+#include "zynq-7000.dtsi"
+
+/ {
+	model = "Web-888 SDR";
+	compatible = "rx888,web-888", "xlnx,zynq-7000";
+
+	aliases {
+		serial0 = &uart0;
+		ethernet0 = &gem0;
+		mmc0 = &sdhci0;
+		i2c0 = &i2c0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x20000000>;
+	};
+};
+
+&clkc {
+	ps-clk-frequency = <33333333>;
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&gem0 {
+	status = "okay";
+	phy-mode = "rgmii-id";
+	phy-handle = <&phy1>;
+
+	phy1: ethernet-phy@1 {
+		reg = <1>;
+	};
+};
+
+&sdhci0 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	eeprom@50 {
+		compatible = "atmel,24c64";
+		reg = <0x50>;
+		pagesize = <32>;
+	};
+};

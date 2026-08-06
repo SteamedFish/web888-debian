@@ -1,0 +1,101 @@
+# Web-888 kernel config additions on top of xilinx_zynq_defconfig (linux-xlnx
+# xlnx_rebase_v6.6_LTS). Verified against the actual defconfig.
+#
+# Already =y in the defconfig (NOT repeated here): PREEMPT, IKCONFIG(_PROC),
+# DEVTMPFS(_MOUNT), CMA, MACB, I2C_CADENCE, SERIAL_XILINX_PS_UART(_CONSOLE),
+# GPIO_ZYNQ, XILINX_XADC, CADENCE_WATCHDOG, MMC_SDHCI_OF_ARASAN, TMPFS,
+# VFAT_FS.
+#
+# NOTE(step 2): the XILINX_DEVCFG driver (legacy /dev/xdevcfg) was REMOVED
+# from the xlnx 6.6 tree. Step 2 ports it back into drivers/char/ from
+# linux-xlnx xilinx-v2016.4 (resources/reference/xilinx/xilinx_devcfg.c).
+# (Comment avoids the literal "CONFIG_XILINX_DEVCFG" token — merge_config.sh
+# otherwise prints a spurious "value redefined" line.)
+
+# Legacy PCAP char device /dev/xdevcfg (module from the step-2 port).
+CONFIG_XILINX_DEVCFG=m
+
+# Web-888 zynqsdr platform driver (step-2 control plane plus IRQ/DMA
+# data plane). Comment prose avoids the literal symbol token —
+# same merge_config.sh "value redefined" quirk as the xilinx_devcfg entry above.
+CONFIG_ZYNQSDR=m
+
+# The built-in fpga-manager zynq-fpga driver binds the SAME compatible
+# "xlnx,zynq-devcfg-1.0" and would claim the devcfg node before the
+# xilinx_devcfg module can probe. websdr uses /dev/xdevcfg, not
+# fpga-manager, so disable it (also drops the ZYNQ_AFI_FPGA dependent —
+# the devcfg driver does the SLCR level-shifter writes itself).
+CONFIG_FPGA_MGR_ZYNQ_FPGA=n
+
+# Root filesystems + module ecosystem (stock modloop is squashfs).
+CONFIG_EXT4_FS=y
+CONFIG_SQUASHFS=y
+CONFIG_OVERLAY_FS=y
+
+# PHY on the Web-888 ethernet (stock uses Realtek; MACB already =y).
+CONFIG_REALTEK_PHY=y
+
+# Pinctrl for Zynq (auto-selected on this tree, pin it explicitly).
+CONFIG_PINCTRL_ZYNQ=y
+
+# PPS core for the GPS 1PPS input; gpio client is a module per decision 2
+# (built and installed by the image build).
+CONFIG_PPS=y
+CONFIG_PPS_CLIENT_GPIO=m
+
+# nvmem: stock DTB carries the factory MAC in the 24c64 EEPROM via an
+# nvmem-layout/fixed-layout cell (macaddr@10) referenced by gem0. In 6.6 the
+# fixed-layout parsing lives in drivers/nvmem/core.c — plain NVMEM=y is
+# sufficient (there is no NVMEM_LAYOUTS symbol on this branch).
+CONFIG_NVMEM=y
+
+# ramoops/pstore: crash logs survive reboot in RAM — our only debugging
+# channel until a serial adapter exists. Needs a reserved-memory node in the
+# DT node to activate; harmless without it.
+CONFIG_PSTORE=y
+CONFIG_PSTORE_RAM=y
+
+# CMA headroom for the zynqsdr DMA engine (step 2). Stock: cma=16 (cmdline);
+# RaspSDR: 36MB via bootargs. Built-in default so no cmdline tuning needed.
+CONFIG_CMA_SIZE_MBYTES=64
+
+# zram compressed swap (Debian zram-tools drives it; swap lives entirely in
+# RAM — no TF-card writes). lzo-rle is the ARM-preferred algorithm and is
+# registered by the same crypto driver as plain lzo since 5.1. ZSMALLOC is
+# auto-selected by the zram symbol.
+CONFIG_ZRAM=m
+CONFIG_CRYPTO_LZO=y
+
+# zswap support compiled in but OFF by default (user decision):
+# available for the user to enable at runtime if a disk-backed swap is ever
+# added (zswap is useless with only zram swap). Do NOT set the
+# ZSWAP_DEFAULT_ON symbol — upstream default is off, which we keep.
+CONFIG_ZSWAP=y
+
+CONFIG_LOCALVERSION="-web888"
+CONFIG_LOCALVERSION_AUTO=n
+# cpufreq-dt: websdr.bin reads scaling_cur_freq for the status page
+CONFIG_CPUFREQ_DT=y
+CONFIG_CPUFREQ_DT_PLATDEV=y
+
+# Default cpufreq governor: ondemand (defconfig ships userspace — observed
+# live on hardware: scaling_governor=userspace). Users can switch
+# to performance via /etc/default/web888-cpufreq + web888-cpufreq-tune.service.
+CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y
+
+# netfilter/nftables for the websdr IP blacklist (KIWI chain in
+# net/ip_blacklist.cpp + 24h auto-ban in rx_cmd.cpp) — step-3.5 Debian
+# compat work. trixie's iptables package defaults to the nft backend, which
+# translates legacy xtables syntax (-s x -j DROP) via the nft_compat module.
+# =m keeps the base kernel lean; iptables-nft autoloads nf_tables +
+# nft_compat on first use. NFT_COMPAT depends on NETFILTER_XTABLES (no
+# default when NETFILTER was off) and the ip family needs NF_TABLES_IPV4
+# (bool, no default-y on this tree) — all four must be set explicitly or
+# olddefconfig silently drops the last two. (Fallback if NFT_COMPAT proves
+# awkward on 6.6 xlnx: IP_NF_IPTABLES+IP_NF_FILTER + update-alternatives
+# iptables-legacy.)
+CONFIG_NETFILTER=y
+CONFIG_NF_TABLES=m
+CONFIG_NF_TABLES_IPV4=y
+CONFIG_NETFILTER_XTABLES=m
+CONFIG_NFT_COMPAT=m

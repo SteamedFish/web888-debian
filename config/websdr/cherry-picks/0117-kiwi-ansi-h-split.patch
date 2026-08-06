@@ -1,0 +1,37 @@
+diff --git a/ansi.h b/ansi.h
+new file mode 100644
+--- /dev/null
++++ b/ansi.h
+@@ -0,0 +1,12 @@
++#pragma once
++
++// black on color unless otherwise noted
++#define RED     "\e[97m\e[101m" // white on red
++#define YELLOW  "\e[103m"
++#define GREEN   "\e[102m"
++#define CYAN    "\e[106m"
++#define BLUE    "\e[97m\e[104m" // white on blue
++#define MAGENTA "\e[97m\e[105m" // white on magenta
++#define GREY    "\e[47m"
++#define NORM    "\e[m"
++#define NONL    " \e[m\n"
+
+diff --git a/bits.h b/bits.h
+--- a/bits.h
++++ b/bits.h
+@@ -128,13 +128,5 @@
+ #define bset_n(dst, b, src) (((dst) & ~mf(b, b)) | (((src) & (1 << (b))) ? (1 << (b)) : 0))
+ 
+ 
+-// black on color unless otherwise noted
+-#define RED     "\e[97m\e[101m" // white on red
+-#define YELLOW  "\e[103m"
+-#define GREEN   "\e[102m"
+-#define CYAN    "\e[106m"
+-#define BLUE    "\e[97m\e[104m" // white on blue
+-#define MAGENTA "\e[97m\e[105m" // white on magenta
+-#define GREY    "\e[47m"
+-#define NORM    "\e[m"
+-#define NONL    " \e[m\n"
++// ANSI terminal colors (split out from bits.h into ansi.h)
++#include "ansi.h"

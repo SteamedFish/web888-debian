@@ -1,0 +1,104 @@
+diff --git a/init/dx.cpp b/init/dx.cpp
+index a85975b..9026df0 100644
+--- a/init/dx.cpp
++++ b/init/dx.cpp
+@@ -321,14 +321,73 @@ void update_masked_freqs(dx_t* _dx_list, int _dx_list_len) {
+     }
+ }
+ 
++//#define DX_QSORT_DEBUG
++#ifdef DX_QSORT_DEBUG
++	#define dx_qsort_prf(fmt, ...) \
++		if (trace) printf(fmt, ## __VA_ARGS__)
++#else
++	#define dx_qsort_prf(fmt, ...)
++#endif
++
++int dx_qsort_comp(const void* elem1, const void* elem2) {
++    const dx_t* e1 = (const dx_t*)elem1, * e2 = (const dx_t*)elem2;
++#ifdef DX_QSORT_DEBUG
++    bool trace = (e1->freq == 3585 || e1->freq == 3588 || e2->freq == 3585 || e2->freq == 3588);
++#endif
++
++    int r;
++    if (e1->freq < e2->freq) {
++        r = -1;
++        dx_qsort_prf("%.2f(#%d) < %.2f(#%d) r=-1\n", e1->freq, e1->idx, e2->freq, e2->idx);
++    }
++    else if (e1->freq > e2->freq) {
++        r = 1;
++        dx_qsort_prf("%.2f(#%d) > %.2f(#%d) r=1\n", e1->freq, e1->idx, e2->freq, e2->idx);
++    }
++    else {  // same freq
++#ifdef DX_QSORT_DEBUG
++        const char* m1 = mode_lc[DX_DECODE_MODE(e1->flags)];
++        const char* m2 = mode_lc[DX_DECODE_MODE(e2->flags)];
++#endif
++        int mf1 = mode_flags[DX_DECODE_MODE(e1->flags)];
++        int mf2 = mode_flags[DX_DECODE_MODE(e2->flags)];
++
++        if ((mf1 & IS_LSB) && !(mf2 & IS_LSB)) {
++            r = -1;     // lsb < !lsb
++        }
++        else if (!(mf1 & IS_LSB) && (mf2 & IS_LSB)) {
++            r = 1;      // !lsb > lsb
++        }
++        else if (!(mf1 & (IS_USB | IS_CW)) && (mf2 & (IS_USB | IS_CW))) {
++            r = -1;     // !(usb|cw) < (usb|cw)
++        }
++        else if ((mf1 & (IS_USB | IS_CW)) && !(mf2 & (IS_USB | IS_CW))) {
++            r = 1;      // (usb|cw) > !(usb|cw)
++        }
++        else {
++            r = 0;
++        }
++        dx_qsort_prf("%.2f %s(%04x,#%d) r=%d %s(%04x,#%d)\n",
++                     e1->freq, m1, mf1, e1->idx, r, m2, mf2, e2->idx);
++    }
++    return r;
++}
++
+ // prepare dx list by conditionally sorting, initializing self indexes and constructing new masked freq list
+ void dx_prep_list(dx_db_t* dx_db, bool need_sort, dx_t* _dx_list, int _dx_list_len_prev, int _dx_list_len_new) {
+     int i;
+     dx_t* dxp;
+ 
++#ifdef DX_QSORT_DEBUG
++    // for benefit of tracing inside dx_qsort_comp()
++    for (i = 0, dxp = _dx_list; i < _dx_list_len_new; i++, dxp++) {
++        dxp->idx = i;   // init self index
++    }
++#endif
++
+     // have to sort first before rebuilding masked list in case an entry is being deleted
+     if (dx_db->db == DB_STORED && need_sort)
+-        qsort(_dx_list, _dx_list_len_prev, sizeof(dx_t), qsort_doublecomp);
++        qsort(_dx_list, _dx_list_len_prev, sizeof(dx_t), dx_qsort_comp);
+ 
+     for (i = 0, dxp = _dx_list; i < _dx_list_len_new; i++, dxp++) {
+         dxp->idx = i; // init self index
+diff --git a/rx/rx_cmd.cpp b/rx/rx_cmd.cpp
+index 65a260b..269f0e4 100644
+--- a/rx/rx_cmd.cpp
++++ b/rx/rx_cmd.cpp
+@@ -1006,13 +1006,19 @@ bool rx_common_cmd(int stream_type, conn_t* conn, char* cmd) {
+                     }
+                     else {
+                         // modify entry
+-                        dx_print_upd("DX_UPD %s modify entry #%d, freq=%.2f\n", conn->remote_ip, gid, freq);
++                        u2_t mode_new = DX_DECODE_MODE(flags);
++                        dx_print_upd("DX_UPD %s modify entry #%d, freq=%.2f mode=%s\n", conn->remote_ip, gid, freq, mode_lc[mode_new]);
+                         dxp = &dx_db->list[gid];
++                        u2_t mode_old = DX_DECODE_MODE(dxp->flags);
+                         new_len = dx_db->actual_len;
+                         if (dxp->freq != freq) {
+                             need_sort = true;
+                             dx_print_upd("DX_UPD modify, freq change, sort required (old freq=%.2f)\n", dxp->freq);
+                         }
++                        else if (mode_new != mode_old) {
++                            need_sort = true;
++                            dx_print_upd("DX_UPD modify, mode change, sort required (old mode=%s)\n", mode_lc[mode_old]);
++                        }
+                         else {
+                             dx_print_upd("DX_UPD modify no freq change, no sort required\n");
+                         }

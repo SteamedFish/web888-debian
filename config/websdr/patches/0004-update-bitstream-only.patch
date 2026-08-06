@@ -1,0 +1,155 @@
+diff --git a/net/update.cpp b/net/update.cpp
+index 1fe07e1..e1b1b4a 100644
+--- a/net/update.cpp
++++ b/net/update.cpp
+@@ -80,12 +80,12 @@ static void report_progress(conn_t* conn, const char* msg) {
+ }
+ 
+ static int update_build(conn_t* conn, bool report, const char* channel, bool force_build) {
+-    bool no_fpga = false;
+     std::string url_base = "https://downloads.rx-888.com/web-888/" + std::string(channel) + "/";
+-    sd_enable(true);
+ 
+-    // Fetch the binary
+-    int status = system("mkdir -p /media/mmcblk0p1/update; rm -Rf /media/mmcblk0p1/update/*");
++    // Debian: binary is deb-package managed and never auto-updated; only FPGA bitstreams update here
++    lprintf("UPDATE: binary auto-update disabled (Debian package managed); bitstream update only\n");
++
++    int status = system("mkdir -p " DIR_DATA "/update; rm -Rf " DIR_DATA "/update/*");
+     if (status != 0) {
+         lprintf("UPDATE: create folder status=0x%08x\n", status);
+         goto exit;
+@@ -93,33 +93,21 @@ static int update_build(conn_t* conn, bool report, const char* channel, bool for
+ 
+     if (report) report_progress(conn, "Download FPGA firmware");
+ 
+-    status = curl_get_file((url_base + "websdr_hf.bit").c_str(), "/media/mmcblk0p1/update/websdr_hf.bit", 15);
+-    if (status != 0) {
+-        no_fpga = true;
+-    }
+-
+-    status = curl_get_file((url_base + "websdr_vhf.bit").c_str(), "/media/mmcblk0p1/update/websdr_vhf.bit", 15);
+-    if (status != 0) {
+-        no_fpga = true;
+-    }
+-
+-    if (report) report_progress(conn, "Download Web-888 Server");
++    status = curl_get_file((url_base + "websdr_hf.bit").c_str(), DIR_DATA "/update/websdr_hf.bit", 15);
++    if (status != 0) goto no_fpga;
+ 
+-    status = curl_get_file((url_base + "websdr.bin").c_str(), "/media/mmcblk0p1/update/websdr.bin", 15);
+-    if (status != 0) {
+-        lprintf("UPDATE: fetch binary status=0x%08x\n", status);
+-        goto exit;
+-    }
++    status = curl_get_file((url_base + "websdr_vhf.bit").c_str(), DIR_DATA "/update/websdr_vhf.bit", 15);
++    if (status != 0) goto no_fpga;
+ 
+     if (report) report_progress(conn, "Download checksum file");
+-    status = curl_get_file((url_base + "checksum").c_str(), "/media/mmcblk0p1/update/checksum", 15);
++    status = curl_get_file((url_base + "checksum").c_str(), DIR_DATA "/update/checksum", 15);
+     if (status != 0) {
+         lprintf("UPDATE: fetch checksum status=0x%08x\n", status);
+         goto exit;
+     }
+ 
+     if (report) report_progress(conn, "Checksum the downloaded files");
+-    status = system("cd /media/mmcblk0p1/update; sed '/web-888-alpine/d' /media/mmcblk0p1/update/checksum | sha256sum -c -");
++    status = system("cd " DIR_DATA "/update; sed '/websdr.bin/d; /web-888-alpine/d' " DIR_DATA "/update/checksum | sha256sum -c -");
+     if (status != 0) {
+         lprintf("UPDATE: checksum failed status=0x%08x\n", status);
+         if (report) report_progress(conn, "Checksum failed");
+@@ -127,24 +115,24 @@ static int update_build(conn_t* conn, bool report, const char* channel, bool for
+         goto exit;
+     }
+ 
+-    if (report) report_progress(conn, "Install update to SD card");
++    if (report) report_progress(conn, "Install FPGA bitstreams");
+ 
+-    system("rm /media/mmcblk0p1/websdr.bin.old");
+-    system("mv /media/mmcblk0p1/websdr.bin /media/mmcblk0p1/websdr.bin.old; mv /media/mmcblk0p1/update/websdr.bin /media/mmcblk0p1/websdr.bin");
++    system("rm -f " DIR_FIRMWARE "/websdr_hf.bit.old");
++    system("mv " DIR_FIRMWARE "/websdr_hf.bit " DIR_FIRMWARE "/websdr_hf.bit.old 2>/dev/null; mv " DIR_DATA "/update/websdr_hf.bit " DIR_FIRMWARE "/websdr_hf.bit");
+ 
+-    if (!no_fpga) {
+-        system("rm /media/mmcblk0p1/websdr_hf.bit.old");
+-        system("mv /media/mmcblk0p1/websdr_hf.bit /media/mmcblk0p1/websdr_hf.bit.old; mv /media/mmcblk0p1/update/websdr_hf.bit /media/mmcblk0p1/websdr_hf.bit");
++    system("rm -f " DIR_FIRMWARE "/websdr_vhf.bit.old");
++    system("mv " DIR_FIRMWARE "/websdr_vhf.bit " DIR_FIRMWARE "/websdr_vhf.bit.old 2>/dev/null; mv " DIR_DATA "/update/websdr_vhf.bit " DIR_FIRMWARE "/websdr_vhf.bit");
+ 
+-        system("rm /media/mmcblk0p1/websdr_vhf.bit.old");
+-        system("mv /media/mmcblk0p1/websdr_vhf.bit /media/mmcblk0p1/websdr_vhf.bit.old; mv /media/mmcblk0p1/update/websdr_vhf.bit /media/mmcblk0p1/websdr_vhf.bit");
+-    }
++    lprintf("UPDATE: FPGA bitstreams installed to %s (active after service restart)\n", DIR_FIRMWARE);
+ 
+     status = EXIT_SUCCESS;
++    goto exit;
+ 
+-exit:
+-    sd_enable(false);
++no_fpga:
++    lprintf("UPDATE: failed to download FPGA bitstreams\n");
++    if (report) report_progress(conn, "FPGA bitstream download failed");
+ 
++exit:
+     return status;
+ }
+ 
+@@ -206,7 +194,7 @@ static void _update_task(void* param) {
+     }
+ 
+     {
+-        if (kiwi_file_exists("/root/config/force_update")) {
++        if (kiwi_file_exists(DIR_CFG "/force_update")) {
+             ver_changed = true;
+             update_install = true;
+         }
+@@ -228,29 +216,28 @@ static void _update_task(void* param) {
+         if (ver_changed && !update_install) {
+         lprintf("UPDATE: version changed (current %d.%d, new %d.%d), but update install not enabled\n",
+                 version_maj, version_min, pending_maj, pending_min);
++        lprintf("UPDATE: notify-only -- install an updated web888-websdr deb package to upgrade\n");
+     }
+     else
+ 
+         if (ver_changed || force_build) {
+         lprintf("UPDATE: version changed, current %d.%d, new %d.%d\n",
+                 version_maj, version_min, pending_maj, pending_min);
+-        lprintf("UPDATE: installing new version..\n");
++        lprintf("UPDATE: installing updated FPGA bitstreams (binary update disabled, deb package managed)\n");
+ 
+         u4_t build_time = timer_sec();
+         status = update_build(conn, report, ch ? "alpha" : "stable", force_build);
+ 
+         if (status) {
+-            lprintf("UPDATE: Build failed, check /root/build.log file\n");
++            lprintf("UPDATE: bitstream update failed\n");
+             fail_reason = FAIL_BUILD;
+             if (force_build && report) report_result(conn);
+             goto common_return;
+         }
+ 
+-        lprintf("UPDATE: build took %d secs\n", timer_sec() - build_time);
+-        lprintf("UPDATE: switching to new version %d.%d\n", pending_maj, pending_min);
+-
+-        lprintf("UPDATE: rebooting Beagle..\n");
+-        system("sleep 3; reboot");
++        lprintf("UPDATE: bitstream update took %d secs\n", timer_sec() - build_time);
++        lprintf("UPDATE: bitstreams updated; restart the web888-websdr service to load them\n");
++        if (report) report_progress(conn, "Bitstreams updated (restart service to load); server binary update via deb package");
+     }
+     else {
+         lprintf("UPDATE: version %d.%d is current\n", version_maj, version_min);
+@@ -271,7 +258,11 @@ common_return:
+ void check_for_update(update_check_e type, conn_t* conn) {
+     bool force = (type != WAIT_UNTIL_NO_USERS);
+ 
+-    if (!force && admcfg_bool("update_check", NULL, CFG_REQUIRED) == false) {
++    // Debian: websdr auto-update permanently disabled (updates ship as deb
++    // packages, not via downloads.rx-888.com). Always take the disabled path:
++    // it preserves the file auto-download kickoff but never fetches
++    // version.txt and never spawns the update task.
++    if (true) {
+         // printf("UPDATE: exiting because admin update check not enabled\n");
+ 
+         if (file_auto_download_check) {

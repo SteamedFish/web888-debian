@@ -1,0 +1,15 @@
+#!/bin/sh
+# web888-poweroff <reboot|halt|poweroff> — privileged power actions for the
+# unprivileged websdr admin UI. Runs as root via sudo (see
+# /etc/sudoers.d/web888). Fixed verbs only, no arguments beyond the verb.
+set -eu
+
+case ${1:-} in
+    reboot | halt | poweroff)
+        exec /bin/systemctl "$1"
+        ;;
+    *)
+        echo "web888-poweroff: usage: web888-poweroff <reboot|halt|poweroff>" >&2
+        exit 2
+        ;;
+esac

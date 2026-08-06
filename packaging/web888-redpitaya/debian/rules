@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+# binaries are prebuilt by scripts/build-redpitaya.sh in the armhf chroot;
+# this package only arranges files
+override_dh_auto_configure:
+override_dh_auto_build:
+override_dh_auto_test:
+override_dh_auto_install:
+
+override_dh_install:
+	dh_install
+	# bitstream-only apps have no daemon: rpapp-hold holds the unit open so
+	# status/Conflicts/stop behave uniformly (ExecStart=bin/%i-server).
+	install -m 0755 debian/rpapp-hold \
+	    debian/web888-redpitaya/usr/lib/web888-redpitaya/bin/led_blinker-server
+
+# template unit is installed as a plain file via dh_install (never enabled,
+# no [Install]); nothing for dh_installsystemd to manage
+override_dh_installsystemd:

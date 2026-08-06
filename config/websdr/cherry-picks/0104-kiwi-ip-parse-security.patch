@@ -1,0 +1,213 @@
+diff --git a/net/net.h b/net/net.h
+--- a/net/net.h
++++ b/net/net.h
+@@ -161,12 +161,16 @@
+ isLocal_t isLocal_if_ip(struct conn_st* conn, char* ip_addr, const char* log_prefix);
+ 
+ bool find_local_IPs(int retry);
++// KiwiSDR port (6f21031): strict IP parsing for security-sensitive callers.
++// Added alongside the original inet4_d2h so non-sensitive callers are untouched.
++u4_t inet4_d2h_strict(const char* inet4_str, bool* error = NULL, u1_t* ap = NULL, u1_t* bp = NULL, u1_t* cp = NULL, u1_t* dp = NULL, bool debug = false);
++bool is_valid_ipv6_strict(const char* inet6_str);
+ u4_t inet4_d2h(const char* inet4_str, bool* error, u1_t* ap = NULL, u1_t* bp = NULL, u1_t* cp = NULL, u1_t* dp = NULL);
+ void inet4_h2d(u4_t inet4, u1_t* ap, u1_t* bp, u1_t* cp, u1_t* dp);
+ char* inet4_h2s(u4_t inet4);
+ bool is_inet4_map_6(u1_t* a);
+ int inet_nm_bits(int family, void* netmask);
+-bool isLocal_ip(char* ip, bool* is_loopback = NULL, u4_t* ipv4 = NULL);
++bool isLocal_ip(char* ip, bool* is_loopback = NULL, u4_t* ipv4 = NULL, bool* error = NULL);
+ 
+ int DNS_lookup(const char* domain_name, ip_lookup_t* r_ips, int n_ips, const char* ip_backup);
+ char* DNS_lookup_result(const char* caller, const char* host, ip_lookup_t* ips);
+diff --git a/net/net.cpp b/net/net.cpp
+--- a/net/net.cpp
++++ b/net/net.cpp
+@@ -566,6 +566,68 @@
+     return false;
+ }
+ 
++// Ported from KiwiSDR 6f21031 "IP address parsing security improvements".
++// Adapted for Web-888: const char* signatures, no kiwi_emptyStr, no ansi.h colors.
++// Be very strict about the content of inet4_str (reject trailing junk / bad octets).
++u4_t inet4_d2h_strict(const char* inet4_str, bool* error, u1_t* ap, u1_t* bp, u1_t* cp, u1_t* dp, bool debug) {
++    if (error != NULL) *error = false;
++    int n, sl;
++    u4_t a, b, c, d, nm = 32;
++
++    if (inet4_str == NULL || inet4_str[0] == 0)
++        goto err;
++
++    sl = (int) strlen(inet4_str);
++    int consumed; // guard against any junk at the end
++    n = sscanf(inet4_str, "::ffff:%d.%d.%d.%d%n", &a, &b, &c, &d, &consumed); // IPv4-mapped address
++    if (n != 4 || consumed != sl) {
++        if (inet4_str[0] != '+' && !(inet4_str[0] >= '0' && inet4_str[0] <= '9')) { // '+' is whitelist override
++            goto err;
++        }
++        n = sscanf(inet4_str, "%d.%d.%d.%d/%d%n", &a, &b, &c, &d, &nm, &consumed);
++        if (n != 5 || consumed != sl) {
++            n = sscanf(inet4_str, "%d.%d.%d.%d%n", &a, &b, &c, &d, &consumed);
++            if (n != 4 || consumed != sl) {
++                goto err; // IPv6 or invalid
++            }
++            nm = 32;
++        }
++    }
++    if (a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255 || d < 0 || d > 255 || (int) nm < 0 || (int) nm > 32)
++        goto err;
++    if (debug) printf("inet4_d2h_strict: accepted \"%s\"\n", inet4_str);
++
++    if (ap) *ap = a & 255;
++    if (bp) *bp = b & 255;
++    if (cp) *cp = c & 255;
++    if (dp) *dp = d & 255;
++    return INET4_DTOH(a, b, c, d);
++
++err:
++    printf("WARNING inet4_d2h_strict: BAD inet4_str \"%s\"\n", inet4_str ? inet4_str : "(null)");
++    if (error != NULL) *error = true;
++    return 0;
++}
++
++// Be very strict about the content of inet6_str.
++bool is_valid_ipv6_strict(const char* inet6_str) {
++    if (inet6_str == NULL || inet6_str[0] == 0) return false;
++
++    // glibc inet_pton() considers the entire string, so junk after a valid ip fails.
++    // Double-check via scanf for whitespace + trailing junk.
++    struct in6_addr addr;
++    if (inet_pton(AF_INET6, inet6_str, &addr) != 1)
++        return false;
++
++    int sl = (int) strlen(inet6_str);
++    int consumed = 0;
++    if (sscanf(inet6_str, "%*s%n", &consumed) != 0 || consumed != sl) {
++        printf("WARNING is_valid_ipv6_strict: BAD inet6_str \"%s\"\n", inet6_str);
++        return false;
++    }
++    return true;
++}
++
+ int inet_nm_bits(int family, void* netmask) {
+     int i, b, nm_bits;
+ 
+@@ -605,12 +667,13 @@
+     return nm_bits;
+ }
+ 
+-bool isLocal_ip(char* ip_str, bool* is_loopback, u4_t* ipv4) {
+-    bool error;
+-    u4_t ip = inet4_d2h(ip_str, &error);
++bool isLocal_ip(char* ip_str, bool* is_loopback, u4_t* ipv4, bool* error) {
++    bool err;
++    if (error) *error = false;
++    u4_t ip = inet4_d2h_strict(ip_str, &err);
+     if (ipv4) *ipv4 = 0;
+ 
+-    if (!error) {
++    if (!err) {
+         // ipv4
+         if (is_loopback)
+             *is_loopback = (ip == INET4_DTOH(127, 0, 0, 1));
+@@ -619,18 +682,22 @@
+             (ip >= INET4_DTOH(172, 16, 0, 0) && ip <= INET4_DTOH(172, 31, 255, 255)) ||
+             (ip >= INET4_DTOH(192, 168, 0, 0) && ip <= INET4_DTOH(192, 168, 255, 255))) {
+             if (ipv4) *ipv4 = ip;
+-            return true;
++            return true; // is a local IP (*error stays false)
+         }
+-    }
+-    else {
++    } else {
++        if (!is_valid_ipv6_strict(ip_str)) {
++            if (error) *error = true; // ipv4 or ipv6 address has a format error
++            return false;
++        }
++
+         // ipv6
+         if (is_loopback)
+             *is_loopback = (strcmp(ip_str, "::1") == 0 || strcmp(ip_str, ":0:0:0:0:0:0:0:1") == 0);
+         if (strncasecmp(ip_str, "fd", 2) == 0)
+-            return true;
++            return true; // is a local IP (*error stays false)
+     }
+ 
+-    return false;
++    return false; // is not a local IP (*error stays false)
+ }
+ 
+ bool ip_match(const char* ip, ip_lookup_t* ips) {
+@@ -662,7 +729,7 @@
+     if (getaddrinfo(domain_name, NULL, &hints, &res) != 0) {
+         if (ip_backup != NULL) {
+             r_ips->ip_list[0] = strdup(ip_backup);
+-            r_ips->ip[0] = inet4_d2h(ip_backup, NULL);
++            r_ips->ip[0] = inet4_d2h_strict(ip_backup, NULL);
+             n = 1;
+             r_ips->valid = r_ips->backup = true;
+             lprintf("WARNING: lookup for \"%s\" failed, using backup IPv4 address %s\n", domain_name, ip_backup);
+@@ -675,7 +742,7 @@
+         for (p = res, n = 0; p != NULL && n < n_ips; p = p->ai_next) {
+             if (getnameinfo(p->ai_addr, p->ai_addrlen, host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST) == 0) {
+                 r_ips->ip_list[n] = strdup(host);
+-                r_ips->ip[n] = inet4_d2h(host, NULL);
++                r_ips->ip[n] = inet4_d2h_strict(host, NULL);
+                 n++;
+             }
+         }
+diff --git a/net/ip_blacklist.cpp b/net/ip_blacklist.cpp
+--- a/net/ip_blacklist.cpp
++++ b/net/ip_blacklist.cpp
+@@ -41,7 +41,7 @@
+     if (n == 1) cidr = 32;
+     bool error;
+     u1_t a, b, c, d;
+-    u4_t ip = inet4_d2h(ip_str, &error, &a, &b, &c, &d);
++    u4_t ip = inet4_d2h_strict(ip_str, &error, &a, &b, &c, &d);
+     if (error || cidr < 1 || cidr > 32) return -1;
+     u4_t nm = ~((1 << (32 - cidr)) - 1);
+     ip &= nm; // make consistent with netmask
+@@ -167,7 +167,7 @@
+ // check internal blacklist for proxied Kiwis (iptables can't be used)
+ bool check_ip_blacklist(char* remote_ip, bool log) {
+     bool error;
+-    u4_t ip = inet4_d2h(remote_ip, &error);
++    u4_t ip = inet4_d2h_strict(remote_ip, &error);
+     if (error) return false;
+     for (int i = 0; i < net.ip_blacklist_len; i++) {
+         ip_blacklist_t* bl = &net.ip_blacklist[i];
+@@ -264,7 +264,7 @@
+                 bl_sp = kstr_cat(bl_sp, (char*)" ");
+             first = false;
+             bl_sp = kstr_cat(bl_sp, (char*)ip_s);
+-            inet4_d2h((char*)ip_s, &ip_err);
++            inet4_d2h_strict((char*)ip_s, &ip_err);
+             json_string_free(&bl_json, ip_s);
+         }
+     }
+diff --git a/ui/admin.cpp b/ui/admin.cpp
+--- a/ui/admin.cpp
++++ b/ui/admin.cpp
+@@ -670,8 +670,8 @@
+                     clprintf(conn, "SET dns1=%s dns2=%s\n", dns1, dns2);
+ 
+                     bool dns1_err, dns2_err;
+-                    inet4_d2h(dns1, &dns1_err);
+-                    inet4_d2h(dns2, &dns2_err);
++                    inet4_d2h_strict(dns1, &dns1_err);
++                    inet4_d2h_strict(dns2, &dns2_err);
+ 
+                     if (!dns1_err || !dns2_err) {
+                         system("rm -f /etc/resolv.conf; touch /etc/resolv.conf");
+diff --git a/zynq/leds.cpp b/zynq/leds.cpp
+--- a/zynq/leds.cpp
++++ b/zynq/leds.cpp
+@@ -159,7 +159,7 @@
+ 
+         // these checks are inside the loop to react to admin config changes and delayed pvt_valid
+         if (net.pvt_valid == IPV4) {
+-            inet4_d2h(net.ip_pvt, (bool*)&ip_error, &a, &b, &c, &d);
++            inet4_d2h_strict(net.ip_pvt, (bool*)&ip_error, &a, &b, &c, &d);
+             // printf("led_reporter ip4_valid=%d ip4_6_valid=%d ip_pvt=%s inet4_d2h.error=%d\n",
+             //     net.ip4_valid, net.ip4_6_valid, net.ip_pvt, ip_error);
+             if (ip_error) ip_error = LED_FLASHES_IP_ERROR;

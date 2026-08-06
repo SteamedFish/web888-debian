@@ -1,0 +1,157 @@
+Subject: admin: Debian ifupdown drop-in writer via sudo netconfig helper
+ (D1/D10: stage config in DIR_STATE/netconfig/, root helper validates +
+ installs to /etc/network/interfaces.d/; lbu + direct /etc writes stay
+ Alpine-only behind a runtime distro check. Fixes brick risk: stock
+ use_DHCP wipes /etc/network/interfaces incl. the interfaces.d source line.)
+
+diff --git a/ui/admin.cpp b/ui/admin.cpp
+index bcaa190..f7e6e0f 100644
+--- a/ui/admin.cpp
++++ b/ui/admin.cpp
+@@ -69,6 +69,13 @@ typedef struct {
+ 
+ static pushback_t pushback;
+ 
++// Debian port (web888): runtime distro check. Alpine-only root actions (lbu
++// commit, direct /etc writes) stay on the stock path; Debian stages config in
++// DIR_STATE/netconfig/ and goes through the sudo root helpers instead.
++static bool is_alpine(void) {
++    return access("/etc/alpine-release", F_OK) == 0;
++}
++
+ void c2s_admin_setup(void* param) {
+     conn_t* conn = (conn_t*)param;
+ 
+@@ -627,25 +634,48 @@ void c2s_admin(void* param) {
+             if (i == 4) {
+                 clprintf(conn, "eth0: USE STATIC ip=%s nm=%s(%d) gw=%s\n", static_ip_m, static_nm_m, static_nb, static_gw_m);
+ 
+-                system("cp /etc/network/interfaces /etc/network/interfaces.bak");
+-                FILE* fp;
+-                scallz("/tmp/interfaces.kiwi fopen", (fp = fopen("/tmp/interfaces.kiwi", "w")));
+-                fprintf(fp, "auto lo\n");
+-                fprintf(fp, "iface lo inet loopback\n");
+-                fprintf(fp, "auto eth0\n");
+-                fprintf(fp, "iface eth0 inet static\n");
+-                fprintf(fp, "    address %s\n", static_ip_m);
+-                fprintf(fp, "    netmask %s\n", static_nm_m);
+-                fprintf(fp, "    gateway %s\n", static_gw_m);
+-                fprintf(fp, "iface wlan0 inet static\n");
+-                fprintf(fp, "    address 192.168.7.2\n");
+-                fprintf(fp, "    netmask 255.255.255.252\n");
+-                fprintf(fp, "    network 192.168.7.0\n");
+-                fprintf(fp, "    gateway 192.168.7.1\n");
+-                fclose(fp);
+-                system("cp /tmp/interfaces.kiwi /etc/network/interfaces");
+-                system("rm /etc/network/interfaces.bak");
+-                system("lbu commit -d");
++                if (is_alpine()) {
++                    system("cp /etc/network/interfaces /etc/network/interfaces.bak");
++                    FILE* fp;
++                    scallz("/tmp/interfaces.kiwi fopen", (fp = fopen("/tmp/interfaces.kiwi", "w")));
++                    fprintf(fp, "auto lo\n");
++                    fprintf(fp, "iface lo inet loopback\n");
++                    fprintf(fp, "auto eth0\n");
++                    fprintf(fp, "iface eth0 inet static\n");
++                    fprintf(fp, "    address %s\n", static_ip_m);
++                    fprintf(fp, "    netmask %s\n", static_nm_m);
++                    fprintf(fp, "    gateway %s\n", static_gw_m);
++                    fprintf(fp, "iface wlan0 inet static\n");
++                    fprintf(fp, "    address 192.168.7.2\n");
++                    fprintf(fp, "    netmask 255.255.255.252\n");
++                    fprintf(fp, "    network 192.168.7.0\n");
++                    fprintf(fp, "    gateway 192.168.7.1\n");
++                    fclose(fp);
++                    system("cp /tmp/interfaces.kiwi /etc/network/interfaces");
++                    system("rm /etc/network/interfaces.bak");
++                    system("lbu commit -d");
++                }
++                else {
++                    // Debian: stage an ifupdown drop-in in DIR_STATE; the root
++                    // helper (sudo) validates + installs it to
++                    // /etc/network/interfaces.d/. The main interfaces file
++                    // with its source line is NEVER touched — the stock
++                    // rm/touch would orphan interfaces.d and brick remote
++                    // access. Applies on reboot (same UX as stock).
++                    system("mkdir -p " DIR_STATE "/netconfig");
++                    FILE* fp;
++                    scallz("netconfig staging fopen", (fp = fopen(DIR_STATE "/netconfig/90-websdr-static.conf", "w")));
++                    fprintf(fp, "auto lo\n");
++                    fprintf(fp, "iface lo inet loopback\n");
++                    fprintf(fp, "auto eth0\n");
++                    fprintf(fp, "iface eth0 inet static\n");
++                    fprintf(fp, "    address %s\n", static_ip_m);
++                    fprintf(fp, "    netmask %s\n", static_nm_m);
++                    fprintf(fp, "    gateway %s\n", static_gw_m);
++                    fclose(fp);
++                    int nc_status = system("sudo -n /usr/lib/web888/root-helpers/web888-netconfig static");
++                    clprintf(conn, "eth0: netconfig static helper status=%d\n", nc_status);
++                }
+ 
+                 kiwi_asfree(static_ip_m);
+                 kiwi_asfree(static_nm_m);
+@@ -672,18 +702,32 @@ void c2s_admin(void* param) {
+                     inet4_d2h_strict(dns2, &dns2_err);
+ 
+                     if (!dns1_err || !dns2_err) {
+-                        system("rm -f /etc/resolv.conf; touch /etc/resolv.conf");
++                        if (is_alpine()) {
++                            system("rm -f /etc/resolv.conf; touch /etc/resolv.conf");
+ 
+-                        if (!dns1_err) {
+-                            asprintf(&sb, "echo nameserver %s >> /etc/resolv.conf", dns1);
+-                            system(sb);
+-                            kiwi_asfree(sb);
+-                        }
++                            if (!dns1_err) {
++                                asprintf(&sb, "echo nameserver %s >> /etc/resolv.conf", dns1);
++                                system(sb);
++                                kiwi_asfree(sb);
++                            }
+ 
+-                        if (!dns2_err) {
+-                            asprintf(&sb, "echo nameserver %s >> /etc/resolv.conf", dns2);
+-                            system(sb);
+-                            kiwi_asfree(sb);
++                            if (!dns2_err) {
++                                asprintf(&sb, "echo nameserver %s >> /etc/resolv.conf", dns2);
++                                system(sb);
++                                kiwi_asfree(sb);
++                            }
++                        }
++                        else {
++                            // Debian: stage resolv.conf for the root helper
++                            // (no resolvconf / systemd-resolved on the image).
++                            system("mkdir -p " DIR_STATE "/netconfig");
++                            FILE* rfp;
++                            scallz("resolv staging fopen", (rfp = fopen(DIR_STATE "/netconfig/resolv.conf", "w")));
++                            if (!dns1_err) fprintf(rfp, "nameserver %s\n", dns1);
++                            if (!dns2_err) fprintf(rfp, "nameserver %s\n", dns2);
++                            fclose(rfp);
++                            int nc_status = system("sudo -n /usr/lib/web888/root-helpers/web888-netconfig dns");
++                            clprintf(conn, "dns: netconfig helper status=%d\n", nc_status);
+                         }
+                     }
+ 
+@@ -700,9 +744,18 @@ void c2s_admin(void* param) {
+             i = strcmp(cmd, "SET use_DHCP");
+             if (i == 0) {
+                 clprintf(conn, "eth0: USE DHCP\n");
+-                system("rm /etc/network/interfaces");
+-                system("touch /etc/network/interfaces");
+-                system("lbu commit -d");
++                if (is_alpine()) {
++                    system("rm /etc/network/interfaces");
++                    system("touch /etc/network/interfaces");
++                    system("lbu commit -d");
++                }
++                else {
++                    // Debian: remove the static drop-in via the root helper;
++                    // the image's interfaces.d/eth0 DHCP config then governs
++                    // again after reboot. Main interfaces file untouched.
++                    int nc_status = system("sudo -n /usr/lib/web888/root-helpers/web888-netconfig dhcp");
++                    clprintf(conn, "eth0: netconfig dhcp helper status=%d\n", nc_status);
++                }
+                 continue;
+             }
+ 

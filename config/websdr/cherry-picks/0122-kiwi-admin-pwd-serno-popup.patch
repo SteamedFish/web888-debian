@@ -1,0 +1,70 @@
+diff --git a/rx/rx_cmd.cpp b/rx/rx_cmd.cpp
+index 679aed2..1ae8746 100644
+--- a/rx/rx_cmd.cpp
++++ b/rx/rx_cmd.cpp
+@@ -1775,10 +1775,12 @@ bool rx_common_cmd(int stream_type, conn_t* conn, char* cmd) {
+ 
+             sb = kstr_asprintf(NULL, cpu_stats_buf ? "{%s," : "{", kstr_sp(cpu_stats_buf));
+ 
++            // NB: only send admin_advisory to local connections
+             float sum_kbps = audio_kbps[rx_chans] + waterfall_kbps[rx_chans] + http_kbps;
+-            sb = kstr_asprintf(sb, "\"ac\":%.0f,\"wc\":%.0f,\"fc\":%.0f,\"ah\":%.0f,\"as\":%.0f,\"sr\":%.6f,\"nsr\":%d",
++            sb = kstr_asprintf(sb, "\"ac\":%.0f,\"wc\":%.0f,\"fc\":%.0f,\"ah\":%.0f,\"as\":%.0f,\"sr\":%.6f,\"nsr\":%d,\"aa\":%d",
+                                audio_kbps[ch], waterfall_kbps[ch], waterfall_fps[ch], http_kbps, sum_kbps,
+-                               ext_update_get_sample_rateHz(ADC_CLK_SYS), snd_rate);
++                               ext_update_get_sample_rateHz(ADC_CLK_SYS), snd_rate,
++                               (conn->isLocal && kiwi.admin_advisory) ? 1 : 0);
+ 
+             sb = kstr_asprintf(sb, ",\"ga\":%d,\"gt\":%d,\"gg\":%d,\"gf\":%d,\"gc\":%.6f,\"go\":%d",
+                                gps.acquiring, gps.tracking, gps.good, gps.fixes, adc_clock_system() / 1e6, clk.adc_gps_clk_corrections);
+diff --git a/rx/rx_init.cpp b/rx/rx_init.cpp
+index d9a5ca3..94b9087 100644
+--- a/rx/rx_init.cpp
++++ b/rx/rx_init.cpp
+@@ -606,4 +606,6 @@ void update_vars_from_config(bool called_at_init) {
+         }
+         initial_clk_adj = true;
+     }
++
++    admin_pwd_unsafe(); // re-evaluate the admin-password == serial-number advisory
+ }
+diff --git a/support/security.cpp b/support/security.cpp
+index cbfb6e4..23aca35 100644
+--- a/support/security.cpp
++++ b/support/security.cpp
+@@ -72,7 +72,7 @@ bool admin_pwd_unsafe()
+     if (cfg_int("sdr_hu_dom_sel", NULL, CFG_REQUIRED) != DOM_SEL_REV) return false;
+ 
+     char* serno_s;
+-    asprintf(&serno_s, "%d", net.serno);
++    asprintf(&serno_s, "%d", serial_number);
+     const char* apw = admcfg_string("admin_password", NULL, CFG_OPTIONAL);
+ 
+     if (apw != NULL && strcmp(apw, serno_s) == 0) {
+diff --git a/web/kiwi/kiwi.js b/web/kiwi/kiwi.js
+index 4a4ead2..5252358 100644
+--- a/web/kiwi/kiwi.js
++++ b/web/kiwi/kiwi.js
+@@ -33,6 +33,8 @@ var kiwi = {
+    conn_tstamp: 0,
+    isOffset: false,
+    is_local: [],
++   admin_advisory: 0,
++   seen_admin_advisory: false,
+    loaded_files: {},
+    WSPR_rgrid: '',
+    GPS_fixes: 0,
+@@ -3088,6 +3090,13 @@ function kiwi_msg(param, ws)
+ 				extint.srate = o.sr;
+ 				extint.nom_srate = o.nsr;
+ 
++				kiwi.admin_advisory = o.aa;
++				if (kiwi.admin_advisory && !kiwi.seen_admin_advisory && kiwi.is_local[rx_chan] && !isAdmin()) {
++				   alert('Web-888 owner/admin: your ADMIN PASSWORD IS THE SAME AS THE SERIAL NUMBER.\n\n' +
++				      'Please open the admin page (security tab) and change it as soon as possible.');
++				   kiwi.seen_admin_advisory = true;
++				}
++
+ 				gps_stats_cb(o.ga, o.gt, o.gg, o.gf, o.gc, o.go);
+ 				if (o.gr) {
+ 				   kiwi.WSPR_rgrid = decodeURIComponent(o.gr);

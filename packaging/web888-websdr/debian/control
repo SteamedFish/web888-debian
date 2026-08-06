@@ -1,0 +1,19 @@
+Source: web888-websdr
+Section: hamradio
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Build-Depends: debhelper-compat (= 13), cmake, pkg-config, libfftw3-dev, zlib1g-dev, libfdk-aac-dev, libgps-dev, libunwind-dev, libsqlite3-dev, libcurl4-openssl-dev, libssl-dev, libconfig++-dev, libcrypt-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/RaspSDR/server
+
+Package: web888-websdr
+Architecture: armhf
+Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo
+Description: WebSDR server for Web-888 (RX-888) SDR - Debian build
+ From-source build of the official RaspSDR/Web-888 WebSDR server,
+ patched for Debian: XDG-state layout, systemd-managed service with
+ minimal privileges, notify-only server updates (FPGA bitstream
+ auto-update only), and no SD-card remount operations.
+ Ships /etc/sudoers.d/web888 + root-owned helper scripts for the
+ privileged actions the admin UI needs (network drop-in install,
+ reboot/halt/poweroff); openssh-server stays an image-level package.

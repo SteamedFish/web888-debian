@@ -1,0 +1,92 @@
+Description: KiwiSDR cfea79e6 — better logging when bots send bad API (partial port)
+ Ported from upstream commit "better logging when bots send bad API"
+ (cfea79e6bb1d129028d07b77d4b532594fdd8d58). Includes the self-contained
+ C++ pieces:
+  - ctprintf() helper added to support/printf.{cpp,h}: like clprintf() but
+    takes an explicit printf_type so callers can route output to the log
+    file (used by the upstream ext.cpp / rx_sound_cmd.cpp call sites);
+  - u1_t snd_cmd_recv / wf_cmd_recv fields added to conn_t (rx/conn.h) to
+    remember the last SET_INIT parameters received, so a connection can be
+    logged with what it actually sent before being kicked;
+  - the "incomplete connection kicked" message in support/stats.cpp now
+    includes the (snd=%02x wf=%02x) parameters to help diagnose bot traffic.
+ .
+ NOT included from the upstream commit (context diverges / out of scope):
+  - extensions/ext.cpp, rx/rx_server.cpp, rx/rx_sound.cpp and
+    rx/rx_sound_cmd.cpp call-site refactors (conn_t / connection-close
+    flow and firmware-selection switch differ on Web-888);
+  - the removal of u4_t wf_loop, wf_lock, wf_get from conn_t (unrelated to
+    the logging improvement and still used by Web-888 code).
+ ctprintf() and the new conn_t fields are therefore currently unused by
+ in-tree callers; they land now so later call-site ports can rely on them.
+Origin: https://github.com/kiwisdr/kiwiSDR-wb66v4/ commit cfea79e6
+Forwarded: not-needed
+
+diff --git a/support/printf.cpp b/support/printf.cpp
+--- a/support/printf.cpp
++++ b/support/printf.cpp
+@@ -422,6 +422,16 @@
+     va_end(ap);
+ }
+ 
++// KiwiSDR port (cfea79e6 "better logging when bots send bad API"): like clprintf
++// but takes an explicit printf_type so callers can route to the log file.
++void ctprintf(conn_t* c, u4_t printf_type, const char* fmt, ...) {
++    va_list ap;
++    lock_holder holder(print_lock);
++    va_start(ap, fmt);
++    ll_printf(printf_type, c, fmt, ap);
++    va_end(ap);
++}
++
+ void clfprintf(conn_t* c, u4_t printf_type, const char* fmt, ...) {
+     va_list ap;
+     lock_holder holder(print_lock);
+
+diff --git a/support/printf.h b/support/printf.h
+--- a/support/printf.h
++++ b/support/printf.h
+@@ -45,6 +45,7 @@
+ void cprintf(conn_t* c, const char* fmt, ...);
+ void clprintf(conn_t* c, const char* fmt, ...);
+ void clfprintf(conn_t* c, u4_t printf_type, const char* fmt, ...);
++void ctprintf(conn_t* c, u4_t printf_type, const char* fmt, ...);
+ void real_printf(const char* fmt, ...);
+ void lfprintf(u4_t printf_type, const char* fmt, ...);
+ void lprintf(const char* fmt, ...);
+
+diff --git a/rx/conn.h b/rx/conn.h
+--- a/rx/conn.h
++++ b/rx/conn.h
+@@ -72,6 +72,7 @@
+     bool isUserIP;
+ 
+     // set only in STREAM_SOUND
++    u1_t snd_cmd_recv;
+     bool snd_cmd_recv_ok;
+     bool inactivity_timeout;
+     int freqHz, last_freqHz;
+@@ -85,6 +86,7 @@
+     bool is_locked;
+ 
+     // set only in STREAM_WATERFALL
++    u1_t wf_cmd_recv;
+     bool wf_cmd_recv_ok;
+     char *dx_filter_ident, *dx_filter_notes;
+     bool dx_has_preg_ident, dx_has_preg_notes;
+
+diff --git a/support/stats.cpp b/support/stats.cpp
+--- a/support/stats.cpp
++++ b/support/stats.cpp
+@@ -129,9 +129,9 @@
+ #define NO_API_TIME 20
+         bool both_no_api = (!c->snd_cmd_recv_ok && !c->wf_cmd_recv_ok);
+         if (c->auth && both_no_api && (now - c->arrival) >= NO_API_TIME) {
+-            clprintf(c, "\"%s\"%s%s%s%s incomplete connection kicked\n",
++            clprintf(c, "\"%s\"%s%s%s%s incomplete connection kicked (snd=%02x wf=%02x)\n",
+                      c->ident_user ? c->ident_user : "(no identity)", c->isUserIP ? "" : " ", c->isUserIP ? "" : c->remote_ip,
+-                     c->geo ? " " : "", c->geo ? c->geo : "");
++                     c->geo ? " " : "", c->geo ? c->geo : "", c->snd_cmd_recv, c->wf_cmd_recv);
+             c->kick = true;
+         }
+ 

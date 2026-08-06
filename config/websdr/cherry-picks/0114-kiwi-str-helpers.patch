@@ -1,0 +1,93 @@
+diff --git a/support/str.h b/support/str.h
+--- a/support/str.h
++++ b/support/str.h
+@@ -44,15 +44,21 @@
+ void kiwi_get_chars(char* field, char* value, size_t size);
+ #define SET_CHARS(field, value, fill) kiwi_set_chars(field, value, fill, sizeof(field));
+ void kiwi_set_chars(char* field, const char* value, const char fill, size_t size);
++
++bool kiwi_nonEmptyStr(const char* s);
++#define kiwi_emptyStr(s) !kiwi_nonEmptyStr(s)
++bool kiwi_nonEmptyStrRemNL(char* s);
++#define kiwi_emptyStrRemNL(s) !kiwi_nonEmptyStrRemNL(s)
+ char* kiwi_str_replace(char* s, const char* from, const char* to, bool* caller_must_free DEF_NULL);
+ void kiwi_str_unescape_quotes(char* str);
+ void kiwi_remove_unprintable_chars_inplace(char* str, int* printable DEF_NULL, int* UTF DEF_NULL);
+ char* kiwi_str_escape_HTML(char* str, int* printable DEF_NULL, int* UTF DEF_NULL);
+ char* kiwi_str_decode_inplace(char* src);
+ char* kiwi_str_decode_static(char* src, int which DEF_0);
+-char* kiwi_str_ASCII_static(char* src, int which DEF_0);
++char* kiwi_str_ASCII_static(char* src, int which DEF_0, int len DEF_0);
+ char* kiwi_str_clean(char* s);
+ void kiwi_chrrep(char* str, const char from, const char to);
++char* kiwi_fmt_usec(double usec);
+ bool kiwi_str_begins_with(char* s, const char* cs);
+ char* kiwi_str_ends_with(char* s, const char* cs);
+ char* kiwi_skip_over(char* s, const char* skip);
+diff --git a/support/str.cpp b/support/str.cpp
+--- a/support/str.cpp
++++ b/support/str.cpp
+@@ -328,6 +328,17 @@
+     memcpy(field, value, strlen(value));
+ }
+ 
++bool kiwi_nonEmptyStr(const char* s) {
++    return (s != NULL && s[0] != '\0');
++}
++
++bool kiwi_nonEmptyStrRemNL(char* s) {
++    if (s == NULL) return false;
++    int sl = strlen(s);
++    if (sl != 0 && s[sl-1] == '\n') { s[sl-1] = '\0'; sl--; }
++    return (sl != 0);
++}
++
+ // Version of strsep() that handles delimiters embedded inside double-quotes.
+ // Also recognizes the spreadsheet standard of escaping quoted double-quotes by doubling them up.
+ static char* ed_strsep(char** sp, const char* delim) {
+@@ -567,13 +578,14 @@
+ static char dst_static[N_DST_STATIC][N_DST_STATIC_BUF];
+ 
+ // for use with e.g. an immediate printf argument
+-char* kiwi_str_ASCII_static(char* src, int which) {
++char* kiwi_str_ASCII_static(char* src, int which, int len) {
+     if (src == NULL) return NULL;
+     check(which < N_DST_STATIC);
+-    int i, sl = strlen(src), dl = 0;
+-    char* dp = dst_static[which];
++    int i;
++    if (len == 0) len = strlen(src);
++    char* sp, * dp = dst_static[which];
+     *dp = '\0';
+-    for (char* sp = src; *sp; sp++) {
++    for (sp = src, i = 0; i < len; i++, sp++) {
+         kiwi_strncat(dp, ASCII[*sp], N_DST_STATIC_BUF);
+     }
+ 
+@@ -839,6 +851,26 @@
+     return str;
+ }
+ 
++char* kiwi_fmt_usec(double usec) {
++    usec /= 1e3;            // mmm.uuu ms
++    const char* dunit = "ms";
++    if (usec >= 3600000) {  // >= 60 min
++        usec /= 3600000;    // _hh.fff hr
++        dunit = "Hr";
++    } else
++    if (usec >= 60000) {    // >= 60 secs
++        usec /= 60000;      // _mm.fff min
++        dunit = "Mn";
++    } else
++    if (usec >= 1000) {     // >= 1 sec
++        usec /= 1000;       // _ss.fff sec
++        dunit = "s";
++    }
++    char* rv;
++    asprintf(&rv, "%7.3f%-2s", usec, dunit);
++    return rv;
++}
++
+ void kiwi_chrrep(char* str, const char from, const char to) {
+     char* cp;
+     while ((cp = strchr(str, from)) != NULL) {

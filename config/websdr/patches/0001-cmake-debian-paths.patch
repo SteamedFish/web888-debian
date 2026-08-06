@@ -1,0 +1,83 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 054f4c5..844f3ca 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -65,7 +65,7 @@ pkg_check_modules(SSL REQUIRED openssl)
+ if (EMULATOR)
+     pkg_check_modules(CONFIG REQUIRED libconfig++)
+ else()
+-    set(CONFIG_LIBRARIES "/usr/lib/libconfig++.a")
++    set(CONFIG_LIBRARIES "/usr/lib/arm-linux-gnueabihf/libconfig++.a")
+ endif()
+ 
+ find_program(CCACHE_FOUND ccache)
+@@ -182,6 +182,10 @@ file(GLOB_RECURSE KIWI_SRCS
+     "${UPSTREAM_DIR}/pkgs/mqtt-c/*.c"
+ )
+ 
++# Debian: dpkg-source (3.0 quilt) keeps pristine backups in .pc/ and
++# GLOB_RECURSE basename-matches across the whole tree -> duplicate objects.
++list(FILTER KIWI_SRCS EXCLUDE REGEX "/\\.pc/")
++
+ add_executable(websdr.bin ${KIWI_SRCS} ${EXT_SRCS}
+     ${CMAKE_BINARY_DIR}/edata_always.cpp ${CMAKE_BINARY_DIR}/edata_always2.cpp ${CMAKE_BINARY_DIR}/edata_embed.cpp
+ )
+@@ -239,6 +243,7 @@ target_link_libraries(websdr.bin PRIVATE
+     ${CONFIG_LIBRARIES}
+     ${CURL_LIBRARIES}
+     ${SSL_LIBRARIES}
++    crypt
+ )
+ 
+ if(ENABLE_HDFL)
+@@ -254,7 +259,7 @@ if (${CURRENT_MONTH_DAY} MATCHES "^0[0-9].*")
+     string(SUBSTRING ${CURRENT_MONTH_DAY} 1 3 CURRENT_MONTH_DAY)
+ endif()
+ 
+-set(DIR_DATA /tmp/kiwi.data)
++set(DIR_DATA /var/cache/web888)
+ 
+ # Generate a version file based on year and month day
+ file(WRITE ${PROJECT_BINARY_DIR}/version.h
+@@ -265,8 +270,12 @@ file(WRITE ${PROJECT_BINARY_DIR}/version.h
+ 
+ target_compile_definitions(websdr.bin PUBLIC
+     KIWI KIWISDR
+-    DIR_CFG="/root/config"
+-    DIR_SAMPLES="/media/mmcblk0p1/config/samples"
++    DIR_CFG="/var/lib/web888/config"
++    DIR_STATE="/var/lib/web888"
++    DIR_FIRMWARE="/var/lib/web888/firmware"
++    DIR_FACTORY_FIRMWARE="/usr/share/web888/firmware"
++    DIR_SAMPLES="/usr/share/web888/samples"
++    DIR_LIBEXEC="/usr/lib/web888"
+     CFG_PREFIX=""
+     DIR_DATA=STRINGIFY\(${DIR_DATA}\)
+     BUILD_DIR="${PROJECT_BINARY_DIR}"
+@@ -359,7 +368,7 @@ foreach(file ${FILES_EMBED_FILES})
+     file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/htdoc/${FOLDER}")
+ 
+     LIST(APPEND FILES_EMBED_FILES_OUTPUT ${PROJECT_BINARY_DIR}/htdoc/${target_path})
+-    if(${file} MATCHES "\\.css$" AND NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug")
++    if(${file} MATCHES "\\.css$" AND NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug" AND MINIFY_COMMAND)
+         add_custom_command(
+             OUTPUT ${PROJECT_BINARY_DIR}/htdoc/${target_path}
+             DEPENDS ${UPSTREAM_DIR}/web/${file}
+@@ -368,7 +377,7 @@ foreach(file ${FILES_EMBED_FILES})
+                 -o ${PROJECT_BINARY_DIR}/htdoc/${target_path} # Destination path in build directory
+             COMMENT "Minify CSS ${file} to ${target_path}"
+         )
+-    elseif(${file} MATCHES "\\.js$" AND NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug")
++    elseif(${file} MATCHES "\\.js$" AND NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug" AND MINIFY_COMMAND)
+         add_custom_command(
+             OUTPUT ${PROJECT_BINARY_DIR}/htdoc/${target_path}
+             DEPENDS ${UPSTREAM_DIR}/web/${file}
+@@ -377,7 +386,7 @@ foreach(file ${FILES_EMBED_FILES})
+                 -o ${PROJECT_BINARY_DIR}/htdoc/${target_path} # Destination path in build directory
+             COMMENT "Minify JS ${file} to ${target_path}"
+         )
+-    elseif(${file} MATCHES "\\.html$" AND NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug")
++    elseif(${file} MATCHES "\\.html$" AND NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug" AND MINIFY_COMMAND)
+         add_custom_command(
+             OUTPUT ${PROJECT_BINARY_DIR}/htdoc/${target_path}
+             DEPENDS ${UPSTREAM_DIR}/web/${file}

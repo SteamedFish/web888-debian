@@ -1,0 +1,55 @@
+Description: KiwiSDR a58529d1 — add inet4_d_valid() (additive only)
+ Ported from upstream commit "add inet4_d_valid(), improve inet4_h2s()"
+ (a58529d12f1c510c96a8e27a8cb77b6c9c4ee041). Adds only the new
+ inet4_d_valid() helper to net/net.{cpp,h}, which validates an IPv4
+ dotted-quad (and optionally a port, default -1 = skip) before it is used.
+ .
+ NOT included from the upstream commit:
+  - the inet4_h2s() signature change (inet4_h2s(u4_t) -> inet4_h2s(u4_t,
+    int port, int which)) is intentionally skipped: Web-888's inet4_h2s()
+    takes a single argument and the new (port, which) form would ripple to
+    every caller. inet4_d_valid() is purely additive and does not depend on
+    it.
+  - the inet4_d2h_strict() RANGE() tidy-up and the support/stats.cpp
+    inet4_h2s() call-site update (the latter is part of the skipped
+    signature change).
+Origin: https://github.com/kiwisdr/kiwiSDR-wb66v4/ commit a58529d1
+Forwarded: not-needed
+
+diff --git a/net/net.cpp b/net/net.cpp
+--- a/net/net.cpp
++++ b/net/net.cpp
+@@ -566,6 +566,20 @@
+     return false;
+ }
+ 
++// Validate an IPv4 dotted-quad (and optionally a port) before it is used.
++// Ported from KiwiSDR commit a58529d1 "add inet4_d_valid(), improve inet4_h2s()".
++// port == -1 (the default) skips the port check; otherwise the port must be a
++// non-privileged, in-range TCP/UDP port (1024..65535).
++bool inet4_d_valid(int a, int b, int c, int d, int port) {
++    bool ok = true;
++    if (port >= 0 && (port < 1024 || port > 65535))
++        ok = false;
++    else
++    if (!RANGE(a, 0, 255) || !RANGE(b, 0, 255) || !RANGE(c, 0, 255) || !RANGE(d, 0, 255))
++        ok = false;
++    return ok;
++}
++
+ // Ported from KiwiSDR 6f21031 "IP address parsing security improvements".
+ // Adapted for Web-888: const char* signatures, no kiwi_emptyStr, no ansi.h colors.
+ // Be very strict about the content of inet4_str (reject trailing junk / bad octets).
+
+diff --git a/net/net.h b/net/net.h
+--- a/net/net.h
++++ b/net/net.h
+@@ -161,6 +161,8 @@
+ isLocal_t isLocal_if_ip(struct conn_st* conn, char* ip_addr, const char* log_prefix);
+ 
+ bool find_local_IPs(int retry);
++// KiwiSDR port (a58529d1): validate an IPv4 dotted-quad / port before use.
++bool inet4_d_valid(int a, int b, int c, int d, int port = -1);
+ // KiwiSDR port (6f21031): strict IP parsing for security-sensitive callers.
+ // Added alongside the original inet4_d2h so non-sensitive callers are untouched.
+ u4_t inet4_d2h_strict(const char* inet4_str, bool* error = NULL, u1_t* ap = NULL, u1_t* bp = NULL, u1_t* cp = NULL, u1_t* dp = NULL, bool debug = false);

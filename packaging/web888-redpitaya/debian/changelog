@@ -1,0 +1,36 @@
+web888-redpitaya (2025.430-2) UNRELEASED; urgency=medium
+
+  * Hardware-gate fix: patch 0001-peri-use-zynqsdr-ioctl —
+    sdr_receiver_hpsdr's peri.c drove the PE4312 DSA via sysfs GPIO
+    523/525/524, but the zynqsdr kernel driver owns MIO 11/12/13 on this
+    image (EBUSY → vendor code dereferenced a NULL FILE* and SEGV'd).
+    peri.c now uses the driver's ZYNQSDR_AD8370_SET ioctl (step-2
+    hw-gate proven, PL-bitstream-agnostic) and returns -1 on failure
+    instead of crashing.
+  * web888-rpapp@.service: + StartLimitIntervalSec=60 StartLimitBurst=5 —
+    a hardware-gate SEGV crash-loop reloaded the bitstream every ~4s for ~15min
+    (sustained devcfg churn, device later found hung); cap restarts so a
+    failing app gives up instead of churning the PL.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Thu, 06 Aug 2026 01:30:00 +0800
+
+web888-redpitaya (2025.430-1) UNRELEASED; urgency=medium
+
+  * Initial Debian package of the Web-888 Red Pitaya app stack
+    (step 4, Red Pitaya coexistence):
+    - C servers built from source: RaspSDR/red-pitaya-notes @ da1a7e3a
+      (2025-04-30, MIT): sdr-receiver, sdr-receiver-hpsdr,
+      sdr-transceiver-wide; si5351-init from scripts/hw-test/si5351.
+    - Vendored factory bitstreams (Vivado 2023.1, 2024/12): led_blinker,
+      sdr_receiver, sdr_receiver_hpsdr, sdr_transceiver_wide
+      (/usr/share/web888-redpitaya/apps/<app>/<app>.bit).
+    - web888-rpapp@.service template: root (required for /dev/mem),
+      bitstream load in ExecStartPre via load-bitstream (prog_done
+      poll, fail closed), Conflicts=web888-websdr.service; drop-in
+      50-redpitaya.conf declares the reverse conflict on the websdr
+      unit. No [Install] — never auto-enabled.
+    - /usr/sbin/web888-mode runtime switch (websdr/<app>/stop/list).
+    - /etc/web888-redpitaya/switch.conf conffile: SI5351_RESET=0
+      default until hardware measurement settles the requirement.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Wed, 05 Aug 2026 20:00:00 +0800

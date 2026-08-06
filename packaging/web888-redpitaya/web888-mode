@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# web888-mode — switch the Web-888 between WebSDR mode and Red Pitaya apps.
+# Shipped in the web888-redpitaya deb as /usr/sbin/web888-mode.
+#
+#   web888-mode            show current mode
+#   web888-mode websdr     stop RP apps, start WebSDR (default mode)
+#   web888-mode <app>      stop WebSDR, start web888-rpapp@<app>
+#   web888-mode stop       stop everything (FPGA left as-is)
+#   web888-mode list       list available RP apps
+#
+# Convenience/UX only — the systemd units are independently operable and the
+# Conflicts= declarations make bare `systemctl start` safe; this script adds
+# explicit ordering (stop the other side BEFORE touching the FPGA).
+#
+# Test hooks: WEB888_SYSTEMCTL and WEB888_RP_APPS_DIR redirect external
+# touchpoints for scripts/test-redpitaya-mode.sh.
+
+set -eu
+
+SYSTEMCTL=${WEB888_SYSTEMCTL:-systemctl}
+APPS_DIR=${WEB888_RP_APPS_DIR:-/usr/share/web888-redpitaya/apps}
+WEBSDR_UNIT=web888-websdr.service
+
+usage() {
+    echo "usage: web888-mode [websdr|<app>|stop|list]" >&2
+    exit "${1:-2}"
+}
+
+list_apps() {
+    [ -d "$APPS_DIR" ] || return 0
+    local d
+    for d in "$APPS_DIR"/*/; do
+        [ -e "$d" ] || continue
+        local name
+        name=$(basename "$d")
+        [ -f "$d/$name.bit" ] && echo "$name"
+    done
+}
+
+valid_app() {
+    case $1 in
+        ''|*[!a-z0-9_]*) return 1 ;;
+    esac
+    [ -f "$APPS_DIR/$1/$1.bit" ]
+}
+
+is_active() { # unit pattern -> 0 if systemctl says active
+    [ "$($SYSTEMCTL is-active "$1" 2>/dev/null || true)" = active ]
+}
+
+show_status() {
+    if is_active "$WEBSDR_UNIT"; then
+        echo "current mode: websdr ($WEBSDR_UNIT active)"
+        return 0
+    fi
+    local app active=0
+    for app in $(list_apps); do
+        if is_active "web888-rpapp@$app.service"; then
+            echo "current mode: $app (web888-rpapp@$app.service active)"
+            active=1
+        fi
+    done
+    [ "$active" = 1 ] || echo "current mode: none (everything stopped)"
+}
+
+need_root() { # switching subcommands are root-only
+    if [ "$(id -u)" != 0 ]; then
+        echo "web888-mode: '$1' requires root (try sudo)" >&2
+        exit 1
+    fi
+}
+
+cmd=${1:-status}
+case $cmd in
+    -h|--help)
+        echo "usage: web888-mode [websdr|<app>|stop|list]"
+        exit 0
+        ;;
+    status|'')
+        show_status
+        ;;
+    list)
+        echo "available RP apps:"
+        list_apps | sed 's/^/  /'
+        echo "special modes: websdr, stop"
+        ;;
+    websdr)
+        need_root websdr
+        echo "web888-mode: switching to websdr"
+        $SYSTEMCTL stop 'web888-rpapp@*' || true   # none running = fine
+        $SYSTEMCTL start "$WEBSDR_UNIT"
+        ;;
+    stop)
+        need_root stop
+        echo "web888-mode: stopping everything (FPGA left as-is)"
+        $SYSTEMCTL stop "$WEBSDR_UNIT" || true
+        $SYSTEMCTL stop 'web888-rpapp@*' || true
+        ;;
+    *)
+        valid_app "$cmd" || {
+            echo "web888-mode: unknown app or command '$cmd'" >&2
+            echo "available apps: $(list_apps | tr '\n' ' ')" >&2
+            usage
+        }
+        need_root "$cmd"
+        echo "web888-mode: switching to RP app '$cmd'"
+        $SYSTEMCTL stop "$WEBSDR_UNIT" || true
+        $SYSTEMCTL start "web888-rpapp@$cmd.service"
+        ;;
+esac

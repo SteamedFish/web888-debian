@@ -1,0 +1,61 @@
+#!/bin/sh
+# Seed effective Web-888 state from factory defaults.
+#
+# One-time, never-overwrite semantics:
+#   /usr/share/web888/dist/config -> /var/lib/web888/config  (factory)
+#   /usr/share/web888/firmware    -> /var/lib/web888/firmware (factory)
+#   /etc/web888/*.json            -> /var/lib/web888/config  (admin override,
+#                                  takes precedence over factory at seed time)
+#
+# After first seed, /var/lib/web888 belongs to the running service (the
+# server writes its own config changes there). /etc/web888 only matters
+# for files that have never been seeded (e.g. dropped in by a custom
+# image build before first boot).
+
+set -eu
+
+FACTORY_CFG=/usr/share/web888/dist/config
+FACTORY_FW=/usr/share/web888/firmware
+STATE_CFG=/var/lib/web888/config
+STATE_FW=/var/lib/web888/firmware
+OVERRIDE=/etc/web888
+
+mkdir -p "$STATE_CFG" "$STATE_FW"
+
+seed_dir() {
+  src=$1
+  dst=$2
+  glob=$3
+  [ -d "$src" ] || return 0
+  for f in "$src"/$glob; do
+    [ -e "$f" ] || continue
+    base=$(basename "$f")
+    # -s (not -f): an aborted cfg_save_json leaves a 0-byte truncated file
+    # behind; treating it as "exists" would preserve the corruption forever.
+    if [ ! -s "$dst/$base" ]; then
+      cp "$f" "$dst/$base"
+      echo "web888: seeded $dst/$base"
+    fi
+  done
+}
+
+seed_dir "$FACTORY_CFG" "$STATE_CFG" '*.json'
+seed_dir "$FACTORY_FW" "$STATE_FW" '*.bit'
+
+# Upstream ships factory data files with a dist. prefix
+# (unix_env/kiwi.config/dist.*); websdr.bin opens them WITHOUT the prefix.
+for f in "$FACTORY_CFG"/dist.*; do
+  [ -e "$f" ] || continue
+  base=$(basename "$f")
+  base=${base#dist.}
+  if [ ! -s "$STATE_CFG/$base" ]; then
+    cp "$f" "$STATE_CFG/$base"
+    echo "web888: seeded $STATE_CFG/$base"
+  fi
+done
+
+# Admin overrides win only for files that have never been seeded.
+seed_dir "$OVERRIDE" "$STATE_CFG" '*.json'
+seed_dir "$OVERRIDE" "$STATE_CFG" '*.toml'
+
+exit 0

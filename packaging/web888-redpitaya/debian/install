@@ -1,0 +1,17 @@
+bin/sdr_receiver-server usr/lib/web888-redpitaya/bin/
+bin/sdr_receiver_hpsdr-server usr/lib/web888-redpitaya/bin/
+bin/sdr_transceiver_wide-server usr/lib/web888-redpitaya/bin/
+bin/si5351-init usr/lib/web888-redpitaya/
+apps/led_blinker/led_blinker.bit usr/share/web888-redpitaya/apps/led_blinker/
+apps/led_blinker/index.html usr/share/web888-redpitaya/apps/led_blinker/
+apps/sdr_receiver/sdr_receiver.bit usr/share/web888-redpitaya/apps/sdr_receiver/
+apps/sdr_receiver/index.html usr/share/web888-redpitaya/apps/sdr_receiver/
+apps/sdr_receiver_hpsdr/sdr_receiver_hpsdr.bit usr/share/web888-redpitaya/apps/sdr_receiver_hpsdr/
+apps/sdr_receiver_hpsdr/index.html usr/share/web888-redpitaya/apps/sdr_receiver_hpsdr/
+apps/sdr_transceiver_wide/sdr_transceiver_wide.bit usr/share/web888-redpitaya/apps/sdr_transceiver_wide/
+apps/sdr_transceiver_wide/index.html usr/share/web888-redpitaya/apps/sdr_transceiver_wide/
+debian/load-bitstream usr/lib/web888-redpitaya/
+debian/web888-mode usr/sbin/
+debian/switch.conf etc/web888-redpitaya/
+debian/web888-rpapp@.service usr/lib/systemd/system/
+debian/50-redpitaya.conf usr/lib/systemd/system/web888-websdr.service.d/

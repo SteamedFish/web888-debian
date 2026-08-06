@@ -1,0 +1,33 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure)
+    if ! getent group web888 >/dev/null; then
+      addgroup --system web888
+    fi
+    if ! getent passwd web888 >/dev/null; then
+      adduser --system --ingroup web888 --home /var/lib/web888 \
+        --no-create-home --disabled-login web888
+    fi
+    # the udev rule assigns GROUP="i2c" to /dev/zynqsdr — guarantee the group
+    # exists even when i2c-tools is not installed on the target image.
+    if ! getent group i2c >/dev/null; then
+      addgroup --system i2c
+    fi
+    adduser web888 i2c >/dev/null 2>&1 || true
+    install -d -o web888 -g web888 \
+      /var/lib/web888 /var/lib/web888/config /var/lib/web888/firmware \
+      /var/lib/web888/backup /var/cache/web888
+    install -d /etc/web888
+    # sudoers drop-in is deb-shipped; refuse to install with a broken one
+    # (visudo -c validates syntax; sudo itself enforces mode 0440 root:root).
+    visudo -c -f /etc/sudoers.d/web888
+    /usr/lib/web888/web888-websdr-seed-defaults
+    chown -R web888:web888 /var/lib/web888 /var/cache/web888
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

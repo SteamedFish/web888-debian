@@ -1,0 +1,19 @@
+--- a/web/web.cpp
++++ b/web/web.cpp
+@@ -548,12 +548,14 @@
+ 	kstr_free(sb);
+ 
+ 	// add the list of extensions (only used by admin.html)
+-#ifdef USE_SDR
++	// Web-888: 0144 (mongoose 7.14) brought upstream's USE_SDR guard, but nothing
++	// in this cmake build defines USE_SDR, so EXT_LIST_JS was never registered and
++	// admin.html served the literal %[EXT_LIST_JS] token (and extension JS stopped
++	// loading on the admin page). Web-888 always builds the SDR variant: drop the guard.
+ 	sb = extint_list_js();
+ 	iparams_add("EXT_LIST_JS", kstr_sp(sb));
+ 	//real_printf("%s\n", kstr_sp(sb));
+ 	kstr_free(sb);
+-#endif
+ }
+ 
+ static char cached_ip[NET_ADDRSTRLEN];

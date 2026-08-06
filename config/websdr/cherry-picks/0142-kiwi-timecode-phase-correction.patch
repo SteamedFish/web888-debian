@@ -1,0 +1,1384 @@
+diff --git a/extensions/timecode/timecode.cpp b/extensions/timecode/timecode.cpp
+index 8f7b4d3..3a9479e 100644
+--- a/extensions/timecode/timecode.cpp
++++ b/extensions/timecode/timecode.cpp
+@@ -20,7 +20,6 @@
+ #include <fcntl.h>
+ #include <sys/mman.h>
+ 
+-static bool test_init = false;
+ static s2_t *testStart, *testEnd;
+ 
+ class timecode {
+@@ -141,25 +140,30 @@ public:
+         }
+ 
+         if (strcmp(msg, "SET test") == 0) {
++            static bool test_init;
+             if (!test_init) {
+                 char *file;
+                 int fd;
+                 #define TIMECODE_FNAME DIR_SAMPLES "/timecode.test.au"
+                 printf("timecode: mmap " TIMECODE_FNAME "\n");
+-                scall("timecode open", (fd = open(TIMECODE_FNAME, O_RDONLY)));
+-                off_t fsize = kiwi_file_size(TIMECODE_FNAME);
+-                printf("timecode: size=%" __UINT64_FMTx__ "\n", fsize);
+-                file = (char *) mmap(NULL, fsize, PROT_READ, MAP_PRIVATE, fd, 0);
+-                if (file == MAP_FAILED) sys_panic("timecode mmap");
+-                close(fd);
+-                int words = fsize / sizeof(s2_t);
+-                testStart = (s2_t *) file;
+-                testEnd = testStart + words;
+-                test_init = true;
++                fd = open(TIMECODE_FNAME, O_RDONLY);
++                if (fd >= 0) {
++                    off_t fsize = kiwi_file_size(TIMECODE_FNAME);
++                    printf("timecode: size=%" __UINT64_FMTx__ "\n", fsize);
++                    file = (char *) mmap(NULL, fsize, PROT_READ, MAP_PRIVATE, fd, 0);
++                    if (file == MAP_FAILED) sys_panic("timecode mmap");
++                    close(fd);
++                    int words = fsize / sizeof(s2_t);
++                    testStart = (s2_t *) file;
++                    testEnd = testStart + words;
++                    test_init = true;
++                }
+             }
+ 
+-            testP = testStart;
+-            test = true;
++            if (test_init) {
++                testP = testStart;
++                test = true;
++            }
+             return true;
+         }
+ 
+@@ -271,7 +275,7 @@ void timecode_close(int rx_chan) {
+ 
+ bool timecode_msgs(char *msg, int rx_chan)
+ {
+-	rcprintf(rx_chan, "TIMECODE <%s>\n", msg);
++	//rcprintf(rx_chan, "TIMECODE <%s>\n", msg);
+ 
+     if (strcmp(msg, "SET ext_server_init") == 0) {
+         tc[rx_chan] = timecode::make(rx_chan);
+diff --git a/web/extensions/timecode/bpc.js b/web/extensions/timecode/bpc.js
+index 6bf60dd..982ff06 100644
+--- a/web/extensions/timecode/bpc.js
++++ b/web/extensions/timecode/bpc.js
+@@ -1,18 +1,26 @@
+-// Copyright (c) 2017-2021 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
+ 
+ //
+-// The protocol is unpublished, so some of the data bit values are still unknown.
++// TODO
++//    phase decoding
++//    The protocol is unpublished, so some of the data bit values are still unknown.
+ //
+ 
+ var bpc = {
++   // ampl
++   AMPL_NOISE_THRESHOLD: 3,
+    arm: 0,
+-   NOISE_THRESHOLD: 3,
++   data: 0,
++   data_last: 0,
++
++   // phase
++   // ...
++
+    cur: 0,
+    sec: 0,
+    msec: 0,
+    dcnt: 0,
+    line: 0,
+-   phase: 0,
+    prev: [],
+    raw: [],
+    chr: 0,
+@@ -75,113 +83,112 @@ function bpc_decode(b)
+    var p = parity_error? 'PARITY ERROR' : '';
+    var p2 = parity_error? '<span style="color:orange">PARITY ERROR</span>' : '';
+    tc_dmsg('   '+ s +'  '+ p2 +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ (parity_error? p : s));
++   tc_stat('lime', 'Time: '+ (parity_error? p : s));
+ */
+ 
+    tc_dmsg('   '+ s +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ s);
++   tc_stat('lime', 'Time: '+ s);
+ }
+ 
+ function bpc_clr()
+ {
+-   var m = bpc;
++   var b = bpc;
+    
+-   m.cur = m.cnt = m.one_width = m.zero_width = 0;
+-   m.phase ^= 1;
+-   m.arm = m.no_modulation = m.dcnt = m.modct = m.line = m.sec = m.msec = 0;
++   b.data = b.data_last = 0;
++   b.cur = b.cnt = b.one_width = b.zero_width = 0;
++   b.arm = b.no_modulation = b.dcnt = b.modct = b.line = b.sec = b.msec = 0;
+    tc.trig = 0;
+-   tc.state = tc.ACQ_SYNC;
+ 
+    if (server_time_local != null && server_time_local != '') {
+-      m.time = parseInt(server_time_local)*3600 + parseInt(server_time_local.substr(3))*60 + 60;
++      b.time = parseInt(server_time_local)*3600 + parseInt(server_time_local.substr(3))*60 + 60;
+    }
+    
+-   //m.time = 7*3600 + 59*60;
+-   m.tod = m.time;
++   //b.time = 7*3600 + 59*60;
++   b.tod = b.time;
+ }
+ 
+ // called at 100 Hz (10 msec)
+ function bpc_ampl(ampl)
+ {
+ 	var i;
+-	var m = bpc;
++	var b = bpc;
+ 	tc.trig++; if (tc.trig >= 100) tc.trig = 0;
+ 	ampl = (ampl > 0.5)? 1:0;
+-	if (!tc.ref) { tc.data = ampl ^ m.phase; tc.ref = 1; }
++	ampl = ampl ^ tc.force_rev ^ tc.data_ainv;
+ 	
+ 	// de-noise signal
+-   if (ampl == m.cur) {
+-   	m.cnt = 0;
++   if (ampl == b.cur) {
++   	b.cnt = 0;
+    } else {
+-   	m.cnt++;
+-   	if (m.cnt > m.NOISE_THRESHOLD) {
+-   		m.cur = ampl;
+-   		m.cnt = 0;
++   	b.cnt++;
++   	if (b.cnt > b.AMPL_NOISE_THRESHOLD) {
++   		b.cur = ampl;
++   		b.cnt = 0;
+    		//if (tc.state == tc.ACQ_SYNC)
+-   		//   tc_dmsg((tc.data? '1':'0') +':'+ (tc.data? m.one_width : m.zero_width) +' ');
+-   		//if (tc.state == tc.ACQ_SYNC && !tc.data)
+-   		//   tc_dmsg(m.zero_width +' ');
+-	      tc.data_last = tc.data;
+-   		tc.data ^= 1;
+-   		//if (tc.data) m.one_width = 0; else m.zero_width = 0;
+-
+-   		if (tc.data) {
++   		//   tc_dmsg((b.data? '1':'0') +':'+ (b.data? b.one_width : b.zero_width) +' ');
++   		//if (tc.state == tc.ACQ_SYNC && !b.data)
++   		//   tc_dmsg(b.zero_width +' ');
++	      b.data_last = b.data;
++	      if (!tc.ref) { b.data = ampl; tc.ref = 1; } else { b.data ^= 1; }
++   		//if (b.data) b.one_width = 0; else b.zero_width = 0;
++
++   		if (b.data) {
+    		   // zero-to-one transition
+-   		   //tc_dmsg('0-'+ m.zero_width +' ');
+-   		   //m.chr += 5;
+-   		   if (tc.state != tc.ACQ_SYNC) {
++   		   //tc_dmsg('0-'+ b.zero_width +' ');
++   		   //b.chr += 5;
++   		   if (tc.state != tc.ACQ_PHASE && tc.state != tc.ACQ_SYNC) {
+    		   /*
+-   		      if (m.dcnt == 0) {
+-   		         var secs = m.tod;
++   		      if (b.dcnt == 0) {
++   		         var secs = b.tod;
+    		         var hh = Math.floor(secs/3600);
+    		         secs -= hh * 3600;
+    		         var mm = Math.floor(secs/60);
+    		         secs -= mm * 60;
+    		         tc_dmsg(hh.leadingZeros(2) +':'+ mm.leadingZeros(2) +':'+ secs.leadingZeros(2) +' ');
+-   		         m.tod += 20;
++   		         b.tod += 20;
+    		      }
+    		   */
+    		      
+    		      // each pulse is 1, 2, 3 or 4 ten msec periods of no carrier
+    		      // representing the dibit values 00, 01, 10 and 11 respectively
+-   		      var t = Math.round((m.zero_width - 9) / 10);
++   		      var t = Math.round((b.zero_width - 9) / 10);
+    		      if (t >= 4) t = 0;
+-   		      m.raw[m.dcnt] = t;
+-   		      var s = m.dibit[t];
+-               if (t != m.prev[m.dcnt] && m.line) {
++   		      b.raw[b.dcnt] = t;
++   		      var s = b.dibit[t];
++               if (t != b.prev[b.dcnt] && b.line) {
+                   s = '<span style="color:lime">'+ s +'</span>';
+                }
+-               m.prev[m.dcnt] = t;
++               b.prev[b.dcnt] = t;
+                tc_dmsg(s);
+-               if ([0,3,6,9,12,14,17].includes(m.dcnt)) tc_dmsg(' ');
+-               //m.chr += s.length;
+-               //if (m.chr > 80) { tc_dmsg('<br>'); m.chr = 0; }
+-               m.dcnt++;
++               if ([0,3,6,9,12,14,17].includes(b.dcnt)) tc_dmsg(' ');
++               //b.chr += s.length;
++               //if (b.chr > 80) { tc_dmsg('<br>'); b.chr = 0; }
++               b.dcnt++;
+                
+                // each 20 sec frame is sync followed by 19 data dibits
+-               if (m.dcnt >= 19) {
+-                  bpc_decode(m.raw);
+-                  m.dcnt = 0; m.line++;
++               if (b.dcnt >= 19) {
++                  bpc_decode(b.raw);
++                  b.dcnt = 0; b.line++;
+                   bpc_legend();
+                }
+             }
+-   		   m.one_width = 0;
++   		   b.one_width = 0;
+    		} else {
+    		   // one-to-zero transition
+-   		   //tc_dmsg('1-'+ m.one_width +' ');
+-   		   //m.chr += 5;
+-   		   //if (m.chr > 80) { tc_dmsg('<br>'); m.chr = 0; }
+-   		   m.zero_width = 0;
++   		   //tc_dmsg('1-'+ b.one_width +' ');
++   		   //b.chr += 5;
++   		   //if (b.chr > 80) { tc_dmsg('<br>'); b.chr = 0; }
++   		   b.zero_width = 0;
+    		}
+    	}
+    }
+ 
+-   if (tc.data) m.one_width++; else m.zero_width++;
++   if (b.data) b.one_width++; else b.zero_width++;
+ 	
+ 	// sync is 1900 ms (2 sec - 10 ms) of carrier every 20 sec
+-	if (tc.state == tc.ACQ_SYNC && m.arm == 0 && m.one_width >= 170) { m.arm = 1; m.one_width = 0; }
+-	if (m.arm == 1 && tc.data_last == 1 && tc.data == 0) {
+-	   m.arm = 2;
++	if (tc.state == tc.ACQ_SYNC && b.arm == 0 && b.one_width >= 170) { b.arm = 1; b.one_width = 0; }
++	if (b.arm == 1 && b.data_last == 1 && b.data == 0) {
++	   b.arm = 2;
+ 	   tc.state = tc.SYNCED;
+       tc.trig = 0;
+       tc.sample_point = 40;
+@@ -190,12 +197,14 @@ function bpc_ampl(ampl)
+ 
+ 	}
+ 
+-   m.msec += 10;
++   b.msec += 10;
+ 
+-   if (m.msec == 1000) {
+-      m.sec++;
+-      m.msec = 0;
++   if (b.msec == 1000) {
++      b.sec++;
++      b.msec = 0;
+    }
++
++   tc.data = b.data;
+ }
+ 
+ function bpc_focus()
+diff --git a/web/extensions/timecode/dcf77.js b/web/extensions/timecode/dcf77.js
+index 277aac2..7108acb 100644
+--- a/web/extensions/timecode/dcf77.js
++++ b/web/extensions/timecode/dcf77.js
+@@ -1,8 +1,20 @@
+-// Copyright (c) 2017-2019 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
++
++//
++// TODO
++//    phase decoding
++//
+ 
+ var dcf77 = {
++   // ampl
++   AMPL_NOISE_THRESHOLD: 3,
+    arm: 0,
+-   NOISE_THRESHOLD: 3,
++   data: 0,
++   data_last: 0,
++
++   // phase
++   // ...
++
+    cur: 0,
+    sec: 0,
+    msec: 0,
+@@ -22,7 +34,7 @@ function dcf77_dmsg(s)
+ function dcf77_legend()
+ {
+    if ((dcf77.line++ & 3) == 0)
+-      tc_dmsg('0 wwwwwwwwwwwwww EASNL 1 mmmmmmm p hhhhhh p dddddd www mmmmm yyyyyyyy p 0<br>');
++      tc_dmsg('0 civil/weather  EASNL 1 mmmmmmm p hhhhhh p dddddd www mmmmm yyyyyyyy p 0<br>');
+ }
+ 
+ function dcf77_decode(bits)
+@@ -39,13 +51,14 @@ function dcf77_decode(bits)
+ 
+    var s = day +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' '+ tz;
+    tc_dmsg('  '+ s +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ s);
++   tc_stat('lime', 'Time: '+ s);
+ }
+ 
+ function dcf77_clr()
+ {
+    var d = dcf77;
+    
++   d.data = d.data_last = d.cur = 0;
+    d.cnt = d.cur = d.one_width = d.zero_width = 0;
+    d.arm = d.no_modulation = d.dcnt = d.modct = d.line = d.sec = d.msec = 0;
+ }
+@@ -57,32 +70,33 @@ function dcf77_ampl(ampl)
+ 	var d = dcf77;
+ 	tc.trig++; if (tc.trig >= 100) tc.trig = 0;
+ 	ampl = (ampl > 0.5)? 1:0;
+-	if (!tc.ref) { tc.data = ampl; tc.ref = 1; }
++	ampl = ampl ^ tc.force_rev ^ tc.data_ainv;
+ 	
+ 	// de-noise signal
+    if (ampl == d.cur) {
+    	d.cnt = 0;
+    } else {
+    	d.cnt++;
+-   	if (d.cnt > d.NOISE_THRESHOLD) {
++   	if (d.cnt > d.AMPL_NOISE_THRESHOLD) {
+    		d.cur = ampl;
+    		d.cnt = 0;
+    		//if (tc.state == tc.ACQ_SYNC)
+-   		//   tc_dmsg((tc.data? '1':'0') +':'+ (tc.data? d.one_width : d.zero_width) +' ');
+-   		//if (tc.state == tc.ACQ_SYNC && !tc.data)
++   		//   tc_dmsg((d.data? '1':'0') +':'+ (d.data? d.one_width : d.zero_width) +' ');
++   		//if (tc.state == tc.ACQ_SYNC && !d.data)
+    		//   tc_dmsg(d.zero_width +' ');
+-   		tc.data ^= 1;
+-   		if (tc.data) d.one_width = 0; else d.zero_width = 0;
++	      if (!tc.ref) { d.data = ampl; tc.ref = 1; } else { d.data ^= 1; }
++   		if (d.data) d.one_width = 0; else d.zero_width = 0;
+    	}
+    }
+ 
+-   if (tc.data) d.one_width++; else d.zero_width++;
++   if (d.data) d.one_width++; else d.zero_width++;
+ 	
+-	if (d.one_width == 170) {
++	// both sync and end-of-minute detection, hence "!= tc.ACQ_PHASE"
++	if (tc.state != tc.ACQ_PHASE && d.one_width == 170) {
+ 	   d.arm = 1;
+ 	}
+ 	
+-	if (d.arm && tc.data == 0) {
++	if (d.arm && d.data == 0) {
+ 	   tc.trig = 0;
+       tc.sample_point = 25;
+       d.sec = 0;
+@@ -107,13 +121,15 @@ function dcf77_ampl(ampl)
+ 
+ 	if (tc.state == tc.ACQ_DATA && tc.sample_point == tc.trig) {
+ 	   var b = (d.zero_width > 15)? 1:0;
+-      tc.raw[d.sec] = b;
+       tc_dmsg(b);
++      tc.raw[d.sec] = b;
+       if ([0,14,19,20,27,28,34,35,41,44,49,57,58].includes(d.dcnt)) tc_dmsg(' ');
+       //tc_dmsg(d.zero_width +' ');
+       d.dcnt++;
+       if (d.dcnt == 60) d.dcnt = 0;
+    }
++
++   tc.data = d.data;
+ }
+ 
+ function dcf77_focus()
+diff --git a/web/extensions/timecode/jjy.js b/web/extensions/timecode/jjy.js
+index 93fc0a3..f14773e 100644
+--- a/web/extensions/timecode/jjy.js
++++ b/web/extensions/timecode/jjy.js
+@@ -1,8 +1,7 @@
+-// Copyright (c) 2017-2021 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
+ 
+ //
+ // TODO
+-//    inverted amplitude?
+ //    parity checking
+ //
+ 
+@@ -58,13 +57,14 @@ function jjy_ampl_decode(bits)
+ 
+    var s = day +' '+ mo +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' JST';
+    tc_dmsg('  ' + 'day #'+ doy +' '+ s +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ s);
++   tc_stat('lime', 'Time: '+ s);
+ }
+ 
+ function jjy_clr()
+ {
+    var w = jjy;
+    
++   w.data = w.cur = 0;
+    w.arm = 0;
+    w.cnt = w.dcnt = 0;
+    w.prev_zero_width = w.one_width = w.zero_width = 0;
+@@ -77,7 +77,7 @@ function jjy_ampl(ampl)
+ 	var w = jjy;
+ 	tc.trig++; if (tc.trig >= 100) tc.trig = 0;
+ 	ampl = (ampl > 0.95)? 1:0;
+-	if (!tc.ref) { tc.data = ampl; tc.ref = 1; }
++	ampl = ampl ^ tc.force_rev ^ tc.data_ainv;
+ 	
+ 	// de-noise signal
+    if (ampl == w.cur) {
+@@ -87,8 +87,8 @@ function jjy_ampl(ampl)
+    	if (w.cnt > w.AMPL_NOISE_THRESHOLD) {
+    		w.cur = ampl;
+    		w.cnt = 0;
+-   		tc.data ^= 1;
+-   		if (tc.data) {
++	      if (!tc.ref) { w.data = ampl; tc.ref = 1; } else { w.data ^= 1; }
++   		if (w.data) {
+    		   //if (tc.state == tc.ACQ_SYNC) tc_dmsg(w.zero_width +' ');
+    		   if (tc.state == tc.ACQ_SYNC && w.prev_zero_width > 0 && w.prev_zero_width > 75 && w.zero_width > 55) {
+    		      //tc_dmsg('[SYNC]<br>');
+@@ -103,11 +103,11 @@ function jjy_ampl(ampl)
+    		   }
+    		   w.prev_zero_width = w.zero_width;
+    		}
+-   		if (tc.data) w.one_width = 0; else w.zero_width = 0;
++   		if (w.data) w.one_width = 0; else w.zero_width = 0;
+    	}
+    }
+ 
+-   if (tc.data) w.one_width++; else w.zero_width++;
++   if (w.data) w.one_width++; else w.zero_width++;
+ 
+ 	if (tc.state == tc.MIN_MARK || (tc.state == tc.ACQ_DATA && tc.sample_point == tc.trig)) {
+ 	   var b = (tc.state == tc.MIN_MARK || w.one_width <= 60)? 1:0;
+@@ -137,6 +137,8 @@ function jjy_ampl(ampl)
+       w.sec++;
+       w.msec = 0;
+    }
++
++   tc.data = w.data;
+ }
+ 
+ function jjy_focus()
+diff --git a/web/extensions/timecode/msf.js b/web/extensions/timecode/msf.js
+index 8950806..f477a0a 100644
+--- a/web/extensions/timecode/msf.js
++++ b/web/extensions/timecode/msf.js
+@@ -1,14 +1,15 @@
+-// Copyright (c) 2017-2019 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
+ 
+ //
+ // TODO
+-//    inverted amplitude
+ //    parity checking
+ //
+ 
+ var msf = {
++   AMPL_NOISE_THRESHOLD: 3,
+    arm: 0,
+-   NOISE_THRESHOLD: 3,
++   data: 0,
++
+    cur: 0,
+    sec: 0,
+    msec: 0,
+@@ -44,7 +45,7 @@ function msf_decode(bits)
+ 
+    var s = day +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' UTC';
+    tc_dmsg('  '+ s +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ s);
++   tc_stat('lime', 'Time: '+ s);
+ }
+ 
+ function msf_clr()
+@@ -63,31 +64,31 @@ function msf_ampl(ampl)
+ 	var m = msf;
+ 	tc.trig++; if (tc.trig >= 100) tc.trig = 0;
+ 	ampl = (ampl > 0.5)? 1:0;
+-	if (!tc.ref) { tc.data = ampl ^ m.phase; tc.ref = 1; }
++	ampl = ampl ^ tc.force_rev ^ tc.data_ainv;
+ 	
+ 	// de-noise signal
+    if (ampl == m.cur) {
+    	m.cnt = 0;
+    } else {
+    	m.cnt++;
+-   	if (m.cnt > m.NOISE_THRESHOLD) {
++   	if (m.cnt > m.AMPL_NOISE_THRESHOLD) {
+    		m.cur = ampl;
+    		m.cnt = 0;
+    		//if (tc.state == tc.ACQ_SYNC)
+-   		//   tc_dmsg((tc.data? '1':'0') +':'+ (tc.data? m.one_width : m.zero_width) +' ');
+-   		//if (tc.state == tc.ACQ_SYNC && !tc.data)
++   		//   tc_dmsg((m.data? '1':'0') +':'+ (m.data? m.one_width : m.zero_width) +' ');
++   		//if (tc.state == tc.ACQ_SYNC && !m.data)
+    		//   tc_dmsg(m.zero_width +' ');
+-   		tc.data ^= 1;
+-   		if (tc.data) m.one_width = 0; else m.zero_width = 0;
++	      if (!tc.ref) { m.data = ampl; tc.ref = 1; } else { m.data ^= 1; }
++   		if (m.data) m.one_width = 0; else m.zero_width = 0;
+    	}
+    }
+ 
+-   if (tc.data) m.one_width++; else m.zero_width++;
++   if (m.data) m.one_width++; else m.zero_width++;
+ 	
+ 	if (tc.state == tc.ACQ_SYNC && m.arm == 0 && m.zero_width >= 40) { m.arm = 1; m.zero_width = 0; }
+-	if (m.arm == 1 && m.one_width >= 40 && tc.data) { m.arm = 2; m.one_width = 0; }
++	if (m.arm == 1 && m.one_width >= 40 && m.data) { m.arm = 2; m.one_width = 0; }
+ 	
+-	if (m.arm == 2 && tc.data == 0) {
++	if (m.arm == 2 && m.data == 0) {
+ 	   tc.trig = 0;
+       tc.sample_point = 25;
+       m.sec = 0;
+@@ -103,8 +104,8 @@ function msf_ampl(ampl)
+ 	}
+ 	
+ 	if (tc.state == tc.MIN_MARK || (tc.state == tc.ACQ_DATA && tc.sample_point == tc.trig)) {
+-	   var a_bit = (tc.state == tc.MIN_MARK || m.zero_width > 15)? 1:0;     // inverted
+-      tc.raw[m.sec] = a_bit;
++	   var b = (tc.state == tc.MIN_MARK || m.zero_width > 15)? 1:0;     // inverted
++      tc.raw[m.sec] = b;
+ 
+       if (tc.state == tc.MIN_MARK) {
+          m.msec = 990;
+@@ -112,8 +113,8 @@ function msf_ampl(ampl)
+ 	   }
+ 
+       if (1) {
+-         //tc_dmsg(m.sec.toFixed(0) + a_bit.toFixed(0) +'|');
+-         tc_dmsg(a_bit);
++         //tc_dmsg(m.sec.toFixed(0) + b.toFixed(0) +'|');
++         tc_dmsg(b);
+          if ([0,16,24,29,35,38,44,51].includes(m.dcnt)) tc_dmsg(' ');
+       } else {
+          tc_dmsg(m.zero_width +' ');
+@@ -135,6 +136,8 @@ function msf_ampl(ampl)
+       m.sec++;
+       m.msec = 0;
+    }
++
++   tc.data = m.data;
+ }
+ 
+ function msf_focus()
+diff --git a/web/extensions/timecode/rus.js b/web/extensions/timecode/rus.js
+index 49fedcd..ce7b509 100644
+--- a/web/extensions/timecode/rus.js
++++ b/web/extensions/timecode/rus.js
+@@ -1,8 +1,7 @@
+-// Copyright (c) 2017-2021 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
+ 
+ //
+ // TODO
+-//    inverted amplitude?
+ //    parity checking
+ //
+ 
+@@ -10,6 +9,7 @@ var rus = {
+    // ampl
+    AMPL_NOISE_THRESHOLD: 5,
+    arm: 0,
++   data: 0,
+    prev_zero_width: 0,
+    wait: 0,
+    
+@@ -54,108 +54,111 @@ function rus_ampl_decode(bits)
+ 
+    var s = day +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' MSK';
+    tc_dmsg('  '+ s +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ s);
++   tc_stat('lime', 'Time: '+ s);
+ }
+ 
+ function rus_clr()
+ {
+-   var w = rus;
++   var r = rus;
+    
+-   w.arm = 0;
+-   w.cnt = w.rcnt = w.dcnt = 0;
+-   w.prev_zero_width = w.one_width = w.zero_width = 0;
+-   w.line = 0;
++   r.data = r.cur = 0;
++   r.arm = 0;
++   r.cnt = r.rcnt = r.dcnt = 0;
++   r.prev_zero_width = r.one_width = r.zero_width = 0;
++   r.line = 0;
+ }
+ 
+ // called at 100 Hz (10 msec)
+ function rus_ampl(ampl)
+ {
+-	var w = rus;
++	var r = rus;
+ 	tc.trig++; if (tc.trig >= 100) tc.trig = 0;
+ 	ampl = (ampl > 0.95)? 1:0;
+-	if (!tc.ref) { tc.data = ampl; tc.ref = 1; }
+-	w.wait -= 10;
++	ampl = ampl ^ tc.force_rev ^ tc.data_ainv;
++	r.wait -= 10;
+ 	
+ 	// de-noise signal
+-   if (ampl == w.cur) {
+-   	w.cnt = 0;
++   if (ampl == r.cur) {
++   	r.cnt = 0;
+    } else {
+-   	w.cnt++;
+-   	if (w.cnt > w.AMPL_NOISE_THRESHOLD) {
+-   		w.cur = ampl;
+-   		w.cnt = 0;
+-   		tc.data ^= 1;
+-   		if (tc.data)
+-            w.dat0 = Math.round(w.zero_width/10);
++   	r.cnt++;
++   	if (r.cnt > r.AMPL_NOISE_THRESHOLD) {
++   		r.cur = ampl;
++   		r.cnt = 0;
++	      if (!tc.ref) { r.data = ampl; tc.ref = 1; } else { r.data ^= 1; }
++   		if (r.data)
++            r.dat0 = Math.round(r.zero_width/10);
+          else
+-            w.dat1 = Math.round(w.one_width/10);
++            r.dat1 = Math.round(r.one_width/10);
+ 
+-   		if (tc.data) {    // 0 to 1 transition, w.dat0 now valid
++   		if (r.data) {    // 0 to 1 transition, r.dat0 now valid
+    		
+    		   if (tc.state == tc.ACQ_SYNC) {
+    		   /*
+-   		      var s = w.dat0 +' ';
++   		      var s = r.dat0 +' ';
+    		      tc_dmsg(s);
+-   		      w.dcnt += s.length;
+-               if (w.dcnt > 80) { tc_dmsg('<br>'); w.dcnt = 0; }
++   		      r.dcnt += s.length;
++               if (r.dcnt > 80) { tc_dmsg('<br>'); r.dcnt = 0; }
+             */
+ 
+-   		      if (w.dat0 == 5) {
++   		      if (r.dat0 == 5) {
+                   //tc_dmsg('[SYNC]<br>');
+                   tc_stat('cyan', 'Found sync');
+                   tc.trig = 30;
+                   tc.sample_point = 30;
+-                  w.sec = 0;
+-                  w.msec = 0;
++                  r.sec = 0;
++                  r.msec = 0;
+                   rus_legend();
+                   tc.raw = [];
+-                  w.rcnt = 0;
++                  r.rcnt = 0;
+                   tc.state = tc.MIN_MARK;
+                }
+    		   }
+    		   
+-   		   if (tc.state != tc.ACQ_SYNC) {
+-   		      if (w.wait <= 0) {
+-                  //if (w.dat0 > 3) w.dat0 = 1;
+-                  var b = (w.dat0 >= 2)? 1:0;      // only decodes data bit 1
+-                  tc.raw[w.rcnt] = b;
++   		   if (tc.state != tc.ACQ_PHASE && tc.state != tc.ACQ_SYNC) {
++   		      if (r.wait <= 0) {
++                  //if (r.dat0 > 3) r.dat0 = 1;
++                  var b = (r.dat0 >= 2)? 1:0;      // only decodes data bit 1
++                  tc.raw[r.rcnt] = b;
+                   tc_dmsg(b);
+-                  if ([0,2,7,10,15,17,23,24,32,37,40,46,52].includes(w.rcnt)) tc_dmsg(' ');
+-                  w.rcnt++;
+-                  w.wait = 700;
++                  if ([0,2,7,10,15,17,23,24,32,37,40,46,52].includes(r.rcnt)) tc_dmsg(' ');
++                  r.rcnt++;
++                  r.wait = 700;
+                }
+    		   
+    		   }
+    		   
+    		/*
+-   		   if (tc.state != tc.ACQ_SYNC && w.dat0 == 5) {
+-   		      tc_dmsg('<br>'); w.dcnt = 0;
++   		   if (tc.state != tc.ACQ_SYNC && r.dat0 == 5) {
++   		      tc_dmsg('<br>'); r.dcnt = 0;
+    		   }
+    		*/
+    		   
+-   		   w.prev_zero_width = w.zero_width;
++   		   r.prev_zero_width = r.zero_width;
+    		}
+ 
+-   		if (tc.data) w.one_width = 0; else w.zero_width = 0;
++   		if (r.data) r.one_width = 0; else r.zero_width = 0;
+    	}
+    }
+ 
+-   if (tc.data) w.one_width++; else w.zero_width++;
++   if (r.data) r.one_width++; else r.zero_width++;
+ 
+-   if (w.rcnt == 60) {
++   if (r.rcnt == 60) {
+       rus_ampl_decode(tc.raw);   // for the minute just reached
+       rus_legend();
+       tc.raw = [];
+-      w.rcnt = 0;
+-      w.sec = -1;
++      r.rcnt = 0;
++      r.sec = -1;
+    }
+ 
+-   w.msec += 10;
++   r.msec += 10;
+ 
+-   if (w.msec == 1000) {
+-      w.sec++;
+-      w.msec = 0;
++   if (r.msec == 1000) {
++      r.sec++;
++      r.msec = 0;
+    }
++
++   tc.data = r.data;
+ }
+ 
+ function rus_focus()
+diff --git a/web/extensions/timecode/tdf.js b/web/extensions/timecode/tdf.js
+index 6b1f538..4903383 100644
+--- a/web/extensions/timecode/tdf.js
++++ b/web/extensions/timecode/tdf.js
+@@ -1,4 +1,4 @@
+-// Copyright (c) 2017-2019 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
+ 
+ var tdf = {
+    arm: 0,
+@@ -40,7 +40,7 @@ function tdf_decode(bits)
+    var tz   = bits[17]? 'CEST' : (bits[18]? 'CET' : 'TZ?');
+ 
+    tc_dmsg('  '+ day +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' '+ tz +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ day +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' '+ tz);
++   tc_stat('lime', 'Time: '+ day +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' '+ tz);
+ }
+ 
+ function tdf_clr()
+diff --git a/web/extensions/timecode/timecode.js b/web/extensions/timecode/timecode.js
+index 5099d69..c8dab4f 100644
+--- a/web/extensions/timecode/timecode.js
++++ b/web/extensions/timecode/timecode.js
+@@ -1,10 +1,9 @@
+-// Copyright (c) 2017-2019 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
+ 
+ //
+ // TODO
+ //
+ // all
+-//    For amplitude modes do better auto-inversion detection and restart.
+ //    No leap second, UTC correction processing etc.
+ //
+ // JJY
+@@ -25,16 +24,19 @@ var tc = {
+    update: false,
+    start_point: 0,
+    ref: 0,
++   col: 0,
+    
+    state:      0,
+-   ACQ_SYNC:   0,
+-   SYNCED:     1,
+-   MIN_MARK:   1,
+-   ACQ_DATA:   2,
+-   ACQ_DATA2:  3,
++   ACQ_PHASE:  0,
++   ACQ_SYNC:   1,
++   SYNCED:     2,
++   MIN_MARK:   3,
++   ACQ_DATA:   4,
++   ACQ_DATA2:  5,
+ 
+    dbug:       '',
+-   //test:       0,
++   test:       0,
++   force_rev:  0,
+    
+ 	srate:		0,
+ 	srate_upd:  0,
+@@ -51,20 +53,21 @@ var tc = {
+ 	sample_point: -1,
+ 	ampl_last:  0,
+ 	data:       0,
+-	data_last:  1,
++	data_ainv:  0,    // ampl phase invert
+ 	
+    df:         0,
+-   phase:      0,
++   pll_phase:  0,
+    pll_bw:     0,
+ 
+    config:     0,
+    // RBU: lsb stronger, RTZ: usb stronger
+-   sig:        { Beta:0,   JJY40:1, RTZ:2,   WWVBa:3, WWVBp:4, JJY60:5, MSF:6,   RBU:7,   BPCa:8,  BPCss:9, DCF77a:10,  DCF77ss:11, TDF:12,  WWV:13 },
++   sig:        { Beta:0,   JJY40:1, RTZ:2,   WWVBa:3, WWVBp:4, JJY60:5, MSF:6,   RBU:7,   BPCa:8,  BPCss:9, DCF77a:10,  DCF77ss:11, TDF:12,  WWV:13   },
+    freq:       [ 25,       40,      50.1,    60,      60,      60,      60,      66.566,  68.5,    68.5,    77.5,       77.5,       162,     10000.1, ],
+-   pb:         [ 5,        5,       30,      5,       5,       5,       5,       30,      5,       5,       5,          5,          5,       5 ],
+-   pll_bw_i:   [ 100,      100,     100,     100,     5,       100,     100,     100,     100,     100,     100,        100,        5,       5 ],
+-   pll_off_i:  [ 500,      500,     500,     500,     0,       500,     500,     500,     500,     500,     500,        500,        0,       100 ],
+-   sigid_s:    [ 'beta',   'jjy',   'rus',   'wwvb',  'wwvb',  'jjy',   'msf',   'rus',   'bpc',   'bpc',   'dcf77',    'dcf77',    'tdf',   'wwv' ],
++   pb:         [ 5,        5,       30,      5,       5,       5,       5,       30,      5,       5,       5,          5,          5,       5        ],
++   pll_bw_i:   [ 100,      100,     100,     100,     5,       100,     100,     100,     100,     100,     100,        100,        5,       5        ],
++   pll_off_i:  [ 500,      500,     500,     500,     0,       500,     500,     500,     500,     500,     500,        500,        0,       100      ],
++   sigid_s:    [ 'beta',   'jjy',   'rus',   'wwvb',  'wwvb',  'jjy',   'msf',   'rus',   'bpc',   'bpc',   'dcf77',    'dcf77',    'tdf',   'wwv'    ],
++   sync_phase: [ 2,        1,       1,       1,       2,       1,       1,       1,       1,       2,       1,          2,          2,       1        ],
+    prev_sig:   -1,
+ 
+    sig_s: [
+@@ -117,10 +120,27 @@ function timecode_main()
+ 
+ function tc_dmsg(s)
+ {
+-	if (s == undefined)
++	if (s == undefined) {
+ 		tc.dbug = '';
+-	else
++		tc.col = 0;
++	} else {
++      s = s.toString();
+ 		tc.dbug += s;
++		//console.log(tc.col +' >>>'+ s);
++      if (s.includes('<br>')) {
++         tc.col = 0;
++		   //console.log('tc.col(1) = 0');
++      } else {
++         if (s[0] != '<')     // don't count HTML
++            tc.col += s.length;
++         if (tc.col > 100) {
++            tc.dbug += '<br>';
++            tc.col = 0;
++		      //console.log('tc.col(2) = 0');
++         }
++      }
++   }
++	
+ 	w3_el('id-tc-dbug').innerHTML = tc.dbug;
+ }
+ 
+@@ -157,6 +177,7 @@ function tc_gap_bcd(bits, offset, n_bits, dir)
+ 
+ function tc_recv(data)
+ {
++   var i;
+ 	var firstChars = arrayBufferToStringLen(data, 3);
+ 	
+ 	// process data sent from server/C by ext_send_msg_data()
+@@ -166,7 +187,7 @@ function tc_recv(data)
+ 		var nsamps = ba.length;
+ 
+ 		if (cmd == 0) {
+-         for (var i = 1; i < nsamps; i++) {
++         for (i = 1; i < nsamps; i++) {
+             var sample = ba[i] - 127;
+ 
+             var ampl = -sample / 127.0;
+@@ -239,10 +260,14 @@ function tc_recv(data)
+                
+                if (tc._1Hz++ >= 100 && tc.sig_s[tc.config][1] != 2) {
+                   timecode_update_srate();
+-                  var s = 'cf '+ tc.pb_cf;
+-                  s += ', pll: '+ tc.df.toFixed(2).withSign() +' Hz ';
+-                  s += tc.phase.toFixed(2).withSign() +' &phi; ';
+-                  s += ', srate '+ tc.srate.toFixed(2) +' ('+ tc.srate_upd +'), clock '+ (ext_adc_clock_Hz()/1e6).toFixed(6) +' ('+ ext_adc_gps_clock_corr() +')';
++                  tc.sync_ph = tc.sync_ph_p / Math.max(1, (tc.sync_ph_p + tc.sync_ph_n));
++                  var pt = tc.sync_ph_done? (tc.data_ainv? 'REV ' : 'IN ') : ((tc.sync_ph_ct / tc.srate).toFixed(0) +'s ');
++                  var s = 'cf '+ tc.pb_cf +
++                     ', pll '+ tc.df.toFixed(2).withSign() +' Hz ' +
++                     tc.pll_phase.toFixed(2).withSign() +' &phi; ' +
++                     ', sr '+ tc.srate.toFixed(2) + ' ('+ tc.srate_upd.toUnits() +
++                     '), clk '+ (ext_adc_clock_Hz()/1e6).toFixed(6) +' ('+ ext_adc_gps_clock_corr().toUnits() +')' +
++                     ', ph '+ tc.sync_ph.toFixed(2) +' '+ pt +' S'+ tc.state + (tc.force_rev? ' R' : '');
+                   tc_stat2('orange', s);
+                   tc._1Hz = 0;
+                }
+@@ -317,7 +342,7 @@ function tc_recv(data)
+                   /* cyan */ (tc.trig <= tc.sample_point),
+                   /* red  */ ampl_abs,
+                   /* org  */ undefined,
+-                  /* blk  */ tc.data? -0.6 : -0.3,    // inverted
++                  /* blk  */ tc.data? -0.3 : -0.6,
+                   /* lime */ 0,
+                   /* trig */ 0
+                );
+@@ -328,7 +353,7 @@ function tc_recv(data)
+                   /* cyan */ (tc.trig >= 0 && tc.trig <= tc.sample_point),
+                   /* red  */ ampl_abs,
+                   /* org  */ undefined,
+-                  /* blk  */ tc.data? -0.6 : -0.3,    // inverted
++                  /* blk  */ tc.data? -0.3 : -0.6,
+                   /* lime */ 0,
+                   /* trig */ 0
+                );
+@@ -363,6 +388,33 @@ function tc_recv(data)
+             }
+       
+             //if (tc.mkr) tc.mkr--;
++            
++            if (tc.state == tc.ACQ_PHASE) {
++               if (tc.data) tc.sync_ph_p++; else tc.sync_ph_n++;
++               tc.sync_ph_ct++;
++               if (tc.sync_ph_ct >= 10 * tc.srate) {     // measure for 10 secs
++                  tc.sync_ph_done = 1;
++                  var phase = (tc.sync_ph >= 0.5)? 1:0;
++                  if (phase != tc.sync_phase[tc.config]) {
++                     tc.data_ainv ^= 1;
++                     w3_call(tc.sigid_s[tc.config] +'_clr');
++                     //tc_dmsg('[REV PHASE] ');
++                  }
++                  //tc_dmsg('[FIND SYNC] ');
++                  tc.state = tc.ACQ_SYNC;
++                  //console.log('FIND SYNC');
++                  if (tc.test) {
++                     //console.log('restart test file playback');
++                     timecode_test_cb();
++                  }
++                  tc_stat('yellow',
++                     w3_inline('',
++                        w3_icon('w3-text-aqua', 'fa-cog fa-spin', 20),
++                        w3_div('w3-margin-L-8 w3-text-css-yellow', 'Looking for sync')
++                     )
++                  );
++               }
++            }
+          }
+ 		} else {
+ 			console.log('tc_recv: DATA UNKNOWN cmd='+ cmd +' len='+ len);
+@@ -375,7 +427,7 @@ function tc_recv(data)
+ 	var stringData = arrayBufferToString(data);
+ 	var params = stringData.substring(4).split(" ");
+ 
+-	for (var i=0; i < params.length; i++) {
++	for (i = 0; i < params.length; i++) {
+ 		var param = params[i].split("=");
+ 
+ 		if (0 && param[0] != "keepalive") {
+@@ -398,7 +450,7 @@ function tc_recv(data)
+ 				break;
+ 
+ 			case "phase":
+-				tc.phase = parseFloat(param[1]);
++				tc.pll_phase = parseFloat(param[1]);
+ 				break;
+ 
+ 			default:
+@@ -436,7 +488,7 @@ function tc_controls_setup()
+             w3_button('w3-padding-small w3-aqua', 'Reset PLL', 'timecode_reset_pll_cb'),
+             //w3_checkbox('w3-label-inline w3-label-not-bold/', 'update Kiwi<br>date &amp; time', 'tc.update', tc.update, 'w3_bool_cb'),
+ 			   w3_input('w3-padding-tiny w3-label-inline w3-label-not-bold|width:auto|size=3', 'pll bw:', 'tc.pll_bw', tc.pll_bw, 'timecode_pll_bw_cb'),
+-            //w3_button('w3-padding-small w3-aqua', 'Test', 'timecode_test_cb'),
++            dbgUs? w3_button('w3-padding-small w3-aqua', 'Test', 'timecode_test_cb') : '',
+ 				w3_div('', '<pre id="id-tc-info" style="margin:0"></pre>')
+ 			),
+ 			w3_inline('w3-margin-T-4/w3-margin-right',
+@@ -456,16 +508,27 @@ function tc_controls_setup()
+ 	
+ 	var p = ext_param();
+ 	if (p) {
+-	   var i;
+-	   p = p.split(',')[0];
+-      p = p.toLowerCase();
+-      for (i = 0; i < tc.sig_s.length; i++) {
+-         if (tc.sig_s[i][1] && tc.sig_s[i][0].toLowerCase().includes(p))
+-            break;
+-      }
+-      if (i < tc.sig_s.length) {
+-         tc.config = i;
+-         w3_select_value('tc.config', i);
++	   var i, j;
++	   p = p.split(',');
++      for (i = 0, len = p.length; i < len; i++) {
++         var a = p[i];
++         if (i == 0) {
++            var ps = a.toLowerCase();
++            for (j = 0; j < tc.sig_s.length; j++) {
++               if (/* enable */ tc.sig_s[j][1] && tc.sig_s[j][0].toLowerCase().includes(ps))
++                  break;
++            }
++            if (j < tc.sig_s.length) {
++               tc.config = j;
++               w3_select_value('tc.config', j);
++            }
++         } else
++         if (w3_ext_param('test', a).match) {
++            setTimeout(function() { timecode_test_cb(); }, 2000);
++         } else
++         if (w3_ext_param('rev', a).match) {
++            tc.force_rev = 1;
++         }
+       }
+    }
+ 
+@@ -610,24 +673,45 @@ function tc_signal_menu_cb(path, val, first)
+    tc.pb_cf = pb.low + (pb.high - pb.low)/2;
+ }
+ 
+-function timecode_resync_cb(path, val)
++function timecode_reset(state)
+ {
+-	tc_dmsg();
+-	tc_stat('yellow',
+-	   w3_inline('',
+-	      w3_icon('w3-text-aqua', 'fa-cog fa-spin', 20),
+-	      w3_div('w3-margin-L-8 w3-text-css-yellow', 'Looking for sync')
+-	   )
+-	);
++   tc_dmsg();
++	//tc_dmsg('[MEAS PHASE] ');
++	//tc_dmsg('test='+ tc.test +' ');
++
++	if (state == false) {
++	   if (tc.state != tc.ACQ_PHASE) tc.state = tc.ACQ_SYNC;
++	} else
++	if (isNumber(state)) {
++	} else {
++	   tc.state = tc.ACQ_SYNC;
++	}
+ 	
++	if (tc.state == tc.ACQ_PHASE) {
++	   tc.sync_ph_done = tc.sync_ph_ct = tc.sync_ph_p = tc.sync_ph_n = 0;
++	   tc.data_ainv = 0;
++	}
++
+ 	tc.raw = [];
+-	tc.state = tc.ACQ_SYNC;
+ 	tc.sample_point = -1;
+-	tc.data_last = tc.data = 0;
++	tc.data = 0;
+ 	tc.ref = 0;
+    w3_call(tc.sigid_s[tc.config] +'_clr');
+ 	scope_clr();
+-	//if (tc.test) ext_send('SET test');
++	tc_stat('yellow',
++	   w3_inline('',
++	      w3_icon('w3-text-aqua', 'fa-cog fa-spin', 20),
++	      w3_div('w3-margin-L-8 w3-text-css-yellow', (tc.state == tc.ACQ_PHASE)? 'Measuring phase' : 'Looking for sync')
++	   )
++	);
++}
++
++function timecode_resync_cb(path, val)
++{
++   var phase_meas = (tc.sync_phase[tc.config] != 2);
++	tc.state = phase_meas? tc.ACQ_PHASE : tc.ACQ_SYNC;
++	timecode_reset(tc.state);
++	if (tc.test) ext_send('SET test');
+ }
+ 
+ function timecode_reset_pll_cb(path, val)
+@@ -645,14 +729,13 @@ function timecode_pll_bw_cb(path, val, complete, first)
+ 	ext_send('SET pll_bandwidth='+ val);
+ }
+ 
+-/*
+ function timecode_test_cb(path, val, first)
+ {
+    if (first) return;
++   timecode_reset(false);
+    tc.test = 1;
+ 	ext_send('SET test');
+ }
+-*/
+ 
+ function timecode_update_srate()
+ {
+diff --git a/web/extensions/timecode/wwvb.js b/web/extensions/timecode/wwvb.js
+index b15d241..ba56aa2 100644
+--- a/web/extensions/timecode/wwvb.js
++++ b/web/extensions/timecode/wwvb.js
+@@ -1,8 +1,7 @@
+-// Copyright (c) 2017-2019 John Seamons, ZL4VO/KF6VO
++// Copyright (c) 2017-2024 John Seamons, ZL4VO/KF6VO
+ 
+ //
+ // TODO
+-//    inverted amplitude?
+ //    parity checking
+ //
+ 
+@@ -10,12 +9,14 @@ var wwvb = {
+    // ampl
+    AMPL_NOISE_THRESHOLD: 3,
+    arm: 0,
++   data: 0,
++   data_last: 0,
+ 
+    // phase
+    PHASE_NOISE_THRESHOLD: 15,
+    prev_one_width: 0,
+    ph_sync:    [ 0,0,0,1,1,1,0,1,1,0,1,0,0,0 ],    // sync[13..0] starting at :59 (double ampl marker pulses)
+-   inverted: 0,
++   phase_inv: 0,
+    sixmin_mode: 0,
+    
+    cur: 0,
+@@ -31,32 +32,6 @@ var wwvb = {
+    end: null
+ };
+ 
+-function wwvb_sync()
+-{
+-	var rl = tc.raw.length;
+-	var sync = 1;
+-	for (i = 0; i < 14; i++) {
+-		if (tc.raw[rl-(14-i)] != wwvb.ph_sync[i]) {
+-			sync = 0;
+-			break;
+-		}
+-	}
+-	if (!sync) {
+-			sync = 2;
+-			for (i = 0; i < 14; i++) {
+-				if (tc.raw[rl-(14-i)] != (wwvb.ph_sync[i] ^ 1)) {
+-					sync = 0;
+-					break;
+-				}
+-			}
+-	}
+-	
+-	if (sync != 0)
+-      console.log('SYNC'+ ((sync == 2)? '-I':'') +' dlen='+ tc.raw.length);
+-	
+-	return sync;
+-}
+-
+ function wwvb_dmsg(s)
+ {
+    w3_innerHTML('id-tc-wwvb', s);
+@@ -89,13 +64,14 @@ function wwvb_ampl_decode(bits)
+ 
+    var s = day +' '+ mo +' '+ yr +' '+ hour.leadingZeros(2) +':'+ min.leadingZeros(2) +' UTC';
+    tc_dmsg('  ' + 'day #'+ doy +' '+ s +'<br>');
+-   tc_stat('lime', 'Time decoded: '+ s);
++   tc_stat('lime', 'Time: '+ s);
+ }
+ 
+ function wwvb_clr()
+ {
+    var w = wwvb;
+    
++   w.data = w.data_last = w.cur = 0;
+    w.arm = 0;
+    w.cnt = w.dcnt = 0;
+    w.prev_one_width = w.one_width = w.zero_width = 0;
+@@ -108,7 +84,7 @@ function wwvb_ampl(ampl)
+ 	var w = wwvb;
+ 	tc.trig++; if (tc.trig >= 100) tc.trig = 0;
+ 	ampl = (ampl > 0.95)? 1:0;
+-	if (!tc.ref) { tc.data = ampl; tc.ref = 1; }
++	ampl = ampl ^ tc.force_rev ^ tc.data_ainv;
+ 	
+ 	// de-noise signal
+    if (ampl == w.cur) {
+@@ -118,9 +94,11 @@ function wwvb_ampl(ampl)
+    	if (w.cnt > w.AMPL_NOISE_THRESHOLD) {
+    		w.cur = ampl;
+    		w.cnt = 0;
+-   		tc.data ^= 1;
+-   		if (!tc.data) {
++	      if (!tc.ref) { w.data = ampl; tc.ref = 1; } else { w.data ^= 1; }
++   		if (!w.data) {
+    		   //tc_dmsg(w.one_width +' ');
++   		   //tc_dmsg((w.prev_one_width +'|'+ w.one_width +' ');
++   		   //tc_dmsg('S'+ tc.ACQ_SYNC +' ');
+    		   if (tc.state == tc.ACQ_SYNC && w.prev_one_width > 0 && w.prev_one_width < 25 && w.one_width < 25) {
+    		      //tc_dmsg('[SYNC] ');
+                tc_stat('cyan', 'Found sync');
+@@ -134,17 +112,17 @@ function wwvb_ampl(ampl)
+    		   }
+    		   w.prev_one_width = w.one_width;
+    		}
+-   		if (tc.data) w.one_width = 0; else w.zero_width = 0;
++         if (w.data) w.one_width = 0; else w.zero_width = 0;
+    	}
+    }
+ 
+-   if (tc.data) w.one_width++; else w.zero_width++;
++   if (w.data) w.one_width++; else w.zero_width++;
+ 
+ 	if (tc.state == tc.MIN_MARK || (tc.state == tc.ACQ_DATA && tc.sample_point == tc.trig)) {
+ 	   var b = (tc.state == tc.MIN_MARK || w.one_width <= 60)? 1:0;
+       //tc_dmsg(b.toFixed(0) + w.one_width.toFixed(0) +'|');
+       tc_dmsg(b);
+-      tc.raw[w.sec] = b;    // raw, not inversion-corrected data
++      tc.raw[w.sec] = b;
+       if ([0,8,11,18,21,33,35,38,39,43,44,53,54,58].includes(w.dcnt)) tc_dmsg(' ');
+ 
+       if (tc.state == tc.MIN_MARK) {
+@@ -168,15 +146,43 @@ function wwvb_ampl(ampl)
+       w.sec++;
+       w.msec = 0;
+    }
++
++   tc.data = w.data;
++}
++
++function wwvb_phase_sync()
++{
++	var rl = tc.raw.length;
++	var sync = 1;
++	for (i = 0; i < 14; i++) {
++		if (tc.raw[rl-(14-i)] != wwvb.ph_sync[i]) {
++			sync = 0;
++			break;
++		}
++	}
++	if (!sync) {
++			sync = 2;
++			for (i = 0; i < 14; i++) {
++				if (tc.raw[rl-(14-i)] != (wwvb.ph_sync[i] ^ 1)) {
++					sync = 0;
++					break;
++				}
++			}
++	}
++	
++	if (sync != 0)
++      console.log('SYNC'+ ((sync == 2)? '-I':'') +' dlen='+ tc.raw.length);
++	
++	return sync;
+ }
+ 
+ // called at 100 Hz (10 msec)
+ function wwvb_phase(ampl_sgn)
+ {
+-	var i;
++	var i, sync, data;
+ 	var w = wwvb;
+ 	tc.trig++; if (tc.trig >= 100) tc.trig = 0;
+-	if (!tc.ref) { tc.data = ampl_sgn; tc.ref = 1; }
++	if (!tc.ref) { w.data = ampl_sgn; tc.ref = 1; }
+ 	
+ 	// de-noise signal
+    if (ampl_sgn == w.cur) {
+@@ -186,17 +192,17 @@ function wwvb_phase(ampl_sgn)
+    	if (w.cnt > w.PHASE_NOISE_THRESHOLD) {
+    		w.cur = ampl_sgn;
+    		w.cnt = 0;
+-   		tc.data ^= 1;
++   		w.data ^= 1;
+    	}
+    }
+ 
+-	if (tc.data) {
++	if (w.data) {
+ 		w.width++;
+ 	}
+ 	
+-	// if we need it, measure width on falling edge tc.data
+-	if (tc.sample_point == -1 && tc.data_last != tc.data) {
+-		//tc_dmsg(tc.data_last.toFixed(0) + tc.data.toFixed(0) +':'+ w.width.toFixed(0) +' ');
++	// if we need it, measure width on falling edge w.data
++	if (tc.sample_point == -1 && w.data_last != w.data) {
++		//tc_dmsg(w.data_last.toFixed(0) + w.data.toFixed(0) +':'+ w.width.toFixed(0) +' ');
+ 		if (w.width > 50 && w.width < 110) {
+ 			//tc.sample_point = tc.trig - Math.round(w.width/2);
+ 			tc.sample_point = tc.trig - 1;
+@@ -205,23 +211,23 @@ function wwvb_phase(ampl_sgn)
+ 			tc.start_point = 1;
+ 		}
+ 		w.width = 0;
+-	   tc.data_last = tc.data;
++	   w.data_last = w.data;
+ 	}
+ 	
+ 	//wwvb_dmsg('sp='+ tc.sample_point +' trig='+ tc.trig);
+ 
+ 	if (tc.sample_point == tc.trig) {
+ 		if (tc.state == tc.ACQ_SYNC) {
+-			tc.raw.push(tc.data);
+-			tc_dmsg(tc.data.toString());
++			tc.raw.push(w.data);
++			tc_dmsg(w.data.toString());
+ 			
+ 			if (tc.raw.length >= 14) {
+-				var sync = wwvb_sync();
+-				w.inverted = 0;
+-				if (sync == 2) w.inverted = 1;
++				sync = wwvb_phase_sync();
++				w.phase_inv = 0;
++				if (sync == 2) w.phase_inv = 1;
+ 				if (sync) {
+ 					tc_stat('cyan', 'Found sync');
+-					tc_dmsg(' SYNC'+ (w.inverted? '-inv<br>':'<br>'));
++					tc_dmsg(' SYNC'+ (w.phase_inv? '-inv<br>':'<br>'));
+ 					wwvb_legend(1);
+ 					tc_dmsg('00011101101000 ');
+ 					w.dcnt = 13;
+@@ -243,9 +249,9 @@ function wwvb_phase(ampl_sgn)
+ 		} else
+ 		
+ 		if (tc.state == tc.ACQ_DATA) {
+-			tc.raw.push(tc.data);
+-			var data = tc.data ^ w.inverted;
+-			//tc_dmsg(w.inverted? (data? 'i':'o') : data.toString());
++			tc.raw.push(w.data);
++			data = w.data ^ w.phase_inv;
++			//tc_dmsg(w.phase_inv? (data? 'i':'o') : data.toString());
+ 			tc_dmsg(data.toString());
+          if ([12,17,18,19,28,29,38,39,46,48,49,52].includes(w.dcnt)) tc_dmsg(' ');
+ 			
+@@ -259,7 +265,7 @@ function wwvb_phase(ampl_sgn)
+ 			
+ 			//tc_info('dlen='+ tc.raw.length +' dcnt='+ w.dcnt);
+ 			if (tc.raw.length >= 14 && w.dcnt == 12) {
+-				var sync = wwvb_sync();
++				sync = wwvb_phase_sync();
+ 				if (!sync) {
+ 					tc_dmsg(' RESYNC<br>');
+ 					tc.state = tc.ACQ_SYNC;
+@@ -267,9 +273,9 @@ function wwvb_phase(ampl_sgn)
+ 					w.width = 0;
+ 					w.tick = 0;
+ 				} else
+-				if ((sync == 1 && w.inverted) || (sync == 2 && !w.inverted)) {
++				if ((sync == 1 && w.phase_inv) || (sync == 2 && !w.phase_inv)) {
+ 					tc_dmsg(' PHASE INVERSION<br>00011101101000 ');
+-					w.inverted ^= 1;
++					w.phase_inv ^= 1;
+ 				}
+ 			}
+ 			
+@@ -325,7 +331,7 @@ function wwvb_phase(ampl_sgn)
+ 					var hour = Math.floor(m / 60);
+ 					m -= hour * 60;
+ 					tc_dmsg(' '+ (day+1) +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ m.leadingZeros(2) +' UTC');
+-					tc_stat('lime', 'Time decoded: '+ (day+1) +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ m.leadingZeros(2) +' UTC');
++					tc_stat('lime', 'Time: '+ (day+1) +' '+ tc.mo[mo] +' '+ yr +' '+ hour.leadingZeros(2) +':'+ m.leadingZeros(2) +' UTC');
+ 					
+ 					if (m == 10 || m == 40) w.sixmin_mode = 1;
+ 				}
+@@ -351,7 +357,7 @@ function wwvb_phase(ampl_sgn)
+ 			if (w.dcnt == 127) tc_dmsg('<br>106b: ');
+ 			if (w.dcnt == 233) tc_dmsg('<br>127b: ');
+ 
+-			var data = tc.data ^ w.inverted;
++			data = w.data ^ w.phase_inv;
+ 			tc_dmsg(data.toString());
+ 
+ 			w.dcnt++;
+@@ -365,7 +371,7 @@ function wwvb_phase(ampl_sgn)
+ 		}
+ 	}
+ 	
+-	return tc.data;
++	return w.data;
+ }
+ 
+ function wwvb_focus()

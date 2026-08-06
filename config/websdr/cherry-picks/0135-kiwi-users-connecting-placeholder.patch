@@ -1,0 +1,26 @@
+diff --git a/rx/rx_util.cpp b/rx/rx_util.cpp
+index 4d553e3..ec1fe94 100644
+--- a/rx/rx_util.cpp
++++ b/rx/rx_util.cpp
+@@ -990,7 +990,7 @@ char* rx_users(bool include_ip) {
+             // rx->conn is always STREAM_SOUND for regular SND+WF connections and
+             // always STREAM_WATERFALL for WF-only connections
+             conn_t* c = rx->conn;
+-            if (c && c->valid && c->arrived) {
++            if (c && c->valid) {
+                 assert(c->type == STREAM_SOUND || c->type == STREAM_WATERFALL);
+ 
+                 // connected time
+@@ -1047,7 +1047,11 @@ char* rx_users(bool include_ip) {
+                 t /= 60;
+                 u4_t r_hr = t;
+ 
+-                char* user = (c->isUserIP || !c->ident_user) ? NULL : kiwi_str_encode(c->ident_user);
++                char* user;
++                if (!c->arrived)
++                    user = strdup("(connecting)");
++                else
++                    user = (c->isUserIP || !c->ident_user) ? NULL : kiwi_str_encode(c->ident_user);
+                 bool show = show_geo || c->internal_connection;
+                 char* geo = show ? (c->geo ? kiwi_str_encode(c->geo) : NULL) : NULL;
+                 char* ext = ext_users[i].ext ? kiwi_str_encode((char*)ext_users[i].ext->name) : NULL;

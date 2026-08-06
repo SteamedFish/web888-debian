@@ -1,0 +1,106 @@
+diff --git a/extensions/wspr/wspr.h b/extensions/wspr/wspr.h
+index 9990197..5e6bd77 100644
+--- a/extensions/wspr/wspr.h
++++ b/extensions/wspr/wspr.h
+@@ -306,6 +306,7 @@ typedef struct {
+     char spot_log[N_SPOT_LOG];
+ 
+ 	bool test;
++	int upload;
+ 	int skip_upload;
+     s2_t *s2p;
+     int nsamps;
+diff --git a/extensions/wspr/wspr_main.cpp b/extensions/wspr/wspr_main.cpp
+index 39be5c9..2ac9c50 100644
+--- a/extensions/wspr/wspr_main.cpp
++++ b/extensions/wspr/wspr_main.cpp
+@@ -526,35 +526,38 @@ void WSPR_Deco(void *param)
+                 w->arun_decoded++;
+             } else {
+                 #ifdef CURL_UPLOADS
+-                    wspr_printf("WSPR UPLOAD %02d%02d %3.0f %4.1f %9.6f %2d %s\n",
+-                        dp->hour, dp->min, dp->snr, dp->dt_print, dp->freq_print, (int) dp->drift1, dp->c_l_p);
+-
+-                    // make the dp->call field invalid so wsprnet.org rejects the upload
+-                    #ifdef TEST_UPLOADS
+-                        strcpy(dp->call, "...");
+-                    #endif
+-                    asprintf(&cmd, WSPR_SPOT, wspr_c.rcall, wspr_c.rgrid, rqrg, year%100, month, day,
+-                        dp->hour, dp->min, dp->snr, dp->dt_print, (int) dp->drift1, dp->freq_print, dp->call, dp->grid, dp->pwr);
+-                    if (wspr_c.spot_log) {
+-                        int status;
+-                        kstr_t *reply = curl_get(cmd, 15, &status);
+-                        if (status == 0 && reply) {
+-                            status = _upload_task(w->rx_chan, reply);
+-                            kstr_free(reply);
+-
+-                            rcprintf(w->rx_chan, "%s UPLOAD: %s\n", w->iwbp? "IWBP" : "WSPR", cmd);
+-                            int n, added, total;
+-                            n = sscanf(w->spot_log, "%*s%*s%d out of %d", &added, &total);
+-                            if (n == 2)
+-                                rcprintf(w->rx_chan, "%s UPLOAD: wsprnet.org said: \"%d out of %d spot(s) added\"\n", w->iwbp? "IWBP" : "WSPR", added, total);
+-                            else
+-                                rcprintf(w->rx_chan, "%s UPLOAD: wsprnet.org said: \"%s\"\n", w->iwbp? "IWBP" : "WSPR", w->spot_log);
++                    wspr_printf("WSPR UPLOAD %02d%02d %3.0f %4.1f %9.6f %2d %s %s\n",
++                        dp->hour, dp->min, dp->snr, dp->dt_print, dp->freq_print, (int) dp->drift1, dp->c_l_p,
++                        w->upload? "" : "(upload disabled)");
++
++                    if (w->upload) {
++                        // make the dp->call field invalid so wsprnet.org rejects the upload
++                        #ifdef TEST_UPLOADS
++                            strcpy(dp->call, "...");
++                        #endif
++                        asprintf(&cmd, WSPR_SPOT, wspr_c.rcall, wspr_c.rgrid, rqrg, year%100, month, day,
++                            dp->hour, dp->min, dp->snr, dp->dt_print, (int) dp->drift1, dp->freq_print, dp->call, dp->grid, dp->pwr);
++                        if (wspr_c.spot_log) {
++                            int status;
++                            kstr_t *reply = curl_get(cmd, 15, &status);
++                            if (status == 0 && reply) {
++                                status = _upload_task(w->rx_chan, reply);
++                                kstr_free(reply);
++
++                                rcprintf(w->rx_chan, "%s UPLOAD: %s\n", w->iwbp? "IWBP" : "WSPR", cmd);
++                                int n, added, total;
++                                n = sscanf(w->spot_log, "%*s%*s%d out of %d", &added, &total);
++                                if (n == 2)
++                                    rcprintf(w->rx_chan, "%s UPLOAD: wsprnet.org said: \"%d out of %d spot(s) added\"\n", w->iwbp? "IWBP" : "WSPR", added, total);
++                                else
++                                    rcprintf(w->rx_chan, "%s UPLOAD: wsprnet.org said: \"%s\"\n", w->iwbp? "IWBP" : "WSPR", w->spot_log);
++                            }
+                         }
++                        kiwi_asfree(cmd);
+                     }
+-                    kiwi_asfree(cmd);
+                 #else
+                     //printf("WSPR #%d skip_upload %d\n", i, w->skip_upload);
+-                    if (w->skip_upload == 0) {
++                    if (w->upload && w->skip_upload == 0) {
+                         ext_send_msg_encoded(w->rx_chan, WSPR_DEBUG_MSG, "EXT", "WSPR_UPLOAD",
+                             "%02d%02d %3.0f %4.1f %9.6f %2d %s",
+                             dp->hour, dp->min, dp->snr, dp->dt_print, dp->freq_print, (int) dp->drift1, dp->c_l_p);
+@@ -864,6 +867,13 @@ bool wspr_msgs(char *msg, int rx_chan)
+         return true;
+     }
+     
++	n = sscanf(msg, "SET upload=%d", &i);
++    if (n == 1) {
++        printf("WSPR upload=%d\n", i);
++        w->upload = i;
++        return true;
++    }
++    
+     if (strcmp(msg, "SET IWBP") == 0) {
+         wspr_dprintf("SET IWBP\n");
+         w->iwbp = true;
+diff --git a/web/extensions/wspr/wspr.js b/web/extensions/wspr/wspr.js
+index b963f85..1a9530b 100644
+--- a/web/extensions/wspr/wspr.js
++++ b/web/extensions/wspr/wspr.js
+@@ -846,6 +846,7 @@ function wspr_set_upload_cb(path, checked)
+ 	
+ 	if (!wspr_config_okay || wspr.upload_lockout) checked = false;
+ 	wspr.upload = checked;
++	ext_send('SET upload='+ (checked? 1:0));
+ 	w3_checkbox_set('id-wspr.upload', checked);
+ 	w3_color('id-wspr-upload-container', checked? "white":"black", checked? "inherit":"yellow");
+ }

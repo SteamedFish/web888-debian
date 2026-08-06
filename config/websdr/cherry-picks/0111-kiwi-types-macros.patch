@@ -1,0 +1,13 @@
+diff --git a/types.h b/types.h
+index ca0e5f3..5ef7cd1 100644
+--- a/types.h
++++ b/types.h
+@@ -119,6 +119,8 @@ static __inline__ u4_t round_up(u4_t val, u4_t size) {
+ #define RAD_2_DEG(rad) ((rad)*180.0 / K_PI)
+ 
+ #define CLAMP(a, min, max) (((a) < (min)) ? (min) : (((a) > (max)) ? (max) : (a)))
++#define CLAMP_TO(a, min, max)  ((a) = CLAMP(a, min, max))
++#define RANGE(a, min, max)  ( ((a) >= (min)) && ((a) <= (max)) )
+ #define PN_CLAMP(a, n)     (((a) < -(n)) ? -(n) : (((a) > (n)) ? (n) : (a)))
+ #define SI_CLAMP(a, n)     (((a) > ((n)-1)) ? ((n)-1) : (((a) < -(n)) ? -(n) : (a)))
+ 

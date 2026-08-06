@@ -1,0 +1,58 @@
+diff --git a/gps/gps.cpp b/gps/gps.cpp
+index d4881c6..36f0ca4 100644
+--- a/gps/gps.cpp
++++ b/gps/gps.cpp
+@@ -22,16 +22,26 @@ const char* Week[] = {
+ 
+ static struct gps_data_t gps_handle;
+ 
++static bool gps_connected = false;
++
+ static void gps_task(void* param);
+ static void pps_task(void* param);
+ 
+ static void gps_connect() {
+-    blocking_system("/etc/init.d/gpsd restart");
++    // Debian: gpsd is managed by systemd. The web888 image installs gpsd
++    // and enables it (see scripts/configure-rootfs.sh), so under normal
++    // operation it is always running. try-restart is used (not restart) so
++    // that in the degenerate case — gpsd uninstalled, masked, or failing to
++    // start (e.g. no GPS wired, /dev/ttyPS1 absent) — this is a harmless
++    // no-op rather than a non-zero exit stopping the task.
++    blocking_system("systemctl try-restart gpsd 2>/dev/null || true");
+ 
+     if (0 != gps_open("localhost", "2947", &gps_handle)) {
+         printf("open gpsd failed\n");
++        gps_connected = false;
+         return;
+     }
++    gps_connected = true;
+ 
+     int flags = WATCH_ENABLE;
+     (void)gps_stream(&gps_handle, flags, NULL);
+@@ -164,10 +174,25 @@ static void gps_callback(struct gps_data_t* gpsdata);
+ static void gps_task(void* param) {
+     const int GPS_TIMEOUT = 5000000; /* microseconds */
+     gps_connect();
++    // Debian: if gps_open() fails (gpsd absent or not yet up), gps_handle
++    // stays zeroed and calling gps_mainloop() on it crashes inside libgps's
++    // gps_dbus_mainloop(). Retry the connect until gpsd appears. Under the
++    // normal web888 image gpsd is installed and running, so this loop never
++    // executes; it only guards the degenerate no-gpsd case (see gps_connect).
++    while (!gps_connected) {
++        TaskSleepSec(10);
++        gps_connect();
++    }
+     while (gps_mainloop(&gps_handle, GPS_TIMEOUT, gps_callback) < 0) {
+         /* avoid busy-calling gps_mainloop() */
+         TaskSleepSec(GPS_TIMEOUT / 1000000);
+         gps_connect();
++        // Same guard after a reconnect attempt: never enter gps_mainloop()
++        // while disconnected.
++        while (!gps_connected) {
++            TaskSleepSec(10);
++            gps_connect();
++        }
+     }
+ }
+ 

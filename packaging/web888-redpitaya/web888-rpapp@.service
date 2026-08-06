@@ -1,0 +1,44 @@
+[Unit]
+Description=Web-888 Red Pitaya app: %i
+After=network-online.target
+Wants=network-online.target
+# FPGA/PL exclusivity: starting an RP app stops WebSDR. The reverse
+# direction lives in 50-redpitaya.conf on the websdr unit (systemd cannot
+# glob template instances in Conflicts=).
+Conflicts=web888-websdr.service
+# crash-loop guard ([Unit] keys, NOT [Service] — systemd 257 logs "unknown
+# key" and ignores them there): without a limit, a failing app reloads the
+# PL (ExecStartPre) every 3s forever — sustained devcfg churn observed
+# during a hardware-gate SEGV loop. 10/120s bounds sustained churn to ~75 PL
+# loads/15min while allowing realistic interactive mode switching (a
+# ×10 round-trip gate legitimately hits 10 starts in ~110s).
+StartLimitIntervalSec=120
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStartPre=/usr/lib/web888-redpitaya/load-bitstream %i
+ExecStart=/usr/lib/web888-redpitaya/bin/%i-server
+WorkingDirectory=/var/lib/web888-redpitaya
+StateDirectory=web888-redpitaya
+Restart=on-failure
+RestartSec=3
+MemoryMax=64M
+# hardening compatible with root + /dev/mem (user requirement 3)
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/web888-redpitaya /sys/class/gpio
+ProtectHome=true
+PrivateTmp=true
+DevicePolicy=closed
+DeviceAllow=/dev/mem rw
+DeviceAllow=/dev/xdevcfg rw
+DeviceAllow=/dev/i2c-0 rw
+DeviceAllow=/dev/zynqsdr rw
+# /sys/class/gpio rw: hpsdr peri.c drives the PE4312 DSA via sysfs GPIO.
+# /dev/i2c-0: si5351-init when SI5351_RESET=1 (load-bitstream, ExecStartPre).
+# /dev/zynqsdr: hpsdr peri.c (patch 0001) DSA writes via ZYNQSDR_AD8370_SET.
+
+# NO [Install] section: never auto-enabled (user requirement 2).

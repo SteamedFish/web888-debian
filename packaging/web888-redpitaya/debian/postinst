@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure)
+    # units are never enabled/started by this package (user requirement 2);
+    # just make systemd notice the new unit files
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

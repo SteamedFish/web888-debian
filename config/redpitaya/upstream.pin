@@ -1,0 +1,11 @@
+# Red Pitaya apps (RaspSDR/red-pitaya-notes) upstream pin — web888 step 4
+url: https://github.com/RaspSDR/red-pitaya-notes.git
+commit: da1a7e3a8e715bd0cc47b143b518b05995d5ad9c
+commit-date: 2025-04-30T13:41:04+08:00
+license: MIT
+notes: >
+  Vendor fork of pavel-demin/red-pitaya-notes adapted to Web-888 hardware
+  (peri.c PE4312 DSA via sysfs GPIO, HLv2 HPSDR protocol, no 122_88 apps).
+  Built from: projects/<app>/server/ (plain C, gcc + libm [+ pthread]).
+  Fork-delta vs pavel-demin upstream: follow-up §7 U1
+  (docs/dev/redpitaya-upstream-delta.md, M+1 milestone).

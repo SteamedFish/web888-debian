@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# load-bitstream — ExecStartPre helper for web888-rpapp@.service.
+#
+# Usage: load-bitstream <app>
+#
+# Validates the app name, optionally resets the Si5351 clock (switch.conf),
+# loads /usr/share/web888-redpitaya/apps/<app>/<app>.bit into the PL via
+# /dev/xdevcfg, then polls prog_done until the PL reports configuration
+# complete. Any failure exits non-zero, which blocks the systemd unit start
+# (fail closed).
+#
+# Every external touchpoint is overridable via WEB888_* env vars so the host
+# test harness (scripts/test-redpitaya-mode.sh) can redirect them to a
+# sandbox; defaults are the real runtime paths.
+
+set -eu
+
+APPS_DIR=${WEB888_RP_APPS_DIR:-/usr/share/web888-redpitaya/apps}
+XDEVCFG=${WEB888_XDEVCFG:-/dev/xdevcfg}
+PROG_DONE=${WEB888_PROG_DONE:-/sys/devices/soc0/axi/f8007000.devcfg/prog_done}
+SI5351_INIT=${WEB888_SI5351_INIT:-/usr/lib/web888-redpitaya/si5351-init}
+SWITCH_CONF=${WEB888_SWITCH_CONF:-/etc/web888-redpitaya/switch.conf}
+TIMEOUT=${WEB888_PROG_DONE_TIMEOUT:-5}     # seconds
+INTERVAL=${WEB888_PROG_DONE_INTERVAL:-0.1} # poll interval
+
+app=${1:-}
+
+die() { echo "load-bitstream: error: $*" >&2; exit 1; }
+
+# whitelist: strict charset first (blocks traversal), then on-disk existence
+case $app in
+    ''|*[!a-z0-9_]*) die "invalid app name '$app' (want ^[a-z0-9_]+\$)" ;;
+esac
+bit=$APPS_DIR/$app/$app.bit
+[ -f "$bit" ] || die "no bitstream for app '$app' ($bit not found)"
+
+[ -e "$XDEVCFG" ] || die "$XDEVCFG missing (xilinx_devcfg not loaded?)"
+
+# Optional Si5351 clock restore (default off until hardware measurement settles the need)
+SI5351_RESET=0
+if [ -f "$SWITCH_CONF" ]; then
+    # shellcheck source=/dev/null
+    . "$SWITCH_CONF"
+fi
+if [ "$SI5351_RESET" = 1 ]; then
+    echo "load-bitstream: SI5351_RESET=1 — re-initialising ADC clock"
+    "$SI5351_INIT"
+fi
+
+echo "load-bitstream: loading $bit"
+cat "$bit" > "$XDEVCFG"
+
+# poll for configuration completion (step-2 HW gate proved this path)
+elapsed=0
+while [ "$(cat "$PROG_DONE" 2>/dev/null || echo 0)" != 1 ]; do
+    elapsed=$(awk -v e="$elapsed" -v i="$INTERVAL" 'BEGIN{print e+i}')
+    if awk -v e="$elapsed" -v t="$TIMEOUT" 'BEGIN{exit !(e>=t)}'; then
+        die "prog_done timeout after ${TIMEOUT}s (PL did not configure)"
+    fi
+    sleep "$INTERVAL"
+done
+
+echo "load-bitstream: $app configured (prog_done=1)"

@@ -1,0 +1,11 @@
+diff --git a/extensions/FT8/ft8_lib/ft8/osd.c b/extensions/FT8/ft8_lib/ft8/osd.c
+index 6c8fdde..7322d06 100644
+--- a/extensions/FT8/ft8_lib/ft8/osd.c
++++ b/extensions/FT8/ft8_lib/ft8/osd.c
+@@ -1,3 +1,6 @@
++/* Debian: glibc requires _GNU_SOURCE for qsort_r() (musl exposes it by default); */
++/* dpkg-buildflags promotes implicit declarations to errors (-Werror=implicit-function-declaration). */
++#define _GNU_SOURCE 1
+ #include "constants.h"
+ #include "osd.h"
+ #include "ldpc.h"

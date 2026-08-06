@@ -1,0 +1,16 @@
+From: web888-debian step3
+Subject: HFDL: run dumphfdl from libexec dir (was FAT partition)
+
+--- a/extensions/HFDL/HFDL.cpp
++++ b/extensions/HFDL/HFDL.cpp
+@@ -179,8 +179,8 @@
+ 
+         sprintf(sample_rate_str, "%d", snd_rate);
+ 
+-        execlp("/media/mmcblk0p1/dumphfdl",     
+-            "/media/mmcblk0p1/dumphfdl", "--system-table", DIR_SAMPLES "/HFDL_systable.conf",
++        execlp(DIR_LIBEXEC "/dumphfdl",
++            DIR_LIBEXEC "/dumphfdl", "--system-table", DIR_SAMPLES "/HFDL_systable.conf",
+             "--iq-file", "-",
+         
+             #ifdef SAMPLES_CF32

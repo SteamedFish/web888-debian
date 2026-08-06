@@ -1,0 +1,108 @@
+# Using the Web-888 Debian system
+
+Day-to-day operation of the Debian image. For installation see
+`flashing.md`; for hardware facts (LEDs, antennas, power, GPS) see
+`quick-reference.md`; for problems see `troubleshooting.md`.
+
+## Access
+
+| Channel | Details |
+|---|---|
+| SSH | `ssh -p 22 root@<device-ip>` — default password `changeme` (change it with `passwd`) |
+| Web UI (WebSDR) | `http://<device-ip>:8073/` |
+| Admin panel | `http://<device-ip>:8073/admin` |
+| Hostname | `web888` (no mDNS — find the IP by MAC prefix `ce:cf:3f:*`, see `flashing.md` §3) |
+
+The system is a normal Debian trixie (armhf): `apt`, `systemctl`,
+`journalctl` all work as usual. The root filesystem is a real ext4
+partition on the TF card — changes persist across reboots (unlike the
+stock firmware, which ran from RAM).
+
+## WebSDR service
+
+WebSDR runs as a systemd unit:
+
+```sh
+systemctl status web888-websdr.service     # status
+journalctl -u web888-websdr.service -f     # live logs
+systemctl restart web888-websdr.service    # restart
+```
+
+Important locations:
+
+| Path | Contents |
+|---|---|
+| `/etc/web888/` | Live configuration (`websdr.json`, `admin.json`, …) — **back this up** |
+| `/var/lib/web888/` | Working directory of `websdr.bin` (state, DX database, recordings) |
+| `/usr/share/web888/dist/config/` | Factory-default configs (seed source) |
+| `/usr/share/web888/firmware/` | FPGA bitstreams (`websdr_hf.bit`, `websdr_vhf.bit`) |
+| `/usr/share/web888/samples/` | kiwi.config sample files |
+
+The unit's `ExecStartPre` seeds missing config files from the dist
+directory into `/etc/web888/` on every start — your edits are never
+overwritten, only absent files are created.
+
+## Switching between WebSDR and Red Pitaya apps
+
+If the `web888-redpitaya` package is installed, the unit can run either
+WebSDR **or** one Red Pitaya application at a time (they share the FPGA):
+
+```sh
+web888-mode                 # show current mode
+web888-mode list            # list installed RP apps
+web888-mode websdr          # switch to WebSDR (the default mode)
+web888-mode <app>           # switch to an RP app, e.g. web888-mode sdr_transceiver_hpsdr
+web888-mode stop            # stop everything (FPGA left as-is)
+```
+
+The switch is a **runtime** operation — no reflashing, no reboot. The
+systemd units have `Conflicts=` declarations, so bare `systemctl start` is
+also safe; `web888-mode` just adds correct ordering (stop the other side
+before touching the FPGA).
+
+RP app bitstreams live in `/usr/share/web888-redpitaya/apps/<app>/<app>.bit`.
+Clock-restore behavior on switching is controlled by
+`/etc/web888-redpitaya/switch.conf` (`SI5351_RESET`, default 0).
+
+## Software updates
+
+Everything is a Debian package built on the host (see `README.md`):
+
+| Package | Contains |
+|---|---|
+| `web888-websdr` | WebSDR server, extensions, FPGA bitstreams, systemd unit |
+| `web888-redpitaya` | Red Pitaya app ports, `web888-mode`, switch config |
+| `linux-image-6.12.100-web888` | Kernel (built per `../dev/kernel-update-sop.md`) |
+
+Update flow:
+
+```sh
+scp -P 22 web888-websdr_<version>_armhf.deb root@<device-ip>:/tmp/
+ssh -p 22 root@<device-ip> 'dpkg -i /tmp/web888-websdr_<version>_armhf.deb'
+```
+
+Config files under `/etc/web888/` and `/etc/web888-redpitaya/` are
+conffiles — dpkg will prompt before overwriting local changes.
+
+## Backup
+
+Minimum useful backup:
+
+```sh
+scp -P 22 -r root@<device-ip>:/etc/web888 ./backup-etc-web888
+```
+
+For a full system backup, image the whole TF card on a PC (`dd` /
+`ddrescue`). The stock card remains the factory-firmware rollback.
+
+## GPS
+
+Use a 3.3 V active antenna (see `quick-reference.md`). Known limitation:
+the onboard ATGM336H currently ships in **UBX-only mode** — see
+`../dev/KNOWN-ISSUES.md` for status and workarounds.
+
+## Power
+
+Clean shutdown from SSH (`poweroff`) or the admin panel. The card is ext4
+with a journal, but like any SD-card system it prefers not to lose power
+mid-write.

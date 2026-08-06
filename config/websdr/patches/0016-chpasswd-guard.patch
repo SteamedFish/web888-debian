@@ -1,0 +1,23 @@
+Subject: services: disable websdr root-password hardening on Debian (D7)
+ The image layer owns the root password (configure-rootfs.sh, changed over
+ SSH); websdr runs unprivileged and its chpasswd path can only fail.
+ Alpine keeps the auto-hardening; /etc/shadow probes stay (read-only).
+
+diff --git a/net/services.cpp b/net/services.cpp
+index 40d36a2..0a5f291 100644
+--- a/net/services.cpp
++++ b/net/services.cpp
+@@ -296,7 +296,12 @@ static void misc_NET(void* param) {
+         }
+ #endif
+ 
+-        if (root_pwd_unset) {
++        // Debian (web888): root password policy is an image-layer concern
++        // (configure-rootfs.sh sets it; users change it over SSH). websdr runs
++        // unprivileged here and must not fight that — Alpine stock keeps the
++        // auto-hardening. The /etc/shadow probes above stay (read-only,
++        // harmless when they fail with EACCES).
++        if (root_pwd_unset && access("/etc/alpine-release", F_OK) == 0) {
+             lprintf("SECURITY: WARNING Linux \"root\" password is unset!\n");
+             lprintf("SECURITY: Setting it to %s\n", which);
+             asprintf(&cmd_p, "root:%s", cmd_p2);

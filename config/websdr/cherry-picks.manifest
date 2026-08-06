@@ -1,0 +1,162 @@
+# cherry-picks.manifest — KiwiSDR → Web-888 cherry-pick patch set
+#
+# Comprehensive survey (2026-08-02): full history of Beagle_SDR_GPS/KiwiSDR vs Web-888.
+# See docs/dev/web888-kiwisdr-cherry-pick-plan.md for the analysis methodology and the
+# full per-commit verdict table. See cherry-picks/PROVENANCE.md for applied-patch detail.
+#
+# Fields: STATUS  PATCH_FILE  KIWI_COMMIT(S)  NOTES
+# STATUS: applied (patch in series) | pending (planned, no file yet) | dropped (RED, documented)
+#
+# KiwiSDR tree lives in .tmp/repos/KiwiSDR (gitignored); hashes are reproducible anchors.
+# Run scripts/refresh-cherry-picks.sh to re-check each candidate after upstream moves.
+
+###############################################################################
+# APPLIED (in the quilt series, build via build-websdr-deb.sh)
+###############################################################################
+applied   0101-kiwi-remove-chu.patch                      c3b4c06                  GREEN data-only (.cjson removal)
+applied   0104-kiwi-ip-parse-security.patch               6f21031                  adapted port: +inet4_d2h_strict +is_valid_ipv6_strict +isLocal_ip error param. ESTABLISHES THE SECURITY BASE for Tier 3.
+
+###############################################################################
+# PENDING — Batch A (Tier 1 trivial GREEN; do first)
+###############################################################################
+applied   0110-kiwi-copyright-url-rename.patch            c14821d6                 GREEN: 5 of 36 files (string replace holmea.demon→aholme.co)
+applied   0111-kiwi-types-macros.patch                     f26a4dff 520a56c1        GREEN (types.h only): CLAMP_TO + RANGE macros merged (both touch the same region); SKIP f26a4dff admin.html/js + 520a56c1 cfg.cpp (absent)
+dropped   0112-kiwi-range-macro.patch                      520a56c1                 MERGED into 0111 (same types.h region)
+applied   0113-kiwi-ksplit-parse-numeric.patch             f296750d                 GREEN: additive int num field + KSPLIT_PARSE_NUMERIC enum to kiwi_split, backward-compatible
+
+###############################################################################
+# PENDING — Batch B (Tier 2 self-contained YELLOW)
+###############################################################################
+pending   0114-kiwi-kiwi-nonemptystr.patch                 1896689f                 YELLOW: add kiwi_nonEmptyStr() + kiwi_nonEmptyStrRemNL() (both absent in Web-888)
+pending   0115-kiwi-str-ascii-static-fixlen.patch          33a3e6ba                 YELLOW: 3rd defaulted len param; backward-compatible
+pending   0116-kiwi-fmt-usec.patch                         e1480d0e                 YELLOW: self-contained fn; manual placement (context differs)
+applied   0117-kiwi-ansi-h-split.patch                     ed30b89d                 YELLOW (minimal): new ansi.h with the 9 ANSI color macros (Web-888's existing values preserved, NOT KiwiSDR's new black/white-prefixed values), bits.h replaces them with #include "ansi.h" so all bits.h includers stay transparent. SKIPPED: wire/reg typedefs, types.h #include, bf/bf64/H8→0xff rewrites, and the 11 other #include "ansi.h" call sites — those are separate concerns.
+dropped   0118-kiwi-include-simplify.patch                 5e6a78e0                 DEFERRED: broad build-only refactor (remove #include "kiwi.h" from many leaf headers); low value, high blast radius / risk. Not ported.
+applied   0119-kiwi-ft8-freq-sort.patch                    086a9be4                 YELLOW (full C++ port): decode_ft8.cpp (.cpp, not .c) gains #include mem.h, freq_sort struct field, qsort_intcomp + save_deco freq-bucket + post-loop sort, decode_ft8_freq_sort(); FT8.{cpp,h} gain freq_sort field + SET ft8_freq_sort= handler + decl; types.h gains DEBUG_TRUE/DEBUG_FALSE. Adapted to Web-888's 2-pass decode() loop (save_deco declared once before the loop). SKIPPED: FT8.js/css/min UI restructure (Web-888 frontend divergent).
+applied   0120-kiwi-symmetrical-fir-taps.patch             f90d8ca5                 YELLOW (fir core only): rx/CuteSDR/fir.{cpp,h} — FIR_COEFF_SYMMETRICAL macro, bool symmetrical default param on both InitConstFir overloads, symmetrical tap mirror logic + check(odd), new ProcessFilterDecimBy2(). Reformatted to Web-888 clang style. SKIPPED: rx_filter.h deemph table half-reduction + rx_sound_cmd.cpp FIR_COEFF_SYMMETRICAL arg — Web-888 tables use a different layout (nfm_deemp[N_NFM_DEEMP*3][N_DEEMP_TAPS] 2-D, indexed [snd_rate*2+_de_emp-1]) vs KiwiSDR ([N_SND_RATES][N_NFM_DEEMP][N_DEEMP_TAPS] 3-D); porting needs a data regen, not a cherry-pick.
+
+###############################################################################
+# PENDING — Batch C (Tier 3 foundational YELLOW; 37f65b4b first, it unblocks others)
+###############################################################################
+applied   0121-kiwi-admin-pwd-serno-detection.patch        37f65b4b                 YELLOW (FOUNDATIONAL, highest security value): +serno +admin_advisory to kiwi_t; admin_pwd_unsafe() in security.cpp; net.cpp hunk builds on 0104. Unblocks 0122.
+applied   0122-kiwi-admin-pwd-serno-popup.patch            5780bda4                 YELLOW (Web-888 adapted): wires admin_pwd_unsafe() (compares serial_number global now, not net.serno — no boot-order dependency) into update_vars_from_config; stats_cb JSON gains "aa" (local conns only); kiwi.js popup via plain alert() (Web-888 has no w3_alert infra). SKIPPED: admin.js cosmetic renames (feature absent), is_local 4th param (Web-888 is 2-param), openwebrx.js popup removal (never existed), ADM serno move (Web-888 already sends serno as "s" in config_cb)
+applied   0123-kiwi-inet4-d-valid.patch                    a58529d1                 YELLOW: builds on 0104; adapt inet4_h2s to Web-888 signature
+applied   0124-kiwi-bad-api-bot-logging.patch              cfea79e6                 YELLOW: +ctprintf; +snd/wf_cmd_recv to conn.h; adapt rx_server.cpp
+applied   0125-kiwi-show-ip-denied.patch                   575736bd                 YELLOW (1st hunk only): fingerprint-1 in stats.cpp; format differs; skip fingerprint-2
+applied   0126-kiwi-reject-default-latlon.patch            5971255c                 YELLOW: ADD gps_isValid() whole fn (was absent) to misc.cpp/h; rx_init.cpp resets placeholder coords to (0,0); admin_sdr.js gps_cb + no_rx_gps extended. Web-888's (-69.0,90.0) is only an ajax fallback, not a stored default — no extra entry needed
+dropped   0127-kiwi-rx8wf2-preempt-if-public.patch         e783fccd                 RED (regraded by 2026-08-04 second pass): rx8wf2 preemption is Kiwi-mode-specific; Web-888's 13-channel model differs — nothing to port
+applied   0128-kiwi-nonblock-cmd-foreach.patch             10c68822                 YELLOW: nbcmd_args_t gains cmd_poll_msec + cmd_stat; foreach passes cmd exit status to final func() call; tdoa.php padding hack #if 0'd (matches upstream; tdoa.php absent anyway)
+applied   0129-kiwi-dx-search-debug.patch                  d0075ae7 (partial)       YELLOW (reduced): only the dx_print_search improvements (freq + idx1 in DX admin search debug). SKIPPED: debug_v→shmem move (Web-888's shmem_t is IPC-only, lacks Kiwi's flat shared-var struct; debug_v has no live consumer in Web-888), sstv_video comment cosmetics, JS w3 changes
+
+###############################################################################
+# Second-pass (2026-08-04 survey §A) small ports
+###############################################################################
+applied   0130-kiwi-pskreporter-buflen.patch               v1.800 (dchristle PR#928) GREEN: PR_BUF_LEN 2048→1190, fixes UDP fragmentation of PSKReporter spots
+applied   0131-kiwi-ft8-vuhf-qo100-freqs.patch             v1.695/1.700              GREEN (data): FT8 +144174/222065/432174/1296174/10489540, FT4 +144150; FT4_BAND_IDX→isFT4[] table (Kiwi's approach) so appended FT8 entries aren't misclassified; keeps Web-888's own 8m/5m entries
+applied   0132-kiwi-wspr-qo100-band.patch                  v1.900-era                GREEN (data): wspr_cfs +10489569.5 (QO-100, index 23, appended per no-renumber rule); wspr.js center_freqs/freqs_s/freqs_m/autorun_u + xvtr lists
+applied   0133-kiwi-sstv-r36bw.patch                       91823fbf (partial, v1.806) GREEN: R36-BW mode in Web-888's pre-refactor ModeSpec format (enum appended after R24BW to preserve positional mapping, VISmap 0xE, help text); SKIPPED: rest of 91823fbf (ModeSpec simplification, YUVY, VIS cross-check — separate refactor)
+applied   0134-kiwi-mode-flags-scan.patch                 bsg 6d87b5f6 (partial)   YELLOW: MODE_FLAGS_SCAN 0x10 + freqChangeLatch (conn.h, rx_sound_cmd.cpp, rx_waterfall/stats gating); ALE_2G.cpp sscanf >=1 (backwards-compat with 1-arg tune) + ALE_2G.js from_menu param. SKIPPED: Kiwi-side menu_i_to_cfg_i remapping (Web-888 WSPR/FT8 index 1:1, append-only)
+applied   0135-kiwi-users-connecting-placeholder.patch    583cbf15                 GREEN: rx_util.cpp c->valid (drop arrived) + !c->arrived -> "(connecting)" placeholder in user list
+applied   0136-kiwi-disable-conn-autorun.patch            a131d4db (adapted)       YELLOW: admin "disable user connections" (down=true) now also stops FT8/WSPR autorun (ft8_autorun_start/wspr_autorun_start guard) + KICK_USERS -> KICK_ALL (kick everything incl. autorun). Web-888 var names ft8_conf/wspr_c
+applied   0137-kiwi-drm-kick-autorun.patch                c9a7881b (adapted)       YELLOW: DRM preemption subsystem — drm_chan->drm_max_rx rename (DRM.cpp/.h), rx_chan_free_count heavy-excludes-preemptable, rx_autorun_kick_all_preemptable() new, find_victim returns victim_conn, rx_server preempt counting + exclusive_use denial !internal-only, FT8/WSPR autorun is_locked guards, DRM lock_set kicks preemptable autorun. SKIPPED: -nmulti arg + admin is_multi_core (no MULTI_CORE in Web-888), DRM.js text (Web-888 DRM.js older, lacks strings)
+applied   0138-kiwi-wspr-upload-checkbox.patch            b4c968a9 (adapted)       GREEN: wspr.h +int upload; wspr_main.cpp SET upload= handler + w->upload gate on non-autorun spot upload (CURL_UPLOADS and JS-upload branches); wspr.js wspr_set_upload_cb ext_send SET upload=
+applied   0139-kiwi-wspr-clear-button.patch               c2487091 (minimal)       GREEN (minimal): wspr_clear_cb no longer calls wspr_reset()/wspr_test_cb — clears spot log without stopping signal processing. DEFERRED: full kiwi_output_chars console rework (c2487091 + bfdfc728, 9 extensions + kiwi.js) — separate epic
+applied   0140-kiwi-photo-upload-crash.patch              a591cddf (adapted)       VERIFIED PRESENT in Web-888: AJAX_PHOTO printed uninitialized stack fname on rc!=0 paths + current_authkey leak when !isLocalIP. Adapted: zero-init vname/fname arrays (old-mongoose stack buffers vs Kiwi's heap ptrs), restructured isLocalIP/authkey free. AJAX_DX path already safe in Web-888
+applied   0141-kiwi-utf8-username.patch                   cdde3a7d (partial)       YELLOW: rx_cmd.cpp utf8makevalid(ident_user_m,'?') after decode (pkgs/utf8 submodule already present) + printf.cpp non-ASCII log strip removed (matches upstream, fine on Debian 13). SKIPPED: ASCII table \x%2X cosmetics, admin.js user_list (absent in Web-888 — users tab lives in kiwi.js and already has iterative decodeURIComponent fallback)
+applied   0142-kiwi-timecode-phase-correction.patch       d2e468cf (adapted)       VERIFIED MISSING: correction is JS-side (ACQ_PHASE state machine); all 8 timecode JS applied clean. timecode.cpp housekeeping adapted (kept DIR_SAMPLES path + __UINT64_FMTx__ printf, test-mmap failure now non-fatal)
+applied   0143-kiwi-dx-label-mode-sort.patch              188a45fd (adapted)       YELLOW: dx_qsort_comp() sorts freq then mode (LSB<, !(USB|CW)<) in init/dx.cpp (Web-888 dx lives in init/, mode_lc/mode_flags arrays); rx_cmd.cpp DX_UPD mode change triggers re-sort
+applied   0144-kiwi-mongoose-7.14-upgrade.patch           028687cc cef6472b 4eebfb3b aeda0224 a70c1b06 bccebc9f 970b6072 c38ff40b 6b5c05b9 (feature port B.1)  FEATURE PORT (plan section B.1): wholesale adoption of Kiwi's mongoose 7.14 set replacing 5.6 — pkgs/mongoose/mongoose.{cpp,h} + mongoose_config.h (new), web/{web,web_server}.{cpp,h} from web_*_7.14 variants, web/web_util.cpp (new, compat shims mg_str_to_cstr/mg_get_header/mg_http_send_standard_headers/mg_bin2str decl); consumers: net.cpp 4-arg check_if_forwarded (rejects forwarded local/loopback, 4th param defaulted), update.cpp update_in_progress exported, misc.cpp send_msg_buf mg_ws_send, str.cpp kiwi_json_to_html + var_ctime_r, rx_server.cpp mc->query + WEBSOCKET_OP_CLOSE, rx_server_ajax.cpp ev_data + mg_http_next_multipart (both upload blocks, kiwi_asfree'd heap vname/fname), PSKReporter udp_connect/udp_send (web_connect dropped, matches Kiwi HEAD). Web-888 deltas re-applied: var_ctime_r everywhere, cache_lock/lock_holder x3, htdoc absPath, N_EXT 32 unconditional, ZynqSDR/Mongoose hdr string, init.d stop message, no mtime_obj_keep, EXT_LIST_JS, .css suffix dropped; gen_list_css/gen_list_js[0] restored to Web-888's file set/paths (Kiwi's 7.14 lists reference files absent from the RaspSDR tree — kiwi/waterfall.js, kiwi/ant_switch.js, kiwi/noise_{blank,filter}.js, pkgs/w3.css, pkgs/w3color.js, coloris.css, font-awesome-4.6.3 — so the served index page requested nonexistent resources; Web-888 loads waterfall/ant_switch/noise_* via its own extension loader); give-up NOT-FOUND path now mg_http_reply(404)+mg_connection_close (Kiwi HEAD returns MG_FALSE silently, which in mongoose 7.14 leaves the connection hanging forever with zero bytes — one missing static file stalled the whole page load in a browser; observed on hardware 2026-08-05) Collision/build fixes: mongoose.h MQTT_OK enum hidden under #ifndef KIWISDR + privately re-declared in mongoose.cpp (clashes with pkgs/mqtt-c MQTT_OK=1 via net.h transitive include; Web-888 uses LiamBindle MQTT-C, not Cesanta mg_mqtt_*); CMakeLists.txt adds pkgs/sdrpp_server to websdr.bin include dirs (0144's web_server.cpp sdrpp_server.h include exposed the pre-existing omission) + MG_ARCH=MG_ARCH_CUSTOM compile def (mongoose.h only includes mongoose_config.h when MG_ARCH is unset/CUSTOM; __unix__ pre-sets MG_ARCH=UNIX so MG_ENABLE_IPV6 was silently 0 — tousa() built an AF_INET sockaddr for an AF_INET6 socket and bind() failed EINVAL, crash-looping websdr.bin on hardware; Kiwi passes the flag globally in pkgs/mongoose/Makefile.inc). EXCLUDES 38079f38 (FSK UDP streaming feature itself — separate port). Unblocks: FSK UDP, DRM RSCI, multi-admin autokick 28b31980, proxy-header robustness
+
+###############################################################################
+# DROPPED — RED (not portable as cherry-picks; see plan doc Tier 4)
+###############################################################################
+dropped   0102-kiwi-url-encode.patch                       1a4a1af                  RED: reg code refactored to rx-888.com API; rev_user/rev_host absent
+dropped   0103-kiwi-admin-js-narrow.patch                  c8f839c                  RED: admin.js fully divergent (no id-admin-top DOM)
+dropped   0105-kiwi-mobile-ui-optimizations.patch          b7baae9 2ac60e5 09418b3  RED: w3_inline_noencl/WIN_WIDTH_NOM infra absent
+dropped   0106-kiwi-time-display-width-refactor.patch      53328ae                  RED: kiwi.time_display_width property absent (would break 11 extensions)
+dropped   0107-kiwi-ale-user-list-guard.patch              c472a26                  RED: ALE_2G_environment_changed is a different, simpler function
+dropped   0108-kiwi-clientside-fft.patch                   b1e0c84..f8f8fc7         RED: FFT.js 645→2004; feature-port needing absent mobile-infra base
+dropped   0109-kiwi-snr-kick-rewrite.patch                 ef22aeb                  RED: rx_snr.cpp absent; logic in rx_util.cpp differs (reimplementable, not cherry-pick)
+dropped   ---8-channel-rx8wf8                              64f94da9                 RED: FPGA bitstream+verilog+e_cpu+platform; rx/support not separable
+dropped   ---rx-snr-vdsl-split                             a5d7300e ee25ecc4 79883fdd  RED: SNR API rewrite; Web-888 has older API in rx_util.cpp
+dropped   ---fastfir-outbuf-size                           de658478                 RED: Beagle SPI word-budget math; kernel-driver based in Web-888
+dropped   ---kclean-delete-fixes                           25b2b3b0 616a3742        RED: clean_table/KCLEAN architecture absent in Web-888
+dropped   ---arch-platform-cleanup                         31eb6295                 RED: 95% platform/arch (absent)
+dropped   ---tasksleep-child                               42a8f98e                 RED: taskSleepCommon absent (coroutines rewrite)
+dropped   ---get-misc-miso                                 3218ed72                 RED: SPI-miso layer absent (kernel driver)
+dropped   ---dump-direct                                   5ae5e8f1                 RED: rx_util dump structure differs + coroutines call site absent
+dropped   ---nonblock-sdcard-cmd                           a972e978                 RED: substantive change in ui/kiwi_ui.cpp (absent)
+dropped   ---rename-itask-snd-itask                        1f7c848b                 RED: coroutines TaskDump regions absent
+dropped   ---taskdump-deadlines                            096c0375                 RED: Web-888 TaskDump is a // TODO stub
+dropped   ---domain-check-fix                              93d540b6                 RED: domain_check absent (rx-888.com API)
+dropped   ---proxy-kiwisdr-com-cluster                     bb2f88fe ea689934 9e1cc5d1 fe95ae07 0e30918b e9781983  RED: kiwisdr.com proxy + my.kiwisdr.com + MTU infra absent
+dropped   ---kiwirecorder-tdoa-exemptions                  92036924 b6ec9e69        RED: need kiwisdr.com DNS + isLocal_ip 5th param
+dropped   ---admin-connect-ui                              796e45b4                 RED: connect_* functions absent; my.kiwisdr.com subsystem
+dropped   ---rx-in-hfdl-bands                              51c9110e                 RED: nothing to refactor (HFDL fingerprint logic absent)
+dropped   ---antsw-exclude-autorun                         82743138                 RED: ant_switch backend stripped in Web-888
+dropped   ---gps-sbas-and-ajax                             a0296aa1 8e6e5265 +(all gps/)  RED: software-GPS engine absent; Web-888 uses gpsd
+dropped   ---admin-keyboard-shortcuts-ui                   f26a4dff                 RED (UI part only; types.h CLAMP_TO is GREEN → 0111). admin.html/js divergent
+dropped   ---ipset-blacklist                               f175da8d f851096e 3ffa9605  DEFERRED (2026-08-05): ~150 lines adapted to divergent net/ip_blacklist.cpp + deb Depends:ipset + sudoers/rules for web888 user + kernel ip_set module. Value marginal for typical Web-888 deployments (internal hash only used when proxied; non-proxied already use iptables directly). Revisit if large-list deployments appear
+dropped   ---fax-recording-rework                          f98b3779 +related        DEFERRED (2026-08-05): Web-888 FAX is architecturally divergent (fax.cpp/FaxDecoder.cpp vs Kiwi FAX.cpp); rework replaces the whole recording data flow (intermediate file -> standard ext recording). Security angle noted (fixed-name intermediate downloadable cross-session) — mitigations possible without full port
+applied   0145-kiwi-admin-resync.patch                    c40ecb47 (v1.902, feature port B.2)  FEATURE PORT (plan section B.2): wholesale re-sync of the admin-page stack to KiwiSDR v1.902 — web/kiwi/{admin.js,admin.html,w3_util.js,kiwi.css,w3_ext.css} + admin_sdr.js one-liner (id-sdr_hu→id-public; upstream tab ids are label-lowercased). 3-way merge per file vs Beagle_SDR_GPS bases (admin.js b13b4ebd, w3_util.js f80c2d0d, kiwi.css 8b58cd74, admin.html 2ae9316d, w3_ext.css a7f61ff6); 64 admin.js conflicts resolved: take v1.902 framework (admin.tabs tab builder, id-panels-container layout, new admin_confirm_* restart/reboot/poweroff scheme, Users-tab code, GNSS SBAS menu, MTU/hostname/restart_delay network widgets, log/console Copy buttons, clean-logs button) + re-apply Web-888 deltas (rx-888 branding/links, variable RX sample rates admin.c_rates, narrowband/wf_share/airband switches, WiFi mode+ssid+password, MQTT section, Update Channel Alpha/Stable, gpsd-based slim GPS tab with az/el canvas + prn_name, hotspot/ping-rx-888 console buttons, df -H / folded from 0003, #0533bd blues, w3_table_body(), web-888.51x60 logo). Server-protocol compatibility splices (Web-888 ui/admin.cpp unchanged): rev_register reverted to "SET rev_register user=.. host=.." (no reg/auto args, x3 call sites), proxy reload_url uses adm.proxy_server:admin.proxy_port, status 101 text rx-888, dropped dead kiwisdr.com sends (restart_proxy/my_kiwi_register), removed rev_auto auto-proxy UI (adm.rev_auto* absent), restored live private-proxy-server widget+cb (upstream commented out), blacklist flow reverted to clear→chunked-set→enable protocol (theirs' lock/start/disable has no server handlers; admin_recv locked case dropped), Users tab dropped from admin.tabs (no "SET get_user_list" server handler), kiwi.* compat shim (NAM/DUC/PUB/SIP/REV, hw=1, WIN_WIDTH_NOM=1465, PLATFORM_BBAI_64=2, RX8_WF3=5 — Web-888 kiwi.js lacks these), w3_restart_cb/w3_reboot_cb restored (lost in merge), admin_rx83_mode_alert stubbed (Kiwi FPGA promo, no mode tab). Known-dead cosmetic widgets (documented, future server work): SET hostname, SET ethernet_MTU, SET domain_check. 0003-state-paths.patch admin.js hunk (df -H /) folded in; 0003 shrunk accordingly. admin.html takes upstream DOM (id-panels-container) keeping Web-888 logo+rx-888 link.
+          v2 (2026-08-06, post-hardware-test fix): first deployment broke the USER UI — upstream v1.902
+          w3_util.js calls isNumberElse() which lives in upstream kiwi_util.js, absent from RaspSDR's
+          fork (P2 audit covered kiwi.js globals but not kiwi_util.js/kiwi_ui.js helpers — lesson
+          recorded in docs/dev/CHANGELOG.md). Static undefined-reference scan
+          (.tmp/undef-scan.js, post-stack tree) found the full gap; patch grew to 9 files with
+          verbatim upstream helper ports, each marked "// Web-888: ported verbatim from KiwiSDR
+          v1.902 (B.2 admin re-sync dep)":
+          - kiwi/kiwi_util.js: isEmptyString, isNumberElse, kiwi_isOld_iOS,
+            any_modifier_key_except_shift, kiwi_array_iter_dup, kiwi_array_join_cond, kiwi_dhms,
+            kiwi_sort_ignore_case, kiwi_sort_numeric, kiwi_storeDelete/Read/Write (kiwi.noLocalStorage
+            undefined here => localStorage path, correct default), isdigit/isalpha/isalnum/islower,
+            kiwi_remove_escape_sequences.
+          - kiwi/kiwi.js: kiwi_output_chars (upstream console-c2w path escapes < >; RaspSDR's didn't).
+          - kiwi/kiwi_ui.js: sd_done (Backup/SD status; upstream placement).
+          - kiwi/admin_sdr.js: config_init + dx_html_init (upstream placement; called by admin.js
+            sdr_mode branch), admin.reg_status.* → admin.status.* (x4 sites; upstream v1.902 renamed
+            the field and admin_sdr.js follows upstream there).
+          - kiwi/admin.js: control_confirm_show() alias → admin_confirm_show() in the shim block
+            (RaspSDR admin_sdr.js dx-convert confirm still uses the pre-v1.902 name).
+          ant_switch_admin_msg left unguarded upstream-style (Web-888 server never sends antsw_*;
+          dead path). Patch regenerated by per-file diff -u against a post-series-minus-0145 base
+          (0126 touches admin_sdr.js, 0122/0144 touch kiwi.js — diffing vs pristine HEAD would fold
+          those series changes into 0145; first regen attempt caught this via slot-apply failure).
+          Re-verified: slot application byte-identical, node --check all 6 JS files, undef-scan clean
+          (remaining hits = function params / isFunction-guarded ant_switch / browser Highlight API).
+          v3 (2026-08-06, admin-page live test): two ant_switch-extension coupling fixes.
+          Web-888's admin page never loads the extension JS (upstream loads it via
+          extint_load_extension_configs), so upstream's bare references broke:
+          (1) init case called ant_switch_config_html() bare -> ReferenceError killed
+          the rest of init; changed to w3_call('ant_switch_config_html') (silent no-op
+          when absent, kiwi idiom). (2) status_interval's `if (ant_sw && ...)`
+          ReferenceErrored every second; added `var ant_sw;` declaration in the shim
+          block (a bare var never overwrites a later-loaded real declaration).
+          Cosmetic-only, left as upstream: px(NaN) trace from admin_draw ->
+          init_panel_toggle (identical call at upstream admin.js:5056); dropped
+          ant_switch_nch case is not a regression (extension JS absent means the old
+          w3_call was a no-op too; server message now falls to ADMIN UNKNOWN log).
+          v4 (2026-08-06, user-page live test): control panel rendered as a 15px
+          sliver at bottom-right. Root cause: v1.902 w3_util.js INSERTED a `navbar`
+          argument into w3_nav/w3_navdef/w3_click_nav (old sig: next_id first) and
+          turned w3_fillText's trailing args into an opts object. RaspSDR's
+          openwebrx.js (optbar navbar) and ext.js still call the old signatures;
+          with v1.902 code the anchor ids come out wrong and w3_click_nav silently
+          returns (w3_el(nav_id) null), so optbar_focus never fires and the panel
+          keeps its index.html height:0. Full arity-diff audit of old-vs-new
+          w3_util.js: only these 4 functions are breaking (the rest appended
+          optional trailing args). Fix: compat dispatch in w3_util.js — new-style
+          detected by "id-" prefix on the nav argument; legacy bodies kept verbatim
+          as w3int_anchor_legacy/w3_nav_legacy/w3_navdef_legacy/w3_click_nav_legacy;
+          w3_fillText old-style (font string as arg6) mapped to opts object.
+          Verified live pre-fix: #id-control inline height 0px -> 15px; manual
+          optbar_focus() restored 228px.
+applied   0146-webcpp-restore-ext-list-js.patch            follow-up to 0144                  BUGFIX (0144 regression): 0144's web.cpp brought upstream's "#ifdef USE_SDR" guard around the EXT_LIST_JS iparams registration, but Web-888's cmake build never defines USE_SDR (Kiwi Makefile concept) -> EXT_LIST_JS was never registered, so admin.html served the literal %[EXT_LIST_JS] token and extension JS (ant_switch etc.) stopped loading on the admin page. Pre-dates B.2 (existed since 0144's deploy; invisible because RaspSDR's old admin.js never referenced extension globals). Patch removes the guard with a Web-888 comment. Restores pre-0144 behavior: %[EXT_LIST_JS] substitutes <script>/<link> tags for every registered extension on the admin page. Applies after 0145 in the series (web.cpp untouched by 0145, so diff base is identical either way).
+0145  | NOTE v5: w3_util.js shim restructured after live admin-page "too much recursion" --
+        the original `var w3_nav_v1902 = w3_nav;` capture-at-append-time silently captured the
+        hoisted DISPATCHER itself (function declarations hoist script-wide, so the appended
+        redefinitions replaced the originals before the var assignments ran) -> new-style
+        calls recursed forever, blanking /admin. v5 renames the four original v1.902
+        definitions in place (w3_nav_v1902 / w3_navdef_v1902 / w3_click_nav_v1902 /
+        w3_fillText_v1902 at their definition sites) and drops the var captures; dispatchers
+        now reference the renamed originals directly.

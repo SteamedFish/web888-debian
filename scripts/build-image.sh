@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# build-image.sh — assemble the card image.
+# GPT: p1 = 128 MiB FAT32 boot (boot.bin + zImage + web888.dtb),
+#      p2 = ext4 rootfs (contents of work/rootfs/).
+# Partition table is plain MBR (msdos), NOT GPT: the Zynq-7000 BootROM finds
+# BOOT.BIN by parsing the MBR partition table and does NOT understand GPT —
+# a GPT image (single 0xEE protective entry) gives it no FAT partition to
+# read → card does not boot (observed: D2 LED stays on forever).
+# The stock card is plain MBR too. Linux does not care either way at 2 GiB.
+#
+# usage: build-image.sh [test|final|uboot] → output/web888-debian-<mode>.img
+#   uboot — step 6: FAT carries boot.bin (FSBL+U-Boot), boot.scr +
+#           uEnv.txt + zImage + web888.dtb (bootargs live in boot.scr, NOT
+#           the dtb), plus zImage.prev when output/zImage.prev is
+#           present (fallback entry).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+MODE="${1:-test}"
+IMG=output/web888-debian-${MODE}.img
+SIZE_MB=2048
+
+[[ $MODE == test || $MODE == final || $MODE == uboot ]] || { echo "usage: $0 [test|final|uboot]" >&2; exit 1; }
+
+DTB=output/web888.dtb
+[[ $MODE == test ]] && DTB=output/web888-test.dtb
+
+for f in "output/boot-${MODE}.bin" output/zImage "$DTB"; do
+    [[ -f $f ]] || { echo "Error: missing $f (run build-bootbin.sh $MODE)" >&2; exit 1; }
+done
+# The stub chain (test/final) boots kernel+dtb from partitions EMBEDDED in
+# boot.bin — the FAT copies are vestigial. A stale boot.bin silently boots
+# old kernel/dtb while QEMU (-kernel/-dtb) validates the new ones: refuse
+# to pack when boot.bin is older than its inputs (cost two flash cycles
+#).
+if [[ $MODE != uboot ]]; then
+    if [[ output/boot-${MODE}.bin -ot output/zImage || output/boot-${MODE}.bin -ot config/web888.dts ]]; then
+        echo "Error: output/boot-${MODE}.bin is stale (kernel/dtb are embedded — run build-bootbin.sh $MODE)" >&2
+        exit 1
+    fi
+fi
+[[ -d work/rootfs/etc ]] || { echo "Error: work/rootfs not populated (run configure-rootfs.sh)" >&2; exit 1; }
+
+if [[ $MODE == uboot ]]; then
+    [[ -x work/u-boot/tools/mkimage ]] || { echo "Error: work/u-boot/tools/mkimage missing (run build-uboot.sh)" >&2; exit 1; }
+    # dtb WITHOUT bootargs: the boot flow supplies them (boot.scr).
+    bash scripts/write-dtb.sh "$DTB"
+    work/u-boot/tools/mkimage -A arm -T script -C none -n web888-boot \
+        -d config/u-boot/boot.cmd output/boot.scr
+fi
+
+dd if=/dev/zero of="$IMG" bs=1M count="$SIZE_MB" status=none
+parted --script "$IMG" \
+    mklabel msdos \
+    mkpart primary fat32 1MiB 129MiB \
+    mkpart primary ext4 129MiB 100% \
+    set 1 boot on
+
+LOOP=$(sudo -n losetup --find --show --partscan "$IMG")
+MNT=$(mktemp -d)
+trap 'sudo -n umount -q "$MNT" 2>/dev/null; sudo -n losetup -d "$LOOP" 2>/dev/null || true' EXIT
+
+sudo -n mkfs.vfat -F 32 -n BOOT "${LOOP}p1"
+sudo -n mkfs.ext4 -q -L rootfs "${LOOP}p2"
+
+sudo -n mount "${LOOP}p1" "$MNT"
+sudo -n cp "output/boot-${MODE}.bin" "$MNT/boot.bin"
+sudo -n cp output/zImage "$MNT/zImage"
+sudo -n cp "$DTB" "$MNT/web888.dtb"
+if [[ $MODE == uboot ]]; then
+    sudo -n cp output/boot.scr "$MNT/boot.scr"
+    sudo -n cp config/u-boot/uEnv.txt "$MNT/uEnv.txt"
+    [[ -f output/zImage.prev ]] && sudo -n cp output/zImage.prev "$MNT/zImage.prev" || true
+fi
+sudo -n umount "$MNT"
+
+sudo -n mount "${LOOP}p2" "$MNT"
+sudo -n rsync -a work/rootfs/ "$MNT/"
+sudo -n umount "$MNT"
+
+rmdir "$MNT"
+sudo -n losetup -d "$LOOP"
+trap - EXIT
+
+echo "image ready: $IMG ($(du -h "$IMG" | cut -f1))"

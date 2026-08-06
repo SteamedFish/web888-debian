@@ -1,0 +1,24 @@
+From: web888-debian step3
+Subject: main: detect /etc/debian_version (fallback alpine), create state dirs
+
+--- a/main.cpp
++++ b/main.cpp
+@@ -109,7 +109,7 @@
+     shmem_init();
+     printf_init();
+ 
+-    system("mkdir -p " DIR_DATA);
++    system("mkdir -p " DIR_DATA " " DIR_CFG " " DIR_STATE "/backup " DIR_FIRMWARE);
+ 
+ #define ARG(s) (strcmp(argv[ai], s) == 0)
+ #define ARGP() argv[++ai]
+@@ -187,7 +187,8 @@
+             version_maj, version_min);
+     lprintf("compiled: %s %s on %s\n", __DATE__, __TIME__, COMPILE_HOST);
+ 
+-    char* reply = read_file_string_reply("/etc/alpine-release");
++    char* reply = read_file_string_reply("/etc/debian_version");
++    if (reply == NULL) reply = read_file_string_reply("/etc/alpine-release");
+     if (reply == NULL) panic("debian_version");
+     if (sscanf(kstr_sp(reply), "%d.%d", &debian_maj, &debian_min) != 2) panic("debian_version");
+     kstr_free(reply);

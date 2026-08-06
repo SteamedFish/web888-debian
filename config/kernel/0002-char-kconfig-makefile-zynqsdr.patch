@@ -1,0 +1,26 @@
+--- a/drivers/char/Kconfig	2026-07-30 03:30:40.352739457 +0800
++++ b/drivers/char/Kconfig	2026-07-30 03:30:40.398016481 +0800
+@@ -432,4 +432,16 @@
+ 	  from linux-xlnx xilinx-v2016.4 (removed from the 6.6 tree, which
+ 	  only carries the fpga-manager zynq-fpga driver).
+ 
++config ZYNQSDR
++	tristate "Web-888 zynqsdr SDR platform driver"
++	depends on ARCH_ZYNQ
++	help
++	  Control/data driver for the Web-888 (RX-888) SDR receiver,
++	  providing the /dev/zynqsdr misc device that the RaspSDR websdr
++	  userspace talks to (RF frontend GPIO control, PE4312 attenuator
++	  bit-bang, FPGA signature/DNA queries, and the RX/waterfall/PPS
++	  DMA data plane). Clean-room re-implementation of the vendor's
++	  closed-source built-in driver against the RaspSDR/server
++	  zynq/ioctl.h ABI.
++
+ endmenu
+--- a/drivers/char/Makefile	2026-07-30 03:30:40.353739431 +0800
++++ b/drivers/char/Makefile	2026-07-30 03:30:40.398221098 +0800
+@@ -45,3 +45,4 @@
+ obj-$(CONFIG_POWERNV_OP_PANEL)	+= powernv-op-panel.o
+ obj-$(CONFIG_ADI)		+= adi.o
+ obj-$(CONFIG_XILINX_DEVCFG)	+= xilinx_devcfg.o
++obj-$(CONFIG_ZYNQSDR)		+= zynqsdr.o

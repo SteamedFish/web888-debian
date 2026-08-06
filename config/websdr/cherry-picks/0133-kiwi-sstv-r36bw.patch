@@ -1,0 +1,59 @@
+diff --git a/extensions/SSTV/sstv.h b/extensions/SSTV/sstv.h
+index 35f38f4..d98235c 100644
+--- a/extensions/SSTV/sstv.h
++++ b/extensions/SSTV/sstv.h
+@@ -113,7 +113,7 @@ enum {
+     AVT24, AVT90, AVT94,
+     M1,    M2,    M3,    M4,
+     S1,    S2,    SDX,
+-    R12,   R24,   R36,   R72,   R8BW, R12BW, R24BW,
++    R12,   R24,   R36,   R72,   R8BW, R12BW, R24BW, R36BW,
+     SC60,  SC120, SC180,
+     PD50,  PD90,  PD120, PD160, PD180, PD240, PD290,
+     P3,    P5,    P7,
+diff --git a/extensions/SSTV/sstv_modespec.cpp b/extensions/SSTV/sstv_modespec.cpp
+index 1168026..53c4e0f 100644
+--- a/extensions/SSTV/sstv_modespec.cpp
++++ b/extensions/SSTV/sstv_modespec.cpp
+@@ -295,6 +295,19 @@ ModeSpec_t ModeSpec[] = {
+     1, BW, FMT_BW
+   },
+ 
++  {  // N7CXI
++    "Robot 36 B/W",
++    "R36-BW",
++    7e-3,
++    0e-3,
++    0e-3,
++    0.446875e-3,    // 143/320
++    150e-3,         // line = 7+143 = 150
++                    // 240L/36s = 6.66L/s = 400LPM = 150ms/L
++    320, 240,
++    1, BW, FMT_BW
++  },
++
+ 
+ ////////////////////////////////
+ // Wraase
+@@ -676,7 +689,7 @@ ModeSpec_t ModeSpec[] = {
+ 
+ u1_t   VISmap[] = {
+ //  x0     x1     x2     x3    x4     x5     x6     x7     x8     x9     xA     xB    xC    xD    xE     xF
+-    R12,   0,     R8BW,  0,    R24,   FX480, R12BW, 0,     R36,   0,     R24BW, 0,    R72,  0,    0,     0,     // 0x
++    R12,   0,     R8BW,  0,    R24,   FX480, R12BW, 0,     R36,   0,     R24BW, 0,    R72,  0,    R36BW, 0,     // 0x
+     0,     0,     0,     0,    0,     0,     0,     0,     0,     0,     0,     0,    0,    0,    0,     0,     // 1x
+     M4,    0,     0,     VISX, M3,    0,     0,     0,     M2,    0,     0,     0,    M1,   0,    0,     0,     // 2x
+     0,     0,     0,     0,    0,     0,     0,     SC180, S2,    0,     0,     SC60, S1,   0,    0,     SC120, // 3x
+diff --git a/web/extensions/SSTV/SSTV.js b/web/extensions/SSTV/SSTV.js
+index f90d2fe..1e0909c 100644
+--- a/web/extensions/SSTV/SSTV.js
++++ b/web/extensions/SSTV/SSTV.js
+@@ -473,7 +473,7 @@ function SSTV_help(show)
+                '<ul>' +
+                   '<li>Martin: M1 M2 M3 M4</li>' +
+                   '<li>Scottie: S1 S2 SDX</li>' +
+-                  '<li>Robot: R12 R24 R36 R72 R8-BW R12-BW R24-BW</li>' +
++                  '<li>Robot: R12 R24 R36 R72 R8-BW R12-BW R24-BW R36-BW</li>' +
+                   '<li>Wraase: SC60 SC120 SC180</li>' +
+                   '<li>Pasokon: P3 P5 P7</li>' +
+                   '<li>PD: PD50 PD90 PD120 PD160 PD180 PD240</li>' +

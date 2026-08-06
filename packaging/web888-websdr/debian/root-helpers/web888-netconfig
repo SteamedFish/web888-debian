@@ -1,0 +1,159 @@
+#!/bin/sh
+# web888-netconfig <static|dhcp|dns> — install network configuration staged by
+# the unprivileged websdr service into /etc. Runs as root via sudo (see
+# /etc/sudoers.d/web888); the web888 user only ever writes the staging dir.
+#
+# Why this exists: the websdr admin network page was written for Alpine (it
+# rewrites /etc/network/interfaces wholesale — on Debian that wipes the
+# interfaces.d source line and bricks remote access). Here the service stages
+# an ifupdown drop-in + resolv.conf and this helper validates and installs
+# them. The main /etc/network/interfaces file is NEVER touched.
+#
+# Security contract: fixed verbs only, no eval anywhere, staged content is
+# validated line-by-line against a strict allowlist grammar before anything
+# is installed. Anything unrecognized is rejected.
+#
+# Path overrides (WEB888_NETCONFIG_*) exist for scratch-rootfs testing; sudo's
+# env_reset strips them in production, so the real paths always apply there.
+set -eu
+
+STATE=${WEB888_NETCONFIG_STATE:-/var/lib/web888/netconfig}
+IFD=${WEB888_NETCONFIG_IFD:-/etc/network/interfaces.d}
+RESOLV=${WEB888_NETCONFIG_RESOLV:-/etc/resolv.conf}
+STATIC_DROPIN="$IFD/90-websdr-static.conf"
+DHCP_DROPIN="$IFD/eth0"
+
+die() { echo "web888-netconfig: $*" >&2; exit 1; }
+
+# Dotted-quad IPv4: exactly 4 numeric octets 0-255, no leading zeros.
+valid_ipv4() {
+    case $1 in
+        *[!0-9.]* | .* | *. | *..*) return 1 ;;
+    esac
+    saved_ifs=$IFS
+    IFS=.
+    # shellcheck disable=SC2086
+    set -- $1
+    IFS=$saved_ifs
+    [ "$#" -eq 4 ] || return 1
+    for octet do
+        case $octet in
+            '' | *[!0-9]*) return 1 ;;
+            0[0-9]*) return 1 ;; # leading zero: ambiguous (octal-looking)
+        esac
+        [ "$octet" -le 255 ] || return 1
+    done
+    return 0
+}
+
+# Strip leading whitespace from $1, print result.
+ltrim() {
+    trimmed=${1#"${1%%[![:space:]]*}"}
+    printf '%s' "$trimmed"
+}
+
+# Allowlist grammar for the websdr-generated static drop-in:
+#   auto lo | auto eth0
+#   iface lo inet loopback
+#   iface eth0 inet static
+#   <indent> address|netmask|gateway <ipv4>
+# Blank lines and #-comments allowed. Anything else fails.
+validate_static() {
+    vrc=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line=$(ltrim "$line")
+        case $line in
+            '' | '#'*) ;;
+            'auto lo' | 'auto eth0' | 'iface lo inet loopback' | 'iface eth0 inet static') ;;
+            'address '* | 'netmask '* | 'gateway '*)
+                value=${line##*[[:space:]]}
+                valid_ipv4 "$value" || { echo "web888-netconfig: bad IPv4: $line" >&2; vrc=1; }
+                ;;
+            *)
+                echo "web888-netconfig: rejected line: $line" >&2
+                vrc=1
+                ;;
+        esac
+    done
+    return $vrc
+}
+
+# Allowlist grammar for resolv.conf: "nameserver <ipv4>" lines, blanks,
+# comments. Nothing else.
+validate_resolv() {
+    vrc=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line=$(ltrim "$line")
+        case $line in
+            '' | '#'*) ;;
+            'nameserver '*)
+                value=${line##*[[:space:]]}
+                valid_ipv4 "$value" || { echo "web888-netconfig: bad nameserver: $line" >&2; vrc=1; }
+                ;;
+            *)
+                echo "web888-netconfig: rejected line: $line" >&2
+                vrc=1
+                ;;
+        esac
+    done
+    return $vrc
+}
+
+# Atomic install into $IFD (tmp file in the same directory, then rename).
+install_dropin() {
+    tmp="$2.web888-tmp"
+    install -m 0644 -o root -g root "$1" "$tmp"
+    mv "$tmp" "$2"
+}
+
+# Install the staged resolv.conf if one is present. Writes in place (no
+# rename): /etc is read-only in the service mount namespace — only the
+# resolv.conf file itself is writable (systemd ReadWritePaths), so replacing
+# the directory entry would fail with EBUSY/EROFS.
+sync_resolv() {
+    [ -f "$STATE/resolv.conf" ] || return 0
+    validate_resolv <"$STATE/resolv.conf" || die "staged resolv.conf failed validation"
+    cat "$STATE/resolv.conf" >"$RESOLV"
+    chmod 0644 "$RESOLV"
+    rm -f "$STATE/resolv.conf"
+    echo "web888-netconfig: installed $RESOLV"
+}
+
+verb=${1:-}
+case $verb in
+    static)
+        [ -f "$STATE/90-websdr-static.conf" ] || die "no staged static config in $STATE"
+        validate_static <"$STATE/90-websdr-static.conf" || die "staged static config failed validation"
+        # Install the static drop-in first, THEN remove the image's DHCP
+        # drop-in: ifupdown configures an interface for EVERY matching iface
+        # stanza (verified: static+dhcp both run, dhcpcd fights the static
+        # address), so the two must never coexist at boot. This order keeps a
+        # working eth0 config in place at every intermediate state.
+        install_dropin "$STATE/90-websdr-static.conf" "$STATIC_DROPIN"
+        rm -f "$STATE/90-websdr-static.conf"
+        rm -f "$DHCP_DROPIN"
+        echo "web888-netconfig: installed $STATIC_DROPIN (DHCP drop-in removed; applies on reboot)"
+        sync_resolv
+        ;;
+    dhcp)
+        # Ensure the DHCP drop-in exists BEFORE removing the static one
+        # (never a state with no eth0 config). Content matches the image
+        # default written by configure-rootfs.sh.
+        if [ ! -f "$DHCP_DROPIN" ]; then
+            tmp="$DHCP_DROPIN.web888-tmp"
+            printf 'auto eth0\niface eth0 inet dhcp\n' >"$tmp"
+            chmod 0644 "$tmp"
+            mv "$tmp" "$DHCP_DROPIN"
+        fi
+        rm -f "$STATIC_DROPIN" "$STATE/90-websdr-static.conf"
+        echo "web888-netconfig: DHCP restored via $DHCP_DROPIN (applies on reboot)"
+        sync_resolv
+        ;;
+    dns)
+        [ -f "$STATE/resolv.conf" ] || die "no staged resolv.conf in $STATE"
+        sync_resolv
+        ;;
+    *)
+        die "usage: web888-netconfig <static|dhcp|dns>"
+        ;;
+esac

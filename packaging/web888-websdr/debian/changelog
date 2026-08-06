@@ -1,0 +1,34 @@
+web888-websdr (2026.730-2) UNRELEASED; urgency=medium
+
+  * Step 3.5 Debian compatibility fixes
+    (step 3, WebSDR Debian fixes):
+    - 0014: admin network page writes a staged ifupdown drop-in via the
+      sudo root helper instead of rewriting /etc/network/interfaces
+      (brick risk on Debian); lbu commit and direct /etc writes stay
+      Alpine-only behind a runtime distro check.
+    - 0015: reboot/halt/poweroff call the web888-poweroff root helper.
+    - 0016: websdr root-password auto-hardening is Alpine-only now
+      (image layer owns the root password).
+  * Ship /etc/sudoers.d/web888 (mode 0440, postinst visudo -c) granting
+    user web888 NOPASSWD on exactly the two root-owned helper scripts
+    in /usr/lib/web888/root-helpers/.
+  * Unit: +CAP_NET_ADMIN (KIWI iptables chain), +DeviceAllow
+    ttyUSB*/ttyACM* (CAT serial), +ReadWritePaths for the two helper
+    target paths; NoNewPrivileges removed (sudo is setuid — NNP blocks
+    the root-helper mechanism entirely).
+  * Depends += iptables, miniupnpc, netcat-openbsd, sudo.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Tue, 04 Aug 2026 16:30:00 +0800
+
+web888-websdr (2026.730-1) UNRELEASED; urgency=medium
+
+  * Debian from-source build of the Web-888 WebSDR server
+    (RaspSDR/server master @ 68a64e1b).
+  * XDG-state layout: config in /var/lib/web888, cache in
+    /var/cache/web888, factory defaults in /usr/share/web888.
+  * systemd service with dedicated web888 user and device-scoped
+    privileges; OpenRC/Alpine paths removed.
+  * Server-binary auto-update disabled (deb-package managed, notify
+    only); FPGA bitstream auto-update retained.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Thu, 30 Jul 2026 15:00:00 +0800

@@ -1,0 +1,200 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Web-888 SDR (Zynq-7010) device tree — web888-debian step 1.
+ *
+ * Node facts verified against the stock DTB (docs/research/bootbin-repack-spec.md):
+ *  - console = uart0 @ e0000000 (stock alias serial0), 115200 8N1
+ *  - gem0 @ e000b000: rgmii-id, PHY @ addr 1, MAC from 24c64 EEPROM @0x10
+ *    via nvmem fixed-layout cell (stock nvmem-cell-names "mac-address")
+ *  - 24c64 EEPROM on i2c0 @0x50, size 0x2000, pagesize 0x20
+ *  - sdhci0 @ e0100000 (TF card), 512 MiB RAM @ 0x0
+ *  - ramoops: last 1 MiB (0x1FF00000) — survives warm reboot (decision 7)
+ */
+/dts-v1/;
+
+#include "zynq-7000.dtsi"
+
+/ {
+	model = "Web-888 SDR";
+	compatible = "rx888,web-888", "xlnx,zynq-7000";
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		ethernet0 = &gem0;
+		i2c0 = &i2c0;
+		mmc0 = &sdhci0;
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x20000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		ramoops: ramoops@1ff00000 {
+			compatible = "ramoops";
+			reg = <0x1ff00000 0x100000>;
+			record-size = <0x40000>;
+			console-size = <0x40000>;
+			ftrace-size = <0x40000>;
+			pmsg-size = <0x20000>;
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+/* UART1 = on-board GPS (ATGM336H, 9600 8N1). Stock enables it as ttyPS1;
+ * gpsd opens /dev/ttyPS1. uart1 defaults to "disabled" in zynq-7000.dtsi.
+ * The serial1 alias above is MANDATORY: without it xuartps assigns port id 0
+ * (already taken by uart0) and probe fails with "uart_add_one_port() failed;
+ * err=-22", leaving no /dev/ttyPS1. */
+&uart1 {
+	status = "okay";
+};
+
+&gem0 {
+	status = "okay";
+	phy-mode = "rgmii-id";
+	phy-handle = <&phy1>;
+	xlnx,ptp-enet-clock = <0x69f6bcb>;
+	nvmem-cells = <&macaddr>;
+	nvmem-cell-names = "mac-address";
+
+	phy1: ethernet-phy@1 {
+		reg = <1>;
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	eeprom@50 {
+		compatible = "24c64";
+		size = <0x2000>;
+		pagesize = <0x20>;
+		reg = <0x50>;
+
+		nvmem-layout {
+			compatible = "fixed-layout";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			macaddr: macaddr@10 {
+				compatible = "mac-address";
+				reg = <0x10 0x06>;
+			};
+		};
+	};
+};
+
+&sdhci0 {
+	status = "okay";
+};
+
+&watchdog0 {
+	status = "okay";
+};
+
+/* USB host port. The board exposes a USB-A host connector driven by usb0
+ * (MIO 28-39 USB0 controller) through a ULPI PHY. Mirrors the stock boot.bin
+ * DTB: status okay + dr_mode host + the ulpi-phy platform node.
+ * - "usb-phy" (not "phys") is the phandle the ci_hdrc_usb2 glue reads for
+ *   compatible "xlnx,zynq-usb-2.20a" (drivers/usb/chipidea/ci_hdrc_usb2.c).
+ * - phy0 aliases the USB0 ULPI viewport at offset 0x170 inside usb0's register
+ *   file; external-drv-vbus makes the PHY drive 5V on VBUS (the modern name
+ *   for stock's drv-vbus; phy-ulpi.c accepts both).
+ * - stock's xlnx,phy-reset-gpio / usb-reset (gpio0 pin 48) are omitted: no
+ *   driver in mainline reads them — they are dead legacy properties, and the
+ *   ULPI PHY reset on this board is handled at power-up, not via GPIO. */
+&usb0 {
+	status = "okay";
+	dr_mode = "host";
+	usb-phy = <&usb_phy0>;
+};
+
+/* Step 2: PCAP char device /dev/xdevcfg (xilinx_devcfg module).
+ * Mainline (≥6.12) zynq-7000.dtsi trimmed devcfg to ref_clk only; the xlnx
+ * driver we build looks up fclk0-3 by name and silently skips the whole fclk
+ * sysfs interface (websdr's PL clock control) when they are absent, so the
+ * 2016.4 binding is reinstated here. clkc indices 15-18 = fclk0-3 per
+ * Documentation/devicetree/bindings/clock/zynq-7000.txt (stable ABI). */
+&devcfg {
+	status = "okay";
+	clocks = <&clkc 12>, <&clkc 15>, <&clkc 16>, <&clkc 17>, <&clkc 18>;
+	clock-names = "ref_clk", "fclk0", "fclk1", "fclk2", "fclk3";
+};
+
+/ {
+	/* Step 2: zynqsdr control/data node — mirrors the stock boot.bin
+	 * DTB fragment (docs/zynqsdr-driver-spec.md §6.2). No reg property:
+	 * the driver ioremaps the fixed PL register pages like stock. The
+	 * 4 PL-PS IRQs (rising edge) are declared now; handlers arrive with
+	 * the data plane. GPIO order is ABI (driver indexes the "gpios" array):
+	 *   idx 0 = MIO 10  HF/VHF mode switch
+	 *   idx 1 = MIO 13  DSA serial CLCK
+	 *   idx 2 = MIO 12  DSA serial LTCH/LE
+	 *   idx 3 = MIO 11  DSA serial DATA
+	 *   idx 4 = MIO 49 external/internal clock select
+	 * (Pin numbering: 0-53 = MIO 0-53; 54+ = EMIO 0+. So pin 49 is MIO 49,
+	 * not EMIO 49 — an earlier comment here mislabeled it.)
+	 * Flags are ACTIVE-HIGH (0): the stock DTB's 0x01 flags are inert —
+	 * stock's driver uses legacy gpio_set_value() which IGNORES the
+	 * ACTIVE_LOW flag, while our gpiod-based driver honours it, which
+	 * physically inverted all 5 pins (root cause of the inverted-pin bug:
+	 * MIO49 ended low = unconnected ext 10 MHz reference selected, so the
+	 * Si5351 PLL never locked -> marginal ADC clock -> RX/WF dice rolls.
+	 * Golden reference: stock boots with MIO49 physically HIGH.) */
+	zynqsdr: zynqsdr {
+		compatible = "rx888,zynqsdr";
+		interrupt-parent = <&intc>;
+		interrupts = <0 29 1>, <0 30 1>, <0 31 1>, <0 32 1>;
+		gpios = <&gpio0 10 0>, <&gpio0 13 0>, <&gpio0 12 0>,
+			<&gpio0 11 0>, <&gpio0 49 0>;
+	};
+
+	/* GPS 1PPS input. Mirrors the stock boot.bin DTB fragment: the
+	 * ATGM336H PPS line is routed to EMIO[0] (gpio pin 54; pins 0-53
+	 * are MIO 0-53, 54+ are EMIO). pps-gpio.ko (CONFIG_PPS_CLIENT_GPIO)
+	 * auto-probes this node → /dev/pps0, which gpsd feeds to chrony.
+	 * capture-clear matches stock (the pulse's trailing edge is the
+	 * clean reference). gpio0 always exposes EMIO pins on Zynq — the
+	 * stock "emio-gpio-width" property is a legacy no-op in this driver
+	 * and intentionally omitted here. */
+	pps {
+		compatible = "pps-gpio";
+		gpios = <&gpio0 54 0>;
+		capture-clear;
+	};
+
+	/* ULPI PHY for usb0 (see &usb0 above). Same shape as every Zynq
+	 * reference board (zynq-zc702/zed/zybo): aliases the usb0 register
+	 * file and its ULPI viewport at offset 0x170. */
+	usb_phy0: phy0@e0002000 {
+		compatible = "ulpi-phy";
+		#phy-cells = <0>;
+		reg = <0xe0002000 0x1000>;
+		view-port = <0x0170>;
+		external-drv-vbus;
+	};
+};
+
+#ifdef BOOTARGS
+/ {
+	chosen {
+		bootargs = BOOTARGS;
+	};
+};
+#endif

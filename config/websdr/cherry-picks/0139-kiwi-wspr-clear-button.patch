@@ -1,0 +1,14 @@
+diff --git a/web/extensions/wspr/wspr.js b/web/extensions/wspr/wspr.js
+index b963f85..6beb35f 100644
+--- a/web/extensions/wspr/wspr.js
++++ b/web/extensions/wspr/wspr.js
+@@ -804,8 +804,7 @@ function wspr_reset()
+ 
+ function wspr_clear_cb(path, idx, first)
+ {
+-	wspr_reset();
+-   wspr_test_cb('', 0);
++   // v1.843: clear button simply clears the spot log without stopping the signal processing
+ 	w3_el('id-wspr-decode').innerHTML = '';
+ 	w3_el('id-wspr-peaks-labels').innerHTML = '';
+ }

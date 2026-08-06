@@ -1,0 +1,6 @@
+0001-cmake-debian-paths.patch
+0002-main-distro-detect.patch
+0003-state-paths.patch
+0004-update-bitstream-only.patch
+0005-peri-firmware-lookup.patch
+0006-hfdl-libexec-path.patch

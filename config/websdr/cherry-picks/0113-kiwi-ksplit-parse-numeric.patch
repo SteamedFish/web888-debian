@@ -1,0 +1,28 @@
+diff --git a/support/str.h b/support/str.h
+--- a/support/str.h
++++ b/support/str.h
+@@ -79,10 +79,11 @@
+ 
+ typedef struct {
+     char* str;
++    int num;
+     char delim;
+ } str_split_t;
+ enum { KSPLIT_NO_SKIP_EMPTY_FIELDS = 0x1,
+-       KSPLIT_HANDLE_EMBEDDED_DELIMITERS = 0x2 };
++       KSPLIT_HANDLE_EMBEDDED_DELIMITERS = 0x2, KSPLIT_PARSE_NUMERIC = 0x4 };
+ int kiwi_split(char* ocp, char** mbuf, const char* delims, str_split_t argv[], int nargs, int flags DEF_0);
+ 
+ extern char ASCII[256][4];
+diff --git a/support/str.cpp b/support/str.cpp
+--- a/support/str.cpp
++++ b/support/str.cpp
+@@ -394,6 +394,8 @@
+         bool not_empty = (ap->str[0] != '\0');
+         if ((flags & KSPLIT_NO_SKIP_EMPTY_FIELDS) || not_empty) {
+             ap->delim = (not_empty && tp) ? ocp[(tp - *mbuf) - 1] : '\0';
++            if (flags & KSPLIT_PARSE_NUMERIC)
++                ap->num = strtol(ap->str, NULL, 0);
+             // if (dbg) real_printf("kiwi_split %d <%s> <%s>\n", n, ap->str, ASCII[ap->delim]);
+             n++;
+             if (++ap >= &argv[nargs])

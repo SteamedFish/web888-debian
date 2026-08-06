@@ -1,0 +1,37 @@
+# Web-888 U-Boot deltas on top of xilinx_zynq_virt_defconfig (step 6).
+# Merged by scripts/build-uboot.sh via merge_config.sh; asserted post-merge.
+
+# Board identity: our no-SPL DT (console uart0). OF_SEPARATE + REMAKE_ELF
+# is the recipe proven during the step-0 boot-chain research
+# OF_EMBED produced a dead early boot (no console on either UART) — not
+# debugged further since the separate-dtb path is verified good.
+CONFIG_DEFAULT_DEVICE_TREE="zynq-web888"
+CONFIG_OF_SEPARATE=y
+
+# No SPL: the stock FSBL is the boot loader; U-Boot runs as the
+# SSBL partition of boot.bin. FSBL already ran ps7_init → skip lowlevel too.
+# CONFIG_SPL is not set
+CONFIG_SKIP_LOWLEVEL_INIT=y
+
+# Environment: nowhere-persistent (EEPROM env untouched — project rule; the
+# boot flow comes from boot.scr/uEnv.txt on the FAT partition every boot).
+CONFIG_ENV_IS_NOWHERE=y
+# CONFIG_ENV_IS_IN_FAT is not set
+# CONFIG_ENV_IS_IN_NAND is not set
+# CONFIG_ENV_IS_IN_SPI_FLASH is not set
+# CONFIG_ENV_REDUNDANT is not set
+
+# Drop flash boot targets the board does not have: keeps boot_targets at
+# mmc (+usb/dhcp fallback) so distro bootcmd finds /boot.scr on the FAT
+# partition without probing nonexistent qspi/nand/nor first. NOTE: MTD
+# itself is force-selected by ARCH_ZYNQ (Kconfig) — only the leaf drivers
+# can go. MTD_RAW_NAND must go regardless: with NAND_ZYNQ=n the zynq
+# header no longer defines CFG_SYS_NAND_BASE and nand.c fails to compile.
+# CONFIG_ZYNQ_QSPI is not set
+# CONFIG_NAND_ZYNQ is not set
+# CONFIG_MTD_RAW_NAND is not set
+# CONFIG_MTD_NOR_FLASH is not set
+# CONFIG_MTD_UBI is not set
+# CONFIG_CMD_UBI is not set
+# CONFIG_CMD_UBIFS is not set
+# CONFIG_SPI_FLASH_MTD is not set

@@ -1,0 +1,131 @@
+diff --git a/projects/sdr_receiver_hpsdr/server/peri.c b/projects/sdr_receiver_hpsdr/server/peri.c
+index ccb79d17..fc957da6 100644
+--- a/projects/sdr_receiver_hpsdr/server/peri.c
++++ b/projects/sdr_receiver_hpsdr/server/peri.c
+@@ -1,97 +1,47 @@
+ #include <stdint.h>
+ #include <stdio.h>
+-#include <string.h>
++#include <fcntl.h>
+ #include <unistd.h>
++#include <sys/ioctl.h>
+ 
+-//************ADC Att Driver***********
+-#define GPIO_BASE_ADDR 512
+-#define ATTN_DATA_ADDR 11
+-#define ATTN_CLK_ADDR 13
+-#define ATTN_LE_ADDR 12
++//************ADC Att Driver (Web-888 Debian: zynqsdr kernel ioctl)***********
++// The zynqsdr driver owns MIO 11/12/13 (DSA data/LE/clk) for websdr, so the
++// vendor's sysfs-GPIO bit-bang fails with EBUSY on this image. The driver's
++// ZYNQSDR_AD8370_SET ioctl bit-bangs the same PE4312 3-wire serial from
++// kernel space (step-2 hw-gate proven) and works with any PL bitstream.
++// att_cal from the HPSDR client is 0-63 (6 bits) — the kernel shifts 8 bits
++// MSB-first and the PE4312 latches the last 6, so values pass through
++// unchanged. Also fixes the vendor NULL-FILE* SEGV when GPIO export fails:
++// failures now return -1 instead of crashing.
+ 
+-#define OUTPUT "out"
+-#define LOW "0"
+-#define HIGH "1"
++#define ZYNQSDR_AD8370_SET _IOW('Z', 0, uint32_t)
+ 
+-static FILE *handlers[1024];
++static int zynqsdr_fd = -1;
+ 
+-static void pinMode(uint32_t pin_num, char *mode)
+-{
+-    FILE *sysfs_export;
+-    FILE *sysfs_direction;
+-    char path[40] = "";
+-    char pin[10];
+-    sprintf(pin, "%d", pin_num);
+-    sysfs_export = fopen("/sys/class/gpio/export", "w");
+-    fwrite(pin, 1, sizeof(pin), sysfs_export);
+-    fclose(sysfs_export);
+-
+-    strcpy(path, "/sys/class/gpio/gpio");
+-    strcat(path, pin);
+-    strcat(path, "/direction");
+-
+-    sysfs_direction = fopen(path, "w");
+-    fwrite(mode, 1, strlen(mode), sysfs_direction);
+-    fclose(sysfs_direction);
+-
+-    strcpy(path, "/sys/class/gpio/gpio");
+-    strcat(path, pin);
+-    strcat(path, "/value");
+-
+-    handlers[pin_num] = fopen(path, "w");
+-}
+-
+-static void digitalWrite(uint32_t pin_num, char *value)
+-{
+-    fwrite(value, 1, 1, handlers[pin_num]);
+-}
+-
+-void att_cleanUp()
++int att_initial()
+ {
+-    char pin[10];
+-    int pins[] = {GPIO_BASE_ADDR + ATTN_DATA_ADDR, GPIO_BASE_ADDR + ATTN_CLK_ADDR, GPIO_BASE_ADDR + ATTN_LE_ADDR};
+-    
+-    FILE *sysfs_unexport = fopen("/sys/class/gpio/unexport", "w");
+-    for (int i = 0; i < 3; i++) {
+-        int pin_num = pins[i];
+-        fclose(handlers[pin_num]);
+-        sprintf(pin, "%d", pin_num);
+-        fwrite(pin, 1, strlen(pin), sysfs_unexport);
++    zynqsdr_fd = open("/dev/zynqsdr", O_RDWR);
++    if (zynqsdr_fd < 0) {
++        perror("open /dev/zynqsdr");
++        return -1;
+     }
+-
+-    fclose(sysfs_unexport);
++    fprintf(stderr, "attenuator initialize succeed (zynqsdr ioctl).\n");
++    return 0;
+ }
+ 
+-int att_initial()
++void att_cleanUp()
+ {
+-    pinMode((GPIO_BASE_ADDR + ATTN_DATA_ADDR), OUTPUT);
+-    pinMode((GPIO_BASE_ADDR + ATTN_CLK_ADDR), OUTPUT);
+-    pinMode((GPIO_BASE_ADDR + ATTN_LE_ADDR), OUTPUT);
+-    fprintf(stderr, "attenuator initialize succeed.\n");
++    if (zynqsdr_fd >= 0) close(zynqsdr_fd);
++    zynqsdr_fd = -1;
+ }
+ 
+ int set_att_value(uint8_t att_val)
+ {
+-    uint8_t loop_cnt;
+-    digitalWrite((GPIO_BASE_ADDR + ATTN_CLK_ADDR), LOW);
+-    digitalWrite((GPIO_BASE_ADDR + ATTN_LE_ADDR), LOW);
+-    for (loop_cnt = 0; loop_cnt < 6; loop_cnt++)
+-    {
+-        if ((att_val >> (5 - loop_cnt)) & 0x01 == 0x01)
+-        {
+-            digitalWrite((GPIO_BASE_ADDR + ATTN_DATA_ADDR), HIGH);
+-        }
+-        else
+-        {
+-            digitalWrite((GPIO_BASE_ADDR + ATTN_DATA_ADDR), LOW);
+-        }
+-        usleep(5);
+-        digitalWrite((GPIO_BASE_ADDR + ATTN_CLK_ADDR), HIGH);
+-        usleep(5);
+-        digitalWrite((GPIO_BASE_ADDR + ATTN_CLK_ADDR), LOW);
++    if (zynqsdr_fd < 0) return -1;
++    if (ioctl(zynqsdr_fd, ZYNQSDR_AD8370_SET, att_val) < 0) {
++        perror("ioctl ZYNQSDR_AD8370_SET");
++        return -1;
+     }
+-    usleep(50);
+-    digitalWrite((GPIO_BASE_ADDR + ATTN_LE_ADDR), HIGH);
+     fprintf(stderr, "Set attenuator to %d\n", att_val);
+     return 0;
+-}
+\ No newline at end of file
++}

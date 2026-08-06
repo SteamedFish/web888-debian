@@ -1,0 +1,30 @@
+Description: KiwiSDR 575736bd — show IP address for denied connections (first hunk)
+ Ported from upstream commit "show IP address for denied connections"
+ (575736bd362c29e0df814fdb394c50a93711e694). Adds c->remote_ip to the
+ "non-Kiwi app fingerprint was denied connection" log line in
+ support/stats.cpp so the offending source IP is recorded.
+ .
+ Web-888 note: the surrounding TRIG= format already uses %d (integer)
+ rather than the upstream %s ("T"/"F"), so only the single denied-
+ connection line is touched; its context matches upstream apart from
+ that format difference. The code lives inside
+ #ifdef OPTION_DENY_APP_FINGERPRINT_CONN.
+ .
+ NOT included: the upstream fingerprint-2 HFDL hunk (the
+ 21928..21997 kHz frequency-trigger block) is absent from Web-888's
+ stats.cpp and is intentionally skipped.
+Origin: https://github.com/kiwisdr/kiwiSDR-wb66v4/ commit 575736bd
+Forwarded: not-needed
+
+diff --git a/support/stats.cpp b/support/stats.cpp
+--- a/support/stats.cpp
++++ b/support/stats.cpp
+@@ -372,7 +372,7 @@
+                 clprintf(c, "API: TRIG=%d %s(%d) f_kHz=%.3f freq_trig=%d hasDelimiter=%d z=%d\n",
+                          trig, rx_conn_type(c), c->type, f_kHz, freq_trig, hasDelimiter, c->zoom);
+                 if (trig) {
+-                    clprintf(c, "API: non-Kiwi app fingerprint was denied connection\n");
++                    clprintf(c, "API: non-Kiwi app fingerprint was denied connection: %s\n", c->remote_ip);
+                     kick = true;
+                 }
+ #endif

@@ -1,0 +1,44 @@
+diff --git a/extensions/FT8/FT8.cpp b/extensions/FT8/FT8.cpp
+index ee9ce62..0afa4c0 100644
+--- a/extensions/FT8/FT8.cpp
++++ b/extensions/FT8/FT8.cpp
+@@ -393,6 +393,10 @@ static void ft8_autorun(int instance, bool initial)
+ void ft8_autorun_start(bool initial)
+ {
+     rx_util_t *r = &rx_util;
++    if (down) {
++        //printf("FT8 autorun_start: kiwi down\n");
++        return;
++    }
+     if (ft8_conf.num_autorun == 0) {
+         //printf("FT8 autorun_start: none configured\n");
+         return;
+diff --git a/extensions/wspr/wspr_main.cpp b/extensions/wspr/wspr_main.cpp
+index 39be5c9..e85c9e0 100644
+--- a/extensions/wspr/wspr_main.cpp
++++ b/extensions/wspr/wspr_main.cpp
+@@ -1071,6 +1071,10 @@ void wspr_autorun(int instance, bool initial)
+ void wspr_autorun_start(bool initial)
+ {
+     rx_util_t *r = &rx_util;
++    if (down) {
++        //printf("WSPR autorun_start: kiwi down\n");
++        return;
++    }
+     if (wspr_c.num_autorun == 0) {
+         //printf("WSPR autorun_start: none configured\n");
+         return;
+diff --git a/ui/admin.cpp b/ui/admin.cpp
+index f7e6e0f..7d8c246 100644
+--- a/ui/admin.cpp
++++ b/ui/admin.cpp
+@@ -377,7 +377,8 @@ void c2s_admin(void* param) {
+                 }
+                 else {
+                     down = true;
+-                    rx_server_kick(KICK_USERS); // kick all users off
++                    //rx_server_kick(KICK_USERS); // kick all users off
++                    rx_server_kick(KICK_ALL); // kick everything (including autorun)
+                 }
+                 continue;
+             }

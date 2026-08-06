@@ -1,0 +1,4 @@
+KERNEL=="zynqsdr", GROUP="web888", MODE="0660"
+KERNEL=="xdevcfg", GROUP="web888", MODE="0660"
+# i2c-0 is root:root 0660 on Debian; websdr.bin opens it for the PMIC/EEPROM.
+SUBSYSTEM=="i2c-dev", KERNEL=="i2c-0", GROUP="web888", MODE="0660"

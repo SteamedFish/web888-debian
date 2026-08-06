@@ -1,0 +1,246 @@
+diff --git a/extensions/DRM/DRM.cpp b/extensions/DRM/DRM.cpp
+index 9895077..e2e6ec6 100644
+--- a/extensions/DRM/DRM.cpp
++++ b/extensions/DRM/DRM.cpp
+@@ -93,8 +93,8 @@ bool DRM_msgs(char *msg, int rx_chan)
+     if (strcmp(msg, "SET ext_server_init") == 0) {
+ 		ext_send_msg(rx_chan, false, "EXT ready");
+ 		
+-		// extension notified of rx_chan >= drm_info.drm_chan in response to lock_set below
+-		if (rx_chan < drm_info.drm_chan) {
++		// extension notified of rx_chan >= drm_info.drm_max_rx in response to lock_set below
++		if (rx_chan < drm_info.drm_max_rx) {
+             d->rx_chan = rx_chan;	// remember our receiver channel number
+         }
+         
+@@ -122,8 +122,12 @@ bool DRM_msgs(char *msg, int rx_chan)
+ 	#define DRM_OK_LOCKED           1
+ 
+     if (strcmp(msg, "SET lock_set") == 0) {
+-        int rv, heavy = 0;
+-        int inuse = rx_chans - rx_chan_free_count(RX_COUNT_ALL, NULL, &heavy);
++        int rv, heavy = 0, preempt = 0;
++        int free = rx_chan_free_count(RX_COUNT_ALL, NULL, &heavy, &preempt);
++        int inuse = rx_chans - free - preempt;
++        int inuse_all = rx_chans - free;
++        printf("DRM rx_chans=%d - free=%d - preempt=%d => inuse=%d inuse_all=%d\n",
++            rx_chans, free, preempt, inuse, inuse_all);
+ 
+     //#define DRM_12KHZ_ONLY
+     #ifdef DRM_12KHZ_ONLY
+@@ -136,9 +140,15 @@ bool DRM_msgs(char *msg, int rx_chan)
+             rv = DRM_HACKED;    // prevent attempt to bypass the javascript kiwi.is_local check
+         } else {
+             int prev = is_locked;
+-            is_locked = (rx_chan < drm_info.drm_chan)? 1:0;
+-            printf("DRM multi-core lock_set: inuse=%d heavy=%d rx_chan=%d drm_chan=%d prev=%d locked=%d\n",
+-                inuse, heavy, rx_chan, drm_info.drm_chan, prev, is_locked);
++            is_locked = (rx_chan < drm_info.drm_max_rx)? 1:0;
++            printf("DRM multi-core lock_set: inuse=%d heavy=%d rx_chan=%d drm_max_rx=%d prev_locked=%d => locked=%d\n",
++                inuse, heavy, rx_chan, drm_info.drm_max_rx, prev, is_locked);
++            
++            // if preemption needs to be used then just kick them all and they'll come back as able
++            if (is_locked && preempt) {
++                printf("DRM autorun_kick_all_preemptable\n");
++                rx_autorun_kick_all_preemptable();
++            }
+             if (is_locked) conn->is_locked = true;
+             rv = is_locked? DRM_OK_LOCKED : DRM_CONFLICT;
+         }
+@@ -281,7 +291,7 @@ void DRM_data(u1_t cmd, u1_t *data, u4_t nbuf)
+ 
+ void DRM_poll(int rx_chan)
+ {
+-    if (rx_chan >= drm_info.drm_chan) return;
++    if (rx_chan >= drm_info.drm_max_rx) return;
+     
+     drm_t *d = &DRM_SHMEM->drm[rx_chan];
+     
+@@ -352,7 +362,7 @@ ext_t DRM_ext = {
+ void DRM_main()
+ {
+     drm_t *d;
+-    drm_info.drm_chan = DRM_MAX_RX;
++    drm_info.drm_max_rx = DRM_MAX_RX;
+     
+     #ifdef DRM
+         for (int i=0; i < DRM_MAX_RX; i++) {
+diff --git a/extensions/DRM/DRM.h b/extensions/DRM/DRM.h
+index 26babb7..40f846c 100644
+--- a/extensions/DRM/DRM.h
++++ b/extensions/DRM/DRM.h
+@@ -30,7 +30,7 @@ typedef struct {
+ } drm_buf_t;
+ 
+ typedef struct {
+-    int drm_chan;
++    int drm_max_rx;
+     
+     s2_t *s2p_start1, *s2p_end1;
+     s2_t *s2p_start2, *s2p_end2;
+diff --git a/extensions/FT8/FT8.cpp b/extensions/FT8/FT8.cpp
+index ee9ce62..6fb0c36 100644
+--- a/extensions/FT8/FT8.cpp
++++ b/extensions/FT8/FT8.cpp
+@@ -353,6 +353,12 @@ static void ft8_autorun(int instance, bool initial)
+     double dial_freq_kHz = ft8_cfs[band];
+     bool ft4 = (isFT4[band] != 0);
+     bool preempt = (ft8_arun_preempt[instance] != ARUN_PREEMPT_NO);
++
++    if (is_locked) {
++        //printf("FT8 autorun: DRM is_locked\n");
++        return;
++    }
++
+     char *ident_user;
+     asprintf(&ident_user, "FT%d-%s", ft4? 4:8, ft8_name[band]);
+     char *geoloc;
+diff --git a/extensions/wspr/wspr_main.cpp b/extensions/wspr/wspr_main.cpp
+index 39be5c9..7a87bfe 100644
+--- a/extensions/wspr/wspr_main.cpp
++++ b/extensions/wspr/wspr_main.cpp
+@@ -992,6 +992,11 @@ void wspr_autorun(int instance, bool initial)
+ 	double center_freq_kHz, tune_freq_kHz;
+ 	bool iwbp = (wspr_cfs[band] == WSPR_BAND_IWBP);
+ 
++    if (is_locked) {
++        //printf("WSPR autorun: DRM is_locked\n");
++        return;
++    }
++
+     if (iwbp) {
+         int min;
+         utc_hour_min_sec(NULL, &min, NULL);
+diff --git a/rx/rx_server.cpp b/rx/rx_server.cpp
+index 0a31d89..d55601a 100644
+--- a/rx/rx_server.cpp
++++ b/rx/rx_server.cpp
+@@ -467,15 +467,16 @@ retry:
+     c->other = cother;
+ 
+     if (snd_or_wf) {
+-        int rx_n, heavy;
++        int rx_n, heavy, preempt = 0;
+ 
+         if (!cother) {
+             // if autorun on configurations with limited wf chans (e.g. rx8_wf2) never use the wf chans at all
+             rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_INITIAL)) ? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
+             rx_free_count_e flags = ((isKiwi_UI || isWF_conn) && !isNo_WF) ? RX_COUNT_ALL : wf_flags;
+-            int inuse = rx_chans - rx_chan_free_count(flags, &rx_n, &heavy);
+-            conn_printf("%s cother=%p isKiwi_UI=%d isWF_conn=%d isNo_WF=%d inuse=%d/%d use_rx=%d heavy=%d locked=%d %s\n",
+-                        st->uri, cother, isKiwi_UI, isWF_conn, isNo_WF, inuse, rx_chans, rx_n, heavy, is_locked,
++            int free = rx_chan_free_count(flags, &rx_n, &heavy, &preempt);
++            int inuse = rx_chans - free - preempt;
++            conn_printf("%s cother=%p isKiwi_UI=%d isWF_conn=%d isNo_WF=%d inuse=%d/%d preempt=%d use_rx=%d heavy=%d locked=%d %s\n",
++                        st->uri, cother, isKiwi_UI, isWF_conn, isNo_WF, inuse, rx_chans, preempt, rx_n, heavy, is_locked,
+                         (flags == RX_COUNT_ALL) ? "RX_COUNT_ALL" : ((flags == RX_COUNT_NO_WF_FIRST) ? "RX_COUNT_NO_WF_FIRST" : "RX_COUNT_NO_WF_AT_ALL"));
+ 
+             if (is_locked) {
+@@ -484,10 +485,13 @@ retry:
+                     is_locked = 0;
+                 }
+                 else {
+-                    printf("DRM nreg_chans=%d inuse=%d heavy=%d (is_locked=1)\n", drm_nreg_chans, inuse, heavy);
++                    if (!internal)
++                        printf("DRM nreg_chans=%d inuse=%d preempt=%d heavy=%d (is_locked=1)\n", drm_nreg_chans, inuse, preempt, heavy);
+                     if (inuse > drm_nreg_chans) {
+-                        printf("DRM (locked for exclusive use %s)\n", st->uri);
+-                        if (!internal) send_msg_mc(mc, SM_NO_DEBUG, "MSG exclusive_use");
++                        if (!internal) {
++                            printf("DRM (locked for exclusive use %s)\n", st->uri);
++                            send_msg_mc(mc, SM_NO_DEBUG, "MSG exclusive_use");
++                        }
+                         mc->connection_param = NULL;
+                         conn_init(c);
+                         return NULL;
+@@ -512,9 +516,10 @@ retry:
+                     if (ok_kiwi || ok_non_kiwi || ok_internal) {
+                         for (i = 0; i < rx_chans; i++) {
+                             int victim;
+-                            if ((victim = rx_autorun_find_victim()) != -1) {
++                            conn_t *victim_conn;
++                            if ((victim = rx_autorun_find_victim(&victim_conn)) != -1) {
+                                 rx_n = victim;
+-                                c = rx_channels[rx_n].conn;
++                                c = victim_conn;
+                                 c->preempted = true;
+                                 rx_enable(rx_n, RX_CHAN_FREE);
+                                 rx_server_remove(c);
+diff --git a/rx/rx_util.cpp b/rx/rx_util.cpp
+index 4d553e3..401e933 100644
+--- a/rx/rx_util.cpp
++++ b/rx/rx_util.cpp
+@@ -174,6 +174,7 @@ void rx_loguser(conn_t* c, logtype_e type) {
+  *
+  * @throws None
+  */
++// NB: heavy count doesn't include preemptable channels
+ int rx_chan_free_count(rx_free_count_e flags, int* idx, int* heavy, int* preempt) {
+     int i, free_cnt = 0, free_idx = -1, heavy_cnt = 0, preempt_cnt = 0;
+     rx_chan_t* rx;
+@@ -188,10 +189,11 @@ int rx_chan_free_count(rx_free_count_e flags, int* idx, int* heavy, int* preempt
+         rx = &rx_channels[i];                                                                                             \
+         if (rx->busy) {                                                                                                   \
+             /*printf("rx_chan_free_count rx%d: ext=%p flags=0x%x\n", i, rx->ext, rx->ext? rx->ext->flags : 0xffffffff);*/ \
+-            if (rx->ext && (rx->ext->flags & EXT_FLAGS_HEAVY))                                                            \
+-                heavy_cnt++;                                                                                              \
+-            if (rx->conn && rx->conn->arun_preempt)                                                                       \
+-                preempt_cnt++;                                                                                            \
++            bool preempt = (rx->conn && rx->conn->arun_preempt);                                                            \
++            if (rx->ext && (rx->ext->flags & EXT_FLAGS_HEAVY) && !preempt)                                                            \
++                heavy_cnt++;                                                            \
++            if (preempt)                                                            \
++                preempt_cnt++;                                                                       \
+         }                                                                                                                 \
+         else {                                                                                                            \
+             free_cnt++;                                                                                                   \
+@@ -377,7 +379,7 @@ void rx_autorun_clear() {
+  *
+  * @return The channel number of the victim for autorun preemption, or -1 if no victim is found.
+  */
+-int rx_autorun_find_victim() {
++int rx_autorun_find_victim(conn_t **victim_conn) {
+     conn_t *c, *lowest_eviction_conn;
+     u4_t lowest_eviction_count = (u4_t)-1;
+     int lowest_eviction_ch = -1, highest_eviction_ch = -1;
+@@ -404,11 +406,26 @@ int rx_autorun_find_victim() {
+         //     lowest_eviction_conn->ident_user, lowest_eviction_ch, lowest_eviction_count, highest_eviction_ch);
+         rx_util.arun_which[lowest_eviction_ch] = ARUN_NONE;
+         rx_util.arun_evictions[lowest_eviction_ch]++;
++        if (victim_conn) *victim_conn = lowest_eviction_conn;
+         return lowest_eviction_ch;
+     }
+     return -1;
+ }
+ 
++void rx_autorun_kick_all_preemptable()
++{
++    conn_t *c;
++    for (int ch = 0; ch < rx_chans; ch++) {
++        rx_chan_t *rx = &rx_channels[ch];
++        if (!rx->busy) continue;
++        c = rx->conn;
++        if (!c->arun_preempt) continue;
++        c->preempted = true;
++        rx_enable(ch, RX_CHAN_FREE);
++        rx_server_remove(c);
++    }
++}
++
+ /**
+  * Restarts the victims for autorun.
+  *
+diff --git a/rx/rx_util.h b/rx/rx_util.h
+index a2a8cf1..197b1f1 100644
+--- a/rx/rx_util.h
++++ b/rx/rx_util.h
+@@ -114,7 +114,8 @@ conn_t* conn_other(conn_t* conn, int type);
+ void show_conn(const char* prefix, u4_t printf_type, conn_t* cd);
+ u64_t rx_conn_tstamp();
+ void rx_autorun_clear();
+-int rx_autorun_find_victim();
++int rx_autorun_find_victim(conn_t **victim_conn);
++void rx_autorun_kick_all_preemptable();
+ void rx_autorun_restart_victims(bool initial);
+ void rx_server_send_config(conn_t* conn);
+ bool save_config(u2_t key, conn_t* conn, char* cmd);

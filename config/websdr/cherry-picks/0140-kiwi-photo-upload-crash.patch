@@ -1,0 +1,35 @@
+diff --git a/rx/rx_server_ajax.cpp b/rx/rx_server_ajax.cpp
+index 4f2e17f..4b3231a 100644
+--- a/rx/rx_server_ajax.cpp
++++ b/rx/rx_server_ajax.cpp
+@@ -103,24 +103,25 @@ char* rx_server_ajax(struct mg_connection* mc, char* ip_forwarded) {
+     // filesystem of the client. But a FormData() object passed to kiwi_ajax_send() can specify a file.
+     case AJAX_PHOTO: {
+         char vname[64], fname[64]; // mg_parse_multipart() checks size of these
++        vname[0] = fname[0] = '\0';
+         const char* data = NULL;
+         int data_len = 0, rc = 0;
+ 
+         printf("PHOTO UPLOAD REQUESTED from %s len=%d\n", ip_unforwarded, mc->content_len);
+         // printf("PHOTO UPLOAD REQUESTED key=%s ckey=%s\n", mc->query_string, current_authkey);
+ 
+-        if (!isLocalIP) rc = 5;
+-
+-        if (rc == 0) {
++        if (isLocalIP) {
+             int key_cmp = -1;
+             if (mc->query_string && current_authkey) {
+                 key_cmp = strcmp(mc->query_string, current_authkey);
+-                kiwi_asfree(current_authkey);
+-                current_authkey = NULL;
+             }
+             if (key_cmp != 0)
+                 rc = 1;
++        } else {
++            rc = 5;
+         }
++        kiwi_asfree(current_authkey);
++        current_authkey = NULL;
+ 
+         if (rc == 0) {
+             mg_parse_multipart(mc->content, mc->content_len,

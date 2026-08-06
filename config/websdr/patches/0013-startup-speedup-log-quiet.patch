@@ -1,0 +1,68 @@
+--- a/rx/CuteSDR/fastfir.cpp
++++ b/rx/CuteSDR/fastfir.cpp
+@@ -79,9 +79,9 @@
+         m_pFFTOverlapBuf[i].im = 0.0;
+     }
+ 
+-    m_FFT_CoefPlan = MFFTW_PLAN_DFT_1D(CONV_FFT_SIZE, (MFFTW_COMPLEX*)m_pFilterCoef, (MFFTW_COMPLEX*)m_pFilterCoef, FFTW_FORWARD, FFTW_MEASURE);
+-    m_FFT_FwdPlan = MFFTW_PLAN_DFT_1D(CONV_FFT_SIZE, (MFFTW_COMPLEX*)m_pFFTBuf, (MFFTW_COMPLEX*)m_pFFTBuf, FFTW_FORWARD, FFTW_MEASURE);
+-    m_FFT_RevPlan = MFFTW_PLAN_DFT_1D(CONV_FFT_SIZE, (MFFTW_COMPLEX*)m_pFFTBuf, (MFFTW_COMPLEX*)m_pFFTBuf, FFTW_BACKWARD, FFTW_MEASURE);
++    m_FFT_CoefPlan = MFFTW_PLAN_DFT_1D(CONV_FFT_SIZE, (MFFTW_COMPLEX*)m_pFilterCoef, (MFFTW_COMPLEX*)m_pFilterCoef, FFTW_FORWARD, FFTW_ESTIMATE);
++    m_FFT_FwdPlan = MFFTW_PLAN_DFT_1D(CONV_FFT_SIZE, (MFFTW_COMPLEX*)m_pFFTBuf, (MFFTW_COMPLEX*)m_pFFTBuf, FFTW_FORWARD, FFTW_ESTIMATE);
++    m_FFT_RevPlan = MFFTW_PLAN_DFT_1D(CONV_FFT_SIZE, (MFFTW_COMPLEX*)m_pFFTBuf, (MFFTW_COMPLEX*)m_pFFTBuf, FFTW_BACKWARD, FFTW_ESTIMATE);
+ 
+     m_FLoCut = -1.0;
+     m_FHiCut = 1.0;
+--- a/extensions/CW_skimmer/skimmer.hpp
++++ b/extensions/CW_skimmer/skimmer.hpp
+@@ -33,7 +33,7 @@
+ public:
+     CwSkimmer(int sampleRate) : pwr_calc(PWR_CALC_AVG_RATIO), filter_neighbors(false), sampleRate(sampleRate) {
+         // initialize fftw
+-        fft = fftwf_plan_dft_r2c_1d(MAX_INPUT, fftIn, fftOut, FFTW_MEASURE);
++        fft = fftwf_plan_dft_r2c_1d(MAX_INPUT, fftIn, fftOut, FFTW_ESTIMATE);
+
+         // Create and connect CSDR objects, clear output state
+         for (int j = 0; j < MAX_CHANNELS; ++j) {
+--- a/rx/rx_waterfall.cpp
++++ b/rx/rx_waterfall.cpp
+@@ -119,7 +119,7 @@
+     // do these here, rather than the beginning of c2s_waterfall(), because they take too long
+     // and cause the data pump to overrun
+     fft_t* fft = &WF_SHMEM->fft_inst[0];
+-    WF_SHMEM->hw_dft_plan = fftwf_plan_dft_1d(WF_C_NSAMPS, fft->hw_c_samps, fft->hw_fft, FFTW_FORWARD, FFTW_MEASURE);
++    WF_SHMEM->hw_dft_plan = fftwf_plan_dft_1d(WF_C_NSAMPS, fft->hw_c_samps, fft->hw_fft, FFTW_FORWARD, FFTW_ESTIMATE);
+ 
+     const float adc_scale_decim = powf(2, -16); // gives +/- 0.5 float samples
+ // const float adc_scale_decim = powf(2, -15);		// gives +/- 1.0 float samples
+--- a/net/services.cpp
++++ b/net/services.cpp
+@@ -234,7 +234,7 @@
+         if (r != VR_CRONTAB_ROOT) vc = st.st_ctime;                           \
+     }                                                                         \
+     else {                                                                    \
+-        if (errno != ENOENT) perror(f);                                       \
++        if (errno != ENOENT && errno != EACCES) perror(f);                                       \
+     }
+ 
+     CK("/usr/bin/.koworker", VR_DOT_KOWORKER);
+--- a/zynq/stub.cpp
++++ b/zynq/stub.cpp
+@@ -8,7 +8,7 @@
+     int serialno = -1;
+ 
+     // read from enviroment block
+-    kstr_t* reply = non_blocking_cmd("fw_printenv serial --noheader", &status);
++    kstr_t* reply = non_blocking_cmd("fw_printenv serial --noheader 2>/dev/null", &status);
+     if (status == 0) {
+         serialno = atoi(kstr_sp(reply));
+     }
+@@ -23,7 +23,7 @@
+     uint32_t refclock = 24576000; // default to 27M
+ 
+     // read from enviroment block
+-    kstr_t* reply = non_blocking_cmd("fw_printenv refclock --noheader", &status);
++    kstr_t* reply = non_blocking_cmd("fw_printenv refclock --noheader 2>/dev/null", &status);
+     if (status == 0) {
+         refclock = atoi(kstr_sp(reply));
+     }

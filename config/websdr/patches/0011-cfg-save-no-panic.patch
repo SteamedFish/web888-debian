@@ -1,0 +1,20 @@
+diff --git a/init/cfg.cpp b/init/cfg.cpp
+--- a/init/cfg.cpp
++++ b/init/cfg.cpp
+@@ -1551,7 +1551,15 @@
+ 
+         if (!parsed_ok) {
+             lprintf("cfg_save_json: %s JSON PARSE ERROR -- FILE SAVE ABORTED!\n", cfg->filename);
+-#define PANIC_ON_INTEGRITY_FAIL
++// Debian: do NOT panic on config JSON integrity-check failure.
++// Upstream panic("json integrity fail") kills the whole SDR server whenever a
++// regenerated config value contains a raw \ or " (a latent upstream bug in
++// _cfg_set_string, init/cfg.cpp:996, which does no JSON escaping). Killing the
++// server over a single bad config-save is worse than skipping it, so take the
++// upstream #else path: free the write buffer and return, leaving the in-memory
++// cfg->json (already updated before this check) intact. The disk file stays
++// at its last-good state and catches up on the next successful save.
++// #define PANIC_ON_INTEGRITY_FAIL
+ #ifdef PANIC_ON_INTEGRITY_FAIL
+             panic("json integrity fail");
+ #else

@@ -1,0 +1,35 @@
+diff --git a/web/extensions/FSK/FSK_freq_menus.cjson b/web/extensions/FSK/FSK_freq_menus.cjson
+--- a/web/extensions/FSK/FSK_freq_menus.cjson
++++ b/web/extensions/FSK/FSK_freq_menus.cjson
+@@ -11,6 +11,7 @@
+ //
+ // Updates:
+ // 17 jun 22 jks    Base version.
++// 18 jul 26 jks    Removed CHU.
+ 
+     "Weather": {
+        "Germany": [
+@@ -155,12 +156,6 @@
+           {"f":"129.1 DCF49", "s":340, "b":200, "fr":"EFR", "i":1, "e":"ASCII"},
+           {"f":"135.6 HGA22", "s":340, "b":200, "fr":"EFR", "i":1, "e":"ASCII"},
+           {"f":"139 DCF39",   "s":340, "b":200, "fr":"EFR", "i":1, "e":"ASCII"}
+-       ],
+-
+-       "CHU time": [
+-          {"f":3330,  "s":200, "b":300, "fr":"CHU", "i":0, "e":"ASCII"},
+-          {"f":7850,  "s":200, "b":300, "fr":"CHU", "i":0, "e":"ASCII"},
+-          {"f":14670, "s":200, "b":300, "fr":"CHU", "i":0, "e":"ASCII"}
+        ]
+     }
+ }
+diff --git a/web/extensions/TDoA/refs.cjson b/web/extensions/TDoA/refs.cjson
+--- a/web/extensions/TDoA/refs.cjson
++++ b/web/extensions/TDoA/refs.cjson
+@@ -169,7 +169,6 @@
+ // CAN
+ { "r":"m", "id":"CKN", "t":"Vancouver MSK", "lat":49.108321, "lon":-122.242931 },
+ { "r":"m", "id":"CFH", "t":"Halifax MSK", "lat":44.967743, "lon":-63.983839 },
+-{ "r":"t", "id":"CHU", "t":"time station", "lat":45.294886, "lon":-75.757628, "mz":18 },
+ 
+ // USA
+ { "r":"t", "id":"WWV", "t":"time station", "f":10000.0, "p":5000, "z":10, "lat":40.679767, "lon":-105.042268 },

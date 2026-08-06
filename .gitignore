@@ -1,0 +1,17 @@
+.tmp/
+work/
+output/
+*.swp
+*~
+.DS_Store
+
+# armhf binaries compiled from scripts/hw-test/*.c on host (rebuild per README)
+scripts/hw-test/pldump
+scripts/hw-test/rx-dump
+scripts/hw-test/si5351-init
+scripts/hw-test/sigdump
+scripts/hw-test/zynqsdr-smoke
+
+# local agent plan/session dirs (tracked only on the pre-cleanup archive branch)
+.sisyphus/
+.zcode/
