@@ -7,53 +7,69 @@ Hardware-verified facts live in
 
 ---
 
-## 1. GPS: ATGM336H outputs UBX binary only, no NMEA — no fix data anywhere
+## 1. GPS: gpsd 3.25 was switching the ATGM336H to UBX-only — fixed in image; end-to-end verification pending
 
-**Symptom.** gpsd/chrony/WebSDR-admin show no usable GPS data. chrony briefly
-selects "GPS" after boot, then marks it falseticker; WebSDR-admin's GPS
-section stays empty. SDR receive is unaffected (RX does not depend on GPS).
+**Symptom (original).** gpsd/chrony/WebSDR-admin showed no usable GPS data.
+chrony briefly selected "GPS" after boot, then marked it falseticker;
+WebSDR-admin's GPS section stayed empty. SDR receive was never affected.
 
-**Root cause (verified by raw ttyPS1 capture).** The ATGM336H chip is alive
-and transmitting, but in **UBX-only output mode**: ~5 UBX frames/s
-(NAV-DOP, NAV-SOL, NAV-TIMEGPS, NAV-POSECEF, NAV-VELECEF) plus a 1 Hz
-`$GPTXT,01,01,01,ANTENNA OK*35` — and **zero** standard NMEA navigation
-sentences (GGA/RMC/GSA/GSV). Since ATGM336H emits NMEA even without a fix
-(GGA with status=0), the missing NMEA *as a category* is a protocol-mode
-state, not a fix-state or antenna problem.
+**Root cause (confirmed on hardware, 2026-08-06).** The protocol-mode
+poisoning was **our own gpsd**. Debian gpsd 3.25's u-blox driver rewrites
+the receiver's message configuration on connect: NMEA GGA/RMC/GSA/GSV all
+disabled, UBX NAV-SOL/NAV-DOP/NAV-TIMEGPS/NAV-POSECEF/NAV-VELECEF enabled.
+The stock Alpine gpsd never did this — but the ATGM336H's V_BCKP keeps RAM
+config alive across reboots and power cycles, so a single gpsd connect on
+our Debian image left the chip in UBX-only mode *permanently*. Verified by
+experiment: after re-enabling NMEA by hand, one gpsd run (without `-b`)
+returned the port to UBX-only within seconds.
 
-**What chrony actually saw.** gpsd auto-detects the u-blox driver and parses
-UBX-NAV-TIMEGPS; with GPSFix=0 the chip falls back to its battery-backed RTC,
-so "GPS time" was chip-RTC (~100 ms drift within 8 h), never satellite time.
+Two follow-on data losses made it look like "no fix data anywhere":
 
-**Ruled out (our port is not the cause).** The GPS UART1 path is FSBL pinmux
-(MIO48/49 → EMIO) + bitstream routing only; our FSBL is verbatim stock and
-both bitstreams are md5-identical to stock. websdr.bin never touches the GPS
-UART (links libgps, talks to gpsd over its socket only); the zynqsdr driver
-has no GPS-related ioctl. Data demonstrably reaches ttyPS1 (xuartps IRQ
-increments; 1970-byte capture decoded).
+- gpsd enables no UBX SVINFO substitute on this chip, so with NMEA GSV
+  disabled it had **no skyview at all** → empty WebSDR-admin GPS page.
+- gpsd's SiRF-hairball sanity check (`driver_nmea0183.c`) discards any GSV
+  set where every satellite's azimuth is 0 — and the ATGM336H emits empty
+  el/az fields until it has both almanac and a position, i.e. exactly while
+  it is fix-less. So SKY/satellite data only appears after the first fix.
 
-**Next actions (each needs the operator's go-ahead — they write chip
-config):**
+**Fix (deployed).**
 
-1. **Enable NMEA** — send `UBX-CFG-MSG` per sentence (rate=1, UART1):
-   GGA `F0 00`, RMC `F0 04`, GSA `F0 02`, GSV `F0 03`, each with payload
-   `01 01 00 00 01 00 00 00`. Low risk, reverted by chip power-cycle.
-   Verify in <5 s via gpsd `?POLL` returning non-empty TPV.
-2. **Cold-start the chip** — send `UBX-CFG-RST`
-   (`B5 62 06 04 04 00 00 00 08 00`), wait for UBX-ACK-ACK. The chip has
-   been stuck in a no-fix state for hours after one brief fix; likely
-   needed regardless of (1). Verify in 30–60 s via
-   `/sys/class/pps/pps0/assert` sequence resuming.
-3. **Re-tune chrony if only chip-RTC is achievable** — the SHM-0 line's
-   `precision 1e-6` is aspirational at ±100 ms RTC quality; lower to
-   `precision 1e-1` in `scripts/configure-rootfs.sh`'s chrony seed.
-4. **Cross-unit check** — ATGM336H is NMEA-default at POR per datasheet;
-   stock gpsd config does no protocol switching, so this chip was put into
-   UBX-only mode by something (factory test or a prior config write). If
-   another unit reproduces it, document in `hardware-facts.md` and consider
-   sending `UBX-CFG-MSG` from `configure-rootfs.sh` at first boot.
-5. **Fallback acceptance** — if nothing restores a real fix (hardware
-   fault), accept ±100 ms chip-RTC accuracy; no functional SDR impact.
+1. `configure-rootfs.sh`: `GPSD_OPTIONS="-n -b -s 9600"` — the `-b`
+   (read-only) flag stops gpsd from ever writing chip config. Verified on
+   hardware: NMEA config now survives gpsd restarts. **Existing installs
+   need the same one-line edit in `/etc/default/gpsd`.**
+2. New device-side tool `scripts/hw-test/atgm336h-fix.py` (no deps, runs on
+   the board): `status` classifies the NMEA/UBX mix, `enable-nmea` restores
+   GGA/GSA/GSV/RMC (+GLL/VTG/ZDA) at 1 Hz via UBX-CFG-MSG,
+   `disable-ubx` turns the gpsd-enabled UBX NAV spam back off (pure NMEA =
+   factory default = what gpsd's NMEA driver handles best), `cold-start`
+   sends UBX-CFG-RST (clear BBR, GNSS-only restart), `save` persists msg
+   config to flash if ever wanted, `fix` runs the whole sequence.
+3. Chip on the dev unit was cold-started to clear the poisoned BBR state
+   (it had been stuck fix-less for hours on stale data).
+
+**Verified on hardware.** NMEA restored and stable across gpsd restarts;
+gpsd selects the NMEA0183 driver (read-only); TPV time updates flow to the
+gpsd socket; chip config no longer degrades.
+
+**Still pending — operator verification.** The chip tracks only 3–4
+satellites with marginal C/N0 (24–36 dB-Hz) at the dev unit's location and
+had no fix 30 min after cold start; el/az stay empty (hence no gpsd SKY)
+until the first fix. PPS (`/sys/class/pps/pps0/assert`) is quiet while
+fix-less — expected, the timepulse only runs with time from a lock. What
+remains is **antenna/sky-view dependent**, not software: with a 3.3 V
+active antenna and reasonable sky, expect a fix in 5–15 min from cold
+start, after which GSV el/az fill in, gpsd SKY populates, WebSDR-admin
+shows satellites, chrony's GPS/PPS refclocks come online. Confirm on
+hardware, then close this item. If hours of good sky still yield no fix,
+suspect the RF path (antenna/LNA) and fall back to the ±100 ms chip-RTC
+acceptance noted in earlier revisions of this file.
+
+**Not done (deliberately).** No UBX-CFG-CFG flash save: factory default is
+pure NMEA, and with gpsd `-b` nothing rewrites the config, so BBR
+persistence is sufficient and flash writes are unnecessary risk. chrony's
+SHM-0 `precision 1e-6` stays as-is — it only mattered for the chip-RTC
+fallback scenario, which did not materialise.
 
 ---
 

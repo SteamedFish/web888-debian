@@ -177,7 +177,16 @@ divert_conffile() {
 }
 
 # gpsd config: fixed on-board devices (no USB hotplug → USBAUTO off), talk
-# to them immediately (-n), at the ATGM336H's 9600 baud (-s 9600).
+# to them immediately (-n), at the ATGM336H's 9600 baud (-s 9600), and
+# READ-ONLY (-b). The -b is load-bearing: gpsd 3.25's u-blox driver otherwise
+# rewrites the chip's message config on connect, switching the ATGM336H to
+# UBX-only output (NMEA GGA/RMC/GSA/GSV all disabled). Because the chip's
+# V_BCKP keeps RAM config alive across reboots, one gpsd connect poisons the
+# port permanently — the "UBX-only, no fix data anywhere" state in
+# docs/dev/KNOWN-ISSUES.md. Worse, gpsd enables no UBX SVINFO substitute on
+# this chip, so SKY/satellite data vanishes too. With -b the chip keeps its
+# own config (NMEA + UBX mixed, as shipped by scripts/hw-test/atgm336h-fix.py)
+# and gpsd parses NMEA — matching the stock firmware's non-invasive gpsd.
 divert_conffile /etc/default/gpsd
 sudo -n tee "$ROOTFS/etc/default/gpsd" >/dev/null <<'EOF'
 # Managed by web888-debian image build (configure-rootfs.sh).
@@ -188,9 +197,19 @@ DEVICES="/dev/ttyPS1 /dev/pps0"
 # GPSD_OPTS) from this file. Stock Alpine uses the same GPSD_OPTIONS name, so
 # this matches both. Without it, systemd reports
 # "Referenced but unset environment variable ... GPSD_OPTIONS" and gpsd starts
-# with no flags at all (no -n, no -s).
-GPSD_OPTIONS="-n -s 9600"
+# with no flags at all (no -n, no -s). -b (read-only) is required: without it
+# gpsd 3.25 switches the ATGM336H to UBX-only output and the config sticks in
+# the chip's battery-backed RAM (see docs/dev/KNOWN-ISSUES.md, GPS item).
+GPSD_OPTIONS="-n -b -s 9600"
 EOF
+
+# Ship the ATGM336H maintenance tool on the device so a unit stuck in
+# UBX-only output mode can be repaired in the field:
+#   systemctl stop gpsd gpsd.socket
+#   atgm336h-fix.py fix            # enable NMEA + cold start
+#   systemctl start gpsd gpsd.socket
+sudo -n install -m 0755 scripts/hw-test/atgm336h-fix.py \
+    "$ROOTFS/usr/local/sbin/atgm336h-fix.py"
 
 # gpsd startup ordering: wait for the device units (created by the udev
 # TAG+="systemd" above) before opening DEVICES. The pps-gpio module loads late

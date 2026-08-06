@@ -24,9 +24,14 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 ## GPS recovery
 
-- [ ] Execute the chip-config actions in
-      [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md) §1 (UBX-CFG-MSG to enable NMEA,
-      UBX-CFG-RST cold start) — each requires operator authorisation.
+- [x] Chip-config actions in [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md) §1
+      executed (NMEA re-enabled, UBX NAV output disabled, cold start) via
+      new tool `scripts/hw-test/atgm336h-fix.py`.
+- [x] Root cause fixed: gpsd `-b` (read-only) in `configure-rootfs.sh`
+      `GPSD_OPTIONS` so gpsd 3.25 stops rewriting the ATGM336H to UBX-only.
+- [ ] Operator end-to-end verification: satellite fix → gpsd SKY/TPV →
+      chrony GPS+PPS refclocks → WebSDR-admin GPS page (needs antenna sky
+      view; dev unit's location had only 3–4 marginal SVs at test time).
 
 ## KiwiSDR upstream alignment (step 5)
 

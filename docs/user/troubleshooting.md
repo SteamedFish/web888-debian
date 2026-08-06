@@ -120,11 +120,15 @@ Server side is almost never the problem; check in order:
 
 1. Active 3.3 V antenna, outdoors, clear sky view; cold start takes
    5–15 minutes.
-2. **Known limitation:** the onboard ATGM336H currently ships in
-   **UBX-only mode**, which affects GPS functionality — status, root cause
-   and workarounds are tracked in `../dev/KNOWN-ISSUES.md`.
-3. Check what the receiver sees: the WebSDR GPS page in the admin panel
-   shows satellite/lock status.
+2. Check what the receiver sees: the WebSDR GPS page in the admin panel
+   shows satellite/lock status. Note: the satellite list stays empty until
+   the *first* fix — the ATGM336H only reports elevation/azimuth once it
+   knows its position, and gpsd hides zero-azimuth satellite sets.
+3. Images built before 2026-08-06 had gpsd switching the GPS chip to
+   UBX-only output (no NMEA), breaking the admin GPS page — fixed in
+   current images. On an older install, apply the one-line fix: in
+   `/etc/default/gpsd` set `GPSD_OPTIONS="-n -b -s 9600"`, then
+   `systemctl restart gpsd`. Details in `../dev/KNOWN-ISSUES.md`.
 
 ## 6. Poor reception / high noise floor
 

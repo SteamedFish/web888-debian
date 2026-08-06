@@ -97,9 +97,11 @@ For a full system backup, image the whole TF card on a PC (`dd` /
 
 ## GPS
 
-Use a 3.3 V active antenna (see `quick-reference.md`). Known limitation:
-the onboard ATGM336H currently ships in **UBX-only mode** — see
-`../dev/KNOWN-ISSUES.md` for status and workarounds.
+Use a 3.3 V active antenna (see `quick-reference.md`). After a cold start
+the first fix takes 5–15 minutes with a clear sky view; the WebSDR admin
+GPS page stays empty until that first fix (the chip only reports satellite
+geometry once it knows its position). See `../dev/KNOWN-ISSUES.md` §1 for
+the protocol-mode history.
 
 ## Power
 

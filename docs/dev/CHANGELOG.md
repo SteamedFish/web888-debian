@@ -9,6 +9,43 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-06] — GPS: fix gpsd poisoning the ATGM336H into UBX-only mode
+
+Root-caused the long-standing "no GPS data anywhere" defect
+(`KNOWN-ISSUES.md` §1) on hardware: Debian gpsd 3.25's u-blox driver
+rewrites the chip's message config on connect (NMEA off, UBX NAV on), and
+the ATGM336H's battery-backed RAM keeps that config across reboots — so
+every boot after the first gpsd connect found the chip in UBX-only mode,
+with no NMEA and (because gpsd enables no SVINFO substitute on this chip)
+no satellite/skyview data for the WebSDR admin page either.
+
+### Fixed
+
+- `configure-rootfs.sh`: `GPSD_OPTIONS` gains `-b` (read-only) so gpsd
+  never writes chip config. Verified on hardware: NMEA output now survives
+  gpsd restarts. Existing installs need the same one-line edit in
+  `/etc/default/gpsd`.
+
+### Added
+
+- `scripts/hw-test/atgm336h-fix.py` — dependency-free on-device tool for
+  the ATGM336H: classify the NMEA/UBX port mix (`status`), restore 1 Hz
+  NMEA (`enable-nmea`), return to factory pure-NMEA (`disable-ubx`),
+  cold-start the GNSS engine (`cold-start`), optional flash save (`save`),
+  or the full sequence (`fix`). Used to repair the dev unit's chip.
+
+### Changed
+
+- `KNOWN-ISSUES.md` §1 rewritten: confirmed root cause, deployed fix, and
+  the two gpsd quirks that hid all satellite data (no SVINFO substitute;
+  the SiRF-hairball check discards GSV with all-zero azimuths, which is
+  the chip's state until its first fix). Remaining verification step is
+  antenna/sky-view dependent and assigned to the operator (`TODO.md`).
+- `docs/user/troubleshooting.md` §5 and `docs/user/usage.md` GPS section
+  updated: UBX-only limitation replaced by the fix + the one-line remedy
+  for pre-2026-08-06 images; document that the satellite list stays empty
+  until the first fix.
+
 ## [2026-08-06] — Published to GitHub
 
 The cleaned single-commit `master` is now public at

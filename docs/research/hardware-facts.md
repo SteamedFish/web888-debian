@@ -81,6 +81,15 @@ when they conflict.
   (`chip->ngpio` is fixed at 118 from platform data, not DT), so our `config/web888.dts`
   omits it — EMIO pins are always available. uart1 needs `status="okay"` (defaults to
   disabled in zynq-7000.dtsi). chrony uses gpsd's SHM refclock + the PPS refclock.
+  Live-verified GPS-chip behaviour (2026-08-06, dev unit): the ATGM336H accepts
+  standard UBX-CFG-MSG/CFG-RST commands (ACKed except CFG-RST); its V_BCKP keeps
+  RAM message config across reboots, so any software that writes UBX config —
+  notably Debian gpsd 3.25's u-blox driver — leaves a lasting protocol-mode
+  change (this is what put the dev unit into UBX-only output; fixed by running
+  gpsd read-only, `-b`). It emits GSV with empty el/az fields until it has
+  almanac *and* a position, which gpsd's SiRF-hairball check then discards —
+  so no skyview anywhere before the first fix. Management tool:
+  `scripts/hw-test/atgm336h-fix.py`.
 - USB host port: a USB-A host connector on the board, driven by usb0
   (`e0002000`, MIO 28-39 USB0 controller) through a ULPI PHY. Stock DTB enables
   it (`status="okay"; dr_mode="host"`). Our `config/web888.dts` matches: `&usb0`
