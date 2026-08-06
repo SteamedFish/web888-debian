@@ -13,6 +13,15 @@ Pitaya applications.
 > features also on hardware), but review load-bearing claims against binaries
 > and hardware before relying on them. See `AGENTS.md`.
 
+## Highlights
+
+- A fully featured Debian kernel, using the default kernel configuration and firmware from Debian – so you get out‑of‑the‑box support for most Wi‑Fi dongles.
+- The root partition (/) resides on an ext4 TF card rather than entirely in memory. Its size is determined by your TF card, not the onboard 512 MB memory, which means you can install applications without worrying about running out of space.
+- Carefully backported the latest features and bug fixes from KiwiSDR.
+- Tweaks and optimizations for low‑memory TF‑card‑based devices, including zram, log2ram, and more.
+- WebSDR runs as a dedicated non‑root user and is managed by systemd for improved security.
+- Both WebSDR and the Red Pitaya application are included in the same image – you can switch between them without re‑flashing the firmware.
+
 ## Why
 
 The stock Web-888 OS has a crippled kernel config, runs entirely from a RAM

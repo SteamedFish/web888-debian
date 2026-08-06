@@ -9,6 +9,21 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-06] — README: add user-facing Highlights section
+
+### Added
+
+- New `## Highlights` section in both `README.md` and `README.zh-CN.md`
+  (inserted between the AI-vibe-coding notice and the `## Why` section).
+  Six bullets summarise the user-visible value proposition (Debian
+  default kernel/firmware → Wi‑Fi dongle support, ext4 TF root partition
+  sized by the card, KiwiSDR backports, low-memory/flash tuning
+  including zram and log2ram, WebSDR running as a dedicated non‑root
+  user under systemd, WebSDR + Red Pitaya coexistence in one image) in
+  user-friendly language. Existing `## Why` and `## What works today`
+  sections are preserved unchanged — they answer different questions
+  (rationale and technical status respectively).
+
 ## [2026-08-06] — GPS verified end-to-end; known-issue entry retired
 
 Operator-verified the full GPS chain on the dev unit: satellite fix →
