@@ -9,6 +9,32 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-06] — mDNS device discovery (avahi on the Debian image)
+
+### Added
+
+- `configure-rootfs.sh`: install `avahi-daemon` + `libnss-mdns` and enable
+  `avahi-daemon.service`/`.socket`. The device now advertises itself as
+  `web888.local` (hostname-based, IPv4 + IPv6) and resolves other
+  `*.local` hosts via `mdns4_minimal` (libnss-mdns' postinst wires it
+  into `/etc/nsswitch.conf`; listed explicitly because the build uses
+  `--no-install-recommends`). RAM cost is a few MB.
+- Hardware-verified on the dev unit (192.168.24.15): host-side
+  `avahi-resolve-host-name web888.local` returns the unit's IPv6 and
+  IPv4 addresses, and mDNS resolution survives a reboot.
+  `docs/dev/TODO.md` "Networking / discovery" item closed.
+- Note: this changes the image build for *future* flashes only — existing
+  installs get the same result with
+  `apt-get install avahi-daemon libnss-mdns`.
+
+### Changed
+
+- Discovery docs updated everywhere (`AGENTS.md`, `docs/user/flashing.md`
+  §3, `usage.md`, `quick-reference.md`, `troubleshooting.md` §1,
+  `docs/research/hardware-facts.md` §Discovery): `web888.local` mDNS is
+  now the primary discovery path; MAC-prefix scanning (`ce:cf:3f:*`)
+  documented as the fallback.
+
 ## [2026-08-06] — GPS: fix gpsd poisoning the ATGM336H into UBX-only mode
 
 Root-caused the long-standing "no GPS data anywhere" defect

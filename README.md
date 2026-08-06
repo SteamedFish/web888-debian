@@ -31,7 +31,7 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
 
 - **Debian trixie boot from the TF card** — debootstrap rootfs on ext4,
   repacked boot.bin (stock FSBL + bootgen), busybox initramfs switch_root,
-  DHCP, OpenSSH, first-boot growfs
+  DHCP + mDNS (`web888.local`), OpenSSH, first-boot growfs
 - **Small-memory / flash-friendly tuning** — zram swap (lzo-rle), log2ram +
   journald cap, IO scheduler `none` for the TF card, tunable ondemand
   cpufreq

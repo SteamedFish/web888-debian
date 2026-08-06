@@ -51,12 +51,6 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 - [ ] U4: FT8/WSPR digi apps (separate deb if demand)
 - [ ] U5: watch `RaspSDR/red-pitaya-notes` for vendor updates
 
-## Networking / discovery
-
-- [ ] avahi/mDNS support on the Debian image — discover the device as
-      `web888.local` instead of MAC-prefix scanning (currently DHCP-only
-      via ifupdown, no avahi)
-
 ## Distribution
 
 - [x] Push the project repository to GitHub (done:
@@ -78,6 +72,10 @@ pre-cleanup archive branch.
   (bootgen), linux-xlnx 6.6 kernel with Web-888 DTB, busybox initramfs
   switch_root, ifupdown DHCP, openssh, first-boot growfs
   (growpart + `x-systemd.growfs`), QEMU gate before every flash.
+- **mDNS discovery** — avahi-daemon + libnss-mdns on the image; the device
+  advertises and resolves as `web888.local` (IPv4 + IPv6). Verified on
+  hardware including across a reboot; MAC-prefix scanning remains the
+  fallback.
 - **Memory/flash optimisations (step 1.5)** — zram swap (lzo-rle, 100 %
   RAM) via zram-tools, log2ram + journald cap, IO scheduler `none` for
   the TF card, ondemand cpufreq with tunables + user-switchable governor

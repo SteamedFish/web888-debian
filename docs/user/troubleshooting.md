@@ -34,7 +34,10 @@ web888-mode                                # websdr or an RP app running?
 
 **Symptoms:** no ping, no SSH, no web UI.
 
-1. **Find the IP.** There is no mDNS. The MAC prefix is always `ce:cf:3f:*`:
+1. **Find the IP.** The image runs Avahi — try `web888.local` first
+   (`ping web888.local`, `ssh -p 22 root@web888.local`). If mDNS does not
+   resolve (client without mDNS support, or a network that blocks
+   multicast), fall back to the always-stable MAC prefix `ce:cf:3f:*`:
    ```sh
    sudo nmap -sn <your-lan-subnet>     # look for Ce:Cf:3f in the MAC column
    ip neigh | grep -i ce:cf:3f
@@ -128,7 +131,8 @@ Server side is almost never the problem; check in order:
    UBX-only output (no NMEA), breaking the admin GPS page — fixed in
    current images. On an older install, apply the one-line fix: in
    `/etc/default/gpsd` set `GPSD_OPTIONS="-n -b -s 9600"`, then
-   `systemctl restart gpsd`. Details in `../dev/KNOWN-ISSUES.md`.
+   `systemctl restart gpsd`. Details in `../dev/CHANGELOG.md`
+   (2026-08-06 GPS entry).
 
 ## 6. Poor reception / high noise floor
 

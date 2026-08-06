@@ -166,13 +166,18 @@ when they conflict.
     multi-byte BURST reads are unreliable (the chip has no
     auto-increment) — a "registers identical across different configs"
     observation is a burst-read artifact.
-## Discovery procedure (blind boot, DHCP without avahi)
+## Discovery procedure (blind boot, DHCP + avahi mDNS)
 
 1. Boot device with new card.
-2. From host: `sudo nmap -sn <your-lan-subnet>` (or check router DHCP leases) and look for
+2. The Debian image runs avahi-daemon: the device answers as
+   `web888.local` over mDNS (IPv4 + IPv6) — verified live on hardware
+   (host `avahi-resolve-host-name web888.local`, survives reboot). With an
+   mDNS-capable client this is all you need.
+3. Fallback (no mDNS client / multicast blocked): from host
+   `sudo nmap -sn <your-lan-subnet>` (or check router DHCP leases) and look for
    the unit's `ce:cf:3f:*` MAC; also `ip neigh | grep -i ce:cf:3f` after
    pinging broadcast.
-3. The MAC is stable — it comes from the board EEPROM (not the SD card), so it does
+4. The MAC is stable — it comes from the board EEPROM (not the SD card), so it does
    NOT change when you swap cards or reflash.
 
 ## QEMU emulation gaps (qemu-system-arm 11.0.2)

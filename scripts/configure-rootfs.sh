@@ -4,7 +4,7 @@
 # Uses qemu-arm binfmt to run everything inside the armhf chroot.
 #
 # Applies project decisions: hostname web888, root password changeme,
-# TUNA apt mirror, DHCP via ifupdown (no avahi — MAC-based DHCP discovery),
+# TUNA apt mirror, DHCP via ifupdown + avahi mDNS (web888.local discovery),
 # locale en_US.UTF-8, timezone Asia/Shanghai, openssh-server for SSH
 # (openssh-server, not dropbear: the websdr admin
 # console spawns its own sshd).
@@ -40,7 +40,7 @@ deb $MIRROR trixie-updates main contrib non-free non-free-firmware
 deb $SECURITY_MIRROR trixie-security main contrib non-free non-free-firmware
 EOF
 
-# DHCP on eth0 via ifupdown (plain DHCP, no avahi).
+# DHCP on eth0 via ifupdown; avahi (installed below) advertises web888.local.
 # eth0 uses the MAC the kernel reads from the board EEPROM via the DTB
 # nvmem cell (config/web888.dts gem0/macaddr@10; prefix ce:cf:3f:*). We do
 # NOT override it.
@@ -112,7 +112,8 @@ DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq dropbear dropbear-bin 2>/dev
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     locales openssh-server gpsd chrony \
     iptables miniupnpc netcat-openbsd sudo \
-    zram-tools log2ram cloud-guest-utils
+    zram-tools log2ram cloud-guest-utils \
+    avahi-daemon libnss-mdns
 # Step 6: firmware for the USB WiFi adapters websdr images support
 # (rtl8xxxu/rtw88, ath9k_htc, brcmfmac) — sources.list carries
 # non-free-firmware since step 3.5.
@@ -134,6 +135,11 @@ locale-gen
 echo "LANG=en_US.UTF-8" > /etc/default/locale
 systemctl enable networking.service
 systemctl enable ssh.service
+# avahi-daemon publishes web888.local (hostname from /etc/hostname) and the
+# ssh/http services; libnss-mdns (installed above, not just Recommended since
+# we use --no-install-recommends) wires mdns4_minimal into nsswitch so the
+# device also resolves other *.local hosts. RAM cost is a few MB.
+systemctl enable avahi-daemon.service avahi-daemon.socket
 # gpsd: socket-activated on :2947, but also enabled directly so it runs at
 # boot regardless of whether anything connects. chrony replaces timesyncd
 # (already removed by the chrony install above).
@@ -182,8 +188,8 @@ divert_conffile() {
 # rewrites the chip's message config on connect, switching the ATGM336H to
 # UBX-only output (NMEA GGA/RMC/GSA/GSV all disabled). Because the chip's
 # V_BCKP keeps RAM config alive across reboots, one gpsd connect poisons the
-# port permanently — the "UBX-only, no fix data anywhere" state in
-# docs/dev/KNOWN-ISSUES.md. Worse, gpsd enables no UBX SVINFO substitute on
+# port permanently (the "UBX-only, no fix data anywhere" state fixed on
+# 2026-08-06 — see docs/dev/CHANGELOG.md). Worse, gpsd enables no UBX SVINFO substitute on
 # this chip, so SKY/satellite data vanishes too. With -b the chip keeps its
 # own config (NMEA + UBX mixed, as shipped by scripts/hw-test/atgm336h-fix.py)
 # and gpsd parses NMEA — matching the stock firmware's non-invasive gpsd.
@@ -199,7 +205,7 @@ DEVICES="/dev/ttyPS1 /dev/pps0"
 # "Referenced but unset environment variable ... GPSD_OPTIONS" and gpsd starts
 # with no flags at all (no -n, no -s). -b (read-only) is required: without it
 # gpsd 3.25 switches the ATGM336H to UBX-only output and the config sticks in
-# the chip's battery-backed RAM (see docs/dev/KNOWN-ISSUES.md, GPS item).
+# the chip's battery-backed RAM (see docs/dev/CHANGELOG.md, 2026-08-06).
 GPSD_OPTIONS="-n -b -s 9600"
 EOF
 
@@ -414,7 +420,7 @@ sudo -n touch "$ROOTFS/etc/tmpfiles.d/kernel-install.conf"
 
 echo "configure-rootfs: done"
 echo "  hostname: web888 / root password: changeme / SSH: openssh-server port 22"
-echo "  network: DHCP on eth0 (MAC = per-unit EEPROM value, prefix ce:cf:3f:*, read via DTB nvmem)"
+echo "  network: DHCP on eth0 (MAC = per-unit EEPROM value, prefix ce:cf:3f:*, read via DTB nvmem); avahi mDNS → web888.local"
 echo "  time:    gpsd + chrony (GPS PPS-disciplined; ttyPS1 + /dev/pps0)"
 echo "  memory:  zram swap 100% RAM (lzo-rle, pri 100); zswap off (toggleable)"
 echo "  flash:   log2ram 64M + journald cap 20M; scheduler=none; growfs first boot"

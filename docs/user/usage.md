@@ -11,7 +11,7 @@ Day-to-day operation of the Debian image. For installation see
 | SSH | `ssh -p 22 root@<device-ip>` — default password `changeme` (change it with `passwd`) |
 | Web UI (WebSDR) | `http://<device-ip>:8073/` |
 | Admin panel | `http://<device-ip>:8073/admin` |
-| Hostname | `web888` (no mDNS — find the IP by MAC prefix `ce:cf:3f:*`, see `flashing.md` §3) |
+| Hostname | `web888` — reachable as `web888.local` via mDNS/Avahi (IPv4 + IPv6); fallback: find the IP by MAC prefix `ce:cf:3f:*`, see `flashing.md` §3 |
 
 The system is a normal Debian trixie (armhf): `apt`, `systemctl`,
 `journalctl` all work as usual. The root filesystem is a real ext4
@@ -100,8 +100,7 @@ For a full system backup, image the whole TF card on a PC (`dd` /
 Use a 3.3 V active antenna (see `quick-reference.md`). After a cold start
 the first fix takes 5–15 minutes with a clear sky view; the WebSDR admin
 GPS page stays empty until that first fix (the chip only reports satellite
-geometry once it knows its position). See `../dev/KNOWN-ISSUES.md` §1 for
-the protocol-mode history.
+geometry once it knows its position).
 
 ## Power
 

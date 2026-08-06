@@ -105,14 +105,17 @@ the card root.
 
 ### Default Access (Debian image)
 
-- **URL:** `http://<device-ip>:8073` (no mDNS — the Debian image runs no Avahi)
-- **SSH:** `ssh -p 22 root@<device-ip>` — default password `changeme`
-  (change it with `passwd`)
+- **URL:** `http://web888.local:8073` (mDNS/Avahi) or `http://<device-ip>:8073`
+- **SSH:** `ssh -p 22 root@web888.local` (or `@<device-ip>`) — default
+  password `changeme` (change it with `passwd`)
 - **Protocol:** HTTP / WebSocket
 
 ### Finding the IP Address
 
-The Ethernet MAC always carries the stable prefix `ce:cf:3f:*`:
+The Debian image runs Avahi, so `web888.local` resolves on any
+mDNS-capable client (IPv4 + IPv6). If mDNS is unavailable (client without
+mDNS support, or multicast blocked), the Ethernet MAC always carries the
+stable prefix `ce:cf:3f:*`:
 
 1. `sudo nmap -sn <your-lan-subnet>` and look for `Ce:Cf:3f` in the MAC column
 2. `ip neigh | grep -i ce:cf:3f` after any contact attempt

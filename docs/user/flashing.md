@@ -53,8 +53,11 @@ Any failed check aborts before a single byte is written.
    connect Ethernet and power (5 V / 2 A+ USB-C — see `quick-reference.md`).
 2. Wait ~1–2 minutes. LED behavior: D2 (green) on during boot, off when the
    system is up; D0 (blue) on when ready.
-3. The device gets its address via DHCP. There is **no mDNS/Avahi** — find
-   the IP by the stable MAC prefix `ce:cf:3f:*`:
+3. The device gets its address via DHCP and advertises itself via
+   **mDNS/Avahi as `web888.local`** — on any mDNS-capable client
+   (Linux with avahi/nss-mdns, macOS, Windows 10+) you can go straight to
+   `ssh -p 22 root@web888.local` / `http://web888.local:8073/`. If mDNS
+   does not resolve, find the IP by the stable MAC prefix `ce:cf:3f:*`:
 
    ```sh
    sudo nmap -sn <your-lan-subnet>      # then look for Ce:Cf:3f in the MAC column

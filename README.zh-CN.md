@@ -27,7 +27,7 @@ English documentation: [README.md](README.md).
 
 - **从 TF 卡启动 Debian trixie** —— debootstrap 构建的 ext4 根文件系统、
   重打包 boot.bin（原厂 FSBL + bootgen）、busybox initramfs switch_root、
-  DHCP、OpenSSH、首次启动自动扩容
+  DHCP + mDNS（`web888.local`）、OpenSSH、首次启动自动扩容
 - **小内存 / 闪存友好调优** —— zram swap（lzo-rle）、log2ram + journald 限额、
   TF 卡 IO 调度器 `none`、可调 ondemand cpufreq
 - **SDR 驱动** —— `xilinx_devcfg` 前向移植（`/dev/xdevcfg` FPGA 加载）与全新

@@ -93,7 +93,8 @@ Pass `-p 22` explicitly if the client's ssh config defaults `Port` to a
 nonstandard value — a bare `ssh root@ip` may otherwise connect to the wrong
 port.
 
-**Discovery by MAC prefix `ce:cf:3f:*`** (no avahi on the Debian image):
+**Discovery: mDNS `web888.local`** (avahi-daemon on the Debian image, IPv4 +
+IPv6). Fallback when mDNS is unavailable: MAC prefix `ce:cf:3f:*` via
 `sudo nmap -sn <lan-subnet>` or `ip neigh | grep -i ce:cf:3f`, or the router's
 DHCP lease table. The prefix is stable. Images present the per-unit MAC read
 from the board EEPROM. See `docs/research/hardware-facts.md` for details.
