@@ -1,5 +1,11 @@
 # web888-debian
 
+> **No new hardware required** — this is a 100% software project. It runs
+> on your existing, stock [Web-888](https://www.rx-888.com/) (Xilinx
+> Zynq-7010, 512 MB RAM) SDR receiver exactly as shipped by the
+> manufacturer. Nothing on the board is modified; only the TF card
+> contents change.
+
 Run **standard Debian (trixie, armhf)** on the [Web-888](https://www.rx-888.com/)
 SDR receiver (Xilinx Zynq-7010, 512 MB RAM) — replacing the stock
 Alpine-Linux-in-RAM firmware with a normal Debian root filesystem on the TF

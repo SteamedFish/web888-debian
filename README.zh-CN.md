@@ -1,5 +1,9 @@
 # web888-debian
 
+> **无需新硬件** —— 这是一个 100% 软件项目，在你已有的、原厂出品的
+> [Web-888](https://www.rx-888.com/)（Xilinx Zynq-7010，512 MB 内存）SDR
+> 接收机上直接运行。板上元件不做任何改动，只替换 TF 卡上的内容。
+
 在 [Web-888](https://www.rx-888.com/) SDR 接收机（Xilinx Zynq-7010，512 MB 内存）上运行
 **标准 Debian（trixie，armhf）** —— 用 TF 卡上的常规 Debian 根文件系统、全功能内核，
 以及 WebSDR 与 Red Pitaya 应用的运行时切换，替换原厂"Alpine 全内存运行"固件。

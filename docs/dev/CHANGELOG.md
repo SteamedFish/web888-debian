@@ -9,6 +9,17 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-06] — README: clarify that this is a software-only project on stock Web-888 hardware
+
+### Changed
+
+- `README.md` and `README.zh-CN.md`: added a prominent callout right
+  under the title explicitly stating that this is a 100% software
+  project running on the existing, stock Web-888 (Zynq-7010) SDR
+  receiver exactly as shipped by the manufacturer — no new hardware is
+  involved, only the TF card contents change. Addresses a recurring
+  misconception that this project designs or builds new hardware.
+
 ## [2026-08-06] — README: add user-facing Highlights section
 
 ### Added
