@@ -5,71 +5,10 @@ next steps. For planned work (not defects), see [`TODO.md`](TODO.md).
 Hardware-verified facts live in
 [`docs/research/hardware-facts.md`](../research/hardware-facts.md).
 
----
-
-## 1. GPS: gpsd 3.25 was switching the ATGM336H to UBX-only — fixed in image; end-to-end verification pending
-
-**Symptom (original).** gpsd/chrony/WebSDR-admin showed no usable GPS data.
-chrony briefly selected "GPS" after boot, then marked it falseticker;
-WebSDR-admin's GPS section stayed empty. SDR receive was never affected.
-
-**Root cause (confirmed on hardware, 2026-08-06).** The protocol-mode
-poisoning was **our own gpsd**. Debian gpsd 3.25's u-blox driver rewrites
-the receiver's message configuration on connect: NMEA GGA/RMC/GSA/GSV all
-disabled, UBX NAV-SOL/NAV-DOP/NAV-TIMEGPS/NAV-POSECEF/NAV-VELECEF enabled.
-The stock Alpine gpsd never did this — but the ATGM336H's V_BCKP keeps RAM
-config alive across reboots and power cycles, so a single gpsd connect on
-our Debian image left the chip in UBX-only mode *permanently*. Verified by
-experiment: after re-enabling NMEA by hand, one gpsd run (without `-b`)
-returned the port to UBX-only within seconds.
-
-Two follow-on data losses made it look like "no fix data anywhere":
-
-- gpsd enables no UBX SVINFO substitute on this chip, so with NMEA GSV
-  disabled it had **no skyview at all** → empty WebSDR-admin GPS page.
-- gpsd's SiRF-hairball sanity check (`driver_nmea0183.c`) discards any GSV
-  set where every satellite's azimuth is 0 — and the ATGM336H emits empty
-  el/az fields until it has both almanac and a position, i.e. exactly while
-  it is fix-less. So SKY/satellite data only appears after the first fix.
-
-**Fix (deployed).**
-
-1. `configure-rootfs.sh`: `GPSD_OPTIONS="-n -b -s 9600"` — the `-b`
-   (read-only) flag stops gpsd from ever writing chip config. Verified on
-   hardware: NMEA config now survives gpsd restarts. **Existing installs
-   need the same one-line edit in `/etc/default/gpsd`.**
-2. New device-side tool `scripts/hw-test/atgm336h-fix.py` (no deps, runs on
-   the board): `status` classifies the NMEA/UBX mix, `enable-nmea` restores
-   GGA/GSA/GSV/RMC (+GLL/VTG/ZDA) at 1 Hz via UBX-CFG-MSG,
-   `disable-ubx` turns the gpsd-enabled UBX NAV spam back off (pure NMEA =
-   factory default = what gpsd's NMEA driver handles best), `cold-start`
-   sends UBX-CFG-RST (clear BBR, GNSS-only restart), `save` persists msg
-   config to flash if ever wanted, `fix` runs the whole sequence.
-3. Chip on the dev unit was cold-started to clear the poisoned BBR state
-   (it had been stuck fix-less for hours on stale data).
-
-**Verified on hardware.** NMEA restored and stable across gpsd restarts;
-gpsd selects the NMEA0183 driver (read-only); TPV time updates flow to the
-gpsd socket; chip config no longer degrades.
-
-**Still pending — operator verification.** The chip tracks only 3–4
-satellites with marginal C/N0 (24–36 dB-Hz) at the dev unit's location and
-had no fix 30 min after cold start; el/az stay empty (hence no gpsd SKY)
-until the first fix. PPS (`/sys/class/pps/pps0/assert`) is quiet while
-fix-less — expected, the timepulse only runs with time from a lock. What
-remains is **antenna/sky-view dependent**, not software: with a 3.3 V
-active antenna and reasonable sky, expect a fix in 5–15 min from cold
-start, after which GSV el/az fill in, gpsd SKY populates, WebSDR-admin
-shows satellites, chrony's GPS/PPS refclocks come online. Confirm on
-hardware, then close this item. If hours of good sky still yield no fix,
-suspect the RF path (antenna/LNA) and fall back to the ±100 ms chip-RTC
-acceptance noted in earlier revisions of this file.
-
-**Not done (deliberately).** No UBX-CFG-CFG flash save: factory default is
-pure NMEA, and with gpsd `-b` nothing rewrites the config, so BBR
-persistence is sufficient and flash writes are unnecessary risk. chrony's
-SHM-0 `precision 1e-6` stays as-is — it only mattered for the chip-RTC
-fallback scenario, which did not materialise.
+Resolved items are removed from this file once verified — see
+[`CHANGELOG.md`](CHANGELOG.md) for their history. Section numbers are
+stable: historical references to them (e.g. in the changelog) may point
+at removed entries.
 
 ---
 

@@ -9,6 +9,26 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-06] — GPS verified end-to-end; known-issue entry retired
+
+Operator-verified the full GPS chain on the dev unit: satellite fix →
+gpsd SKY/TPV → chrony GPS+PPS refclocks → WebSDR-admin GPS page, all
+working (see the 2026-08-06 GPS entry below for the root cause and fix).
+
+### Removed
+
+- `KNOWN-ISSUES.md` former §1 (GPS: gpsd switching the ATGM336H to
+  UBX-only) — resolved and hardware-verified. The file's intro now states
+  the policy: resolved items are removed from the file, and section
+  numbers are kept stable so historical references make sense.
+- `TODO.md` "GPS recovery" section — all items done and verified.
+
+### Changed
+
+- Stray references to the removed known-issue entry repointed to this
+  changelog (`docs/user/troubleshooting.md` §5, `docs/user/usage.md` GPS
+  section, `scripts/configure-rootfs.sh` comments).
+
 ## [2026-08-06] — mDNS device discovery (avahi on the Debian image)
 
 ### Added
