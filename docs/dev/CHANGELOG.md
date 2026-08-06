@@ -9,6 +9,12 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-06] — Published to GitHub
+
+The cleaned single-commit `master` is now public at
+<https://github.com/SteamedFish/web888-debian>. The pre-cleanup history
+stays on the forgejo-only `master-pre-cleanup` archive branch.
+
 ## [2026-08-06] — Drop one-off SIGILL observation
 
 ### Removed
