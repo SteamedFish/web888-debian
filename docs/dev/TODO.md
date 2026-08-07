@@ -8,19 +8,25 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 ## Hardware gates (pending board access)
 
 - [ ] **Kernel/U-Boot chain (step 6)**
-  - [ ] hw-test smoke (`scripts/hw-test/`), USB-WiFi probe, websdr E2E
-        with bitstream on the 6.12 kernel (P1.6 remainder — board came
-        online with EEPROM MAC, 0 failed units, drivers/fclk ABI OK)
+  - [x] hw-test smoke (`scripts/hw-test/` `zynqsdr-smoke hw` →
+        `ZYNQSDR_SMOKE_OK`) and websdr E2E with bitstream on the 6.12
+        kernel (`scripts/hw-test/ws-e2e.py` → audio + waterfall frames)
+  - [ ] USB-WiFi probe on the 6.12 kernel (needs a USB dongle plugged in)
   - [ ] Blind HW gate for full U-Boot as SSBL (P2.5 — QEMU-verified from
         U-Boot onward; FSBL handoff is not emulatable)
   - [ ] Kernel-update SOP final docs sync (P3)
 - [ ] **Red Pitaya coexistence (step 4)**
-  - [ ] Round-trip switching ×10 (60 s :8073 poll — websdr needs ~33 s
-        after RF-active RP apps), reboot-default check, 1 h soak (P4.5)
+  - [x] Round-trip switching ×10 (60 s :8073 poll — websdr needs ~33 s
+        after RF-active RP apps), reboot-default check, 1 h soak (P4.5 —
+        `scripts/hw-test/hw-roundtrip.sh` → `ROUNDTRIP_OK`; surfaced and
+        cleared a stale-deb deployment gap, see CHANGELOG 2026-08-07)
   - [ ] Docs close-out (P5)
-- [ ] **WebSDR deeper HW gate (step 2/3)**: reboot-loop ×3 + multi-hour
-      soak on a fresh image (audio + waterfall as web888 user via systemd;
-      XDG paths; no-update verified)
+- [~] **WebSDR deeper HW gate (step 2/3)**: reboot-loop ×3 + 2 h soak
+      passed on the dev install (`scripts/hw-test/hw-reboot-loop.sh` →
+      `REBOOTLOOP_OK`: 3/3 boots self-heal as the web888 user at ~65 s,
+      24/24 soak checks with zero error-level journal lines, final
+      `ws-e2e.py` audio + waterfall OK). Still owed: the same loop on a
+      **freshly flashed** image (needs the card in the host reader)
 
 ## KiwiSDR upstream alignment (step 5)
 

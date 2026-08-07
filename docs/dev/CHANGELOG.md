@@ -9,6 +9,58 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-07] — Hardware gates on the 6.12 chain: smoke, E2E, RP round-trip, reboot-loop
+
+Ran the outstanding hardware gates against the dev unit on the
+`6.12.100-web888` kernel (see `docs/dev/TODO.md`).
+
+### Added
+
+- `scripts/hw-test/ws-e2e.py` — host-side websdr websocket E2E probe
+  (no dependencies). Handles three fork protocol quirks verified against
+  `work/websdr-src`: MSG frames arrive with the *binary* opcode; SND rx
+  params are only accepted after `MSG audio_init`; the client must send
+  `SET keepalive` every ~5 s and `SET AR OK in=… out=…` to complete
+  `CMD_ALL` (`CMD_FREQ|CMD_MODE|CMD_PASSBAND|CMD_AGC|CMD_AR_OK`) or the
+  server kicks the connection (`rx_sound.cpp`, `rx_sound_cmd.h`).
+  Asserts real audio (`SND`) and waterfall (`W/F`) binary frames.
+- `scripts/hw-test/hw-roundtrip.sh` — RP-coexistence gate (P4.5): 10×
+  `web888-mode` round-trips websdr↔RF-active RP app with :8073 recovery
+  polls, reboot-default check, 1 h soak, final `ws-e2e.py`.
+- `scripts/hw-test/hw-reboot-loop.sh` — WebSDR deeper gate: reboot ×3
+  verifying websdr self-heals as the `web888` user after every boot,
+  then a multi-hour soak with journal error scans and a final E2E.
+- `scripts/hw-test/mmap-test.c` — per-region `/dev/mem` mmap probe used
+  to rule out STRICT_DEVMEM as the hpsdr SEGV cause.
+- `scripts/hw-test/README.md` documents the new tools and warns the
+  gates reboot the device (never run two concurrently).
+
+### Fixed
+
+- **hpsdr SEGV on the dev unit — stale deb, not a code bug.** The
+  round-trip gate caught `sdr_receiver_hpsdr-server` segfaulting at
+  start (fault address 0). Root cause: the unit still ran
+  web888-redpitaya **2025.430-1** (unpatched vendor peri.c — sysfs GPIO
+  EBUSY → NULL `FILE*` deref); the fix had been built as **2025.430-2**
+  the day before but never deployed. Deployed it; hpsdr now starts
+  (`attenuator initialize succeed (zynqsdr ioctl)`), UDP :1024
+  discovery live, and the full gate passed (`ROUNDTRIP_OK`: 10/10
+  iterations, reboot-default correct, 1 h soak clean, final E2E OK).
+
+### Verified (hardware)
+
+- `zynqsdr-smoke hw` → `ZYNQSDR_SMOKE_OK` on 6.12 (15-ioctl ABI,
+  signature `0xaa55020c` = 12 RX + 2 WF, DNA, GPIO readback `0x155`).
+- `ws-e2e.py` → `E2E_OK`: real audio + waterfall frames; service runs
+  as `web888` with XDG paths under `/var/lib/web888`; zero self-update
+  attempts in the journal.
+- Reboot-loop ×3 + 2 h soak → `REBOOTLOOP_OK`: websdr healthy ~65 s
+  after every boot (3/3), 24/24 soak checks clean (zero error-level
+  journal lines), final `ws-e2e.py` E2E OK. (Gate logs in `.tmp/` on
+  the build host; result recorded in `TODO.md`.)
+- Scrubbed the dev unit's LAN IP from tracked files; hw-test gates now
+  default to `DEVICE=web888.local`.
+
 ## [2026-08-07] — Waterfall engine (BUG 3): known-issue entry retired
 
 Operator-verified the waterfall engine fix is clean at all zooms on the
@@ -89,7 +141,7 @@ working (see the 2026-08-06 GPS entry below for the root cause and fix).
   `*.local` hosts via `mdns4_minimal` (libnss-mdns' postinst wires it
   into `/etc/nsswitch.conf`; listed explicitly because the build uses
   `--no-install-recommends`). RAM cost is a few MB.
-- Hardware-verified on the dev unit (192.168.24.15): host-side
+- Hardware-verified on the dev unit: host-side
   `avahi-resolve-host-name web888.local` returns the unit's IPv6 and
   IPv4 addresses, and mDNS resolution survives a reboot.
   `docs/dev/TODO.md` "Networking / discovery" item closed.

@@ -15,3 +15,6 @@ scripts/hw-test/zynqsdr-smoke
 # local agent plan/session dirs (tracked only on the pre-cleanup archive branch)
 .sisyphus/
 .zcode/
+
+# Python bytecode (scripts/hw-test/ws-e2e.py)
+__pycache__/

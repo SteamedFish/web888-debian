@@ -10,8 +10,17 @@ Used by the Step-2 hardware gates (see `scripts/hw-gate-step2.sh` and `docs/dev/
 | `zynqsdr-smoke.c` | project-original | Full ABI gate: all 15 ioctls, GPIO/DSA bit-bang, RX/WF arm + reads, PPS, rmmod-EBUSY, 400 concurrent reads, 50x arm/disarm stress. Prints `ZYNQSDR_SMOKE_OK` on full pass. |
 | `sigdump.c` | project-original | GET_SIGNATURE + GET_DNA + GPIO mask dump (quick PL-alive check). |
 | `pldump.c` | project-original | Raw `/dev/mem` dump of config 0x40000000 / status 0x41000000 (cross-check driver vs raw PL). |
+| `mmap-test.c` | project-original | Per-region `/dev/mem` mmap probe (0x40000000/0x41000000/0x42000000) — diagnoses STRICT_DEVMEM/IO_STRICT_DEVMEM blocks vs the RP apps' raw-mmap needs. Build like `pldump`. |
+| `ws-e2e.py` | project-original | Host-side websdr websocket E2E (no deps): handshakes `/kiwi/<ts>/SND` + `/W/F`, waits for `audio_init`, sends full client setup incl. `SET AR OK` and 5 s keepalives, asserts real audio + waterfall binary frames. Prints `E2E_OK`. |
+| `hw-roundtrip.sh` | project-original | RP-coexistence gate (TODO P4.5): 10x `web888-mode` round-trips websdr↔RF-active RP app with :8073 recovery polls, reboot-default check, 1 h soak, final `ws-e2e.py`. Prints `ROUNDTRIP_OK`. |
+| `hw-reboot-loop.sh` | project-original | WebSDR deeper gate: reboot ×3 verifying websdr self-heals as the web888 user each boot, then a multi-hour soak (default 2 h, `SOAK_CHECKS` override) with journal error scans, final `ws-e2e.py`. Prints `REBOOTLOOP_OK`. |
 | `si5351/` | see provenance | `si5351-init`: stock userspace clock setup (Si5351 @0x60 on /dev/i2c-0, ref 24.576 MHz, CLK0 = 66.6666 MHz ADC clock, 8 mA). Required before the PL RX engine produces data. websdr.bin does this itself — this tool is for driver-level testing without websdr. |
 | `hw-probe.c` / `hw-probe.py` | project-original | Read-only hardware state dump (every register group via /dev/mem + i2c) for stock-vs-Debian golden-reference diffing; run on the device via `scripts/capture-hw-state.sh`. `hw-probe.armhf` is the committed prebuilt static binary. |
+
+Host-side gates (`ws-e2e.py`, `hw-roundtrip.sh`, `hw-reboot-loop.sh`) drive a
+live device over SSH (`sshpass`, password `changeme`); default target
+`DEVICE=web888.local`, override via the environment. They reboot the device —
+never run two gates concurrently. Logs land in `.tmp/` (gitignored).
 
 ## Provenance
 
