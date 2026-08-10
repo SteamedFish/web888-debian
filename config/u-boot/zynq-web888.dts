@@ -7,8 +7,8 @@
  * Node facts mirror config/web888.dts / the stock boot.bin DTB:
  *  - ps_clk = 33.333 MHz (stock dts ps-clk-frequency 0x1fca055)
  *  - gem0 @e000b000 rgmii-id PHY @ addr 1, sdhci0 @e0100000 (TF card)
- *  - 24c64 EEPROM on i2c0 @0x50 (factory MAC @0x10; U-Boot does not read
- *    it today — node kept for future netboot use)
+ *  - 24c64 EEPROM on i2c0 @0x50 (factory MAC @0x10, read into ethaddr by
+ *    the WEB888_EEPROM_MAC board hook — patch 0002)
  */
 /dts-v1/;
 #include "zynq-7000.dtsi"
@@ -64,5 +64,7 @@
 		compatible = "atmel,24c64";
 		reg = <0x50>;
 		pagesize = <32>;
+		/* 24c64 uses 2-byte memory addressing; the DM default is 1. */
+		u-boot,i2c-offset-len = <2>;
 	};
 };

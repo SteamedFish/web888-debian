@@ -13,7 +13,7 @@ when they conflict.
 | RAM | 512 MB DDR3 (MemTotal 509476 kB) | live `/proc/meminfo` |
 | Storage | SD/TF card boot (BootROM → boot.bin on FAT32 p1) | live `/proc/partitions` |
 | Stock card | 16 GB class, **single** FAT32 partition spanning whole card | live |
-| Ethernet MAC | `ce:cf:3f:*` prefix; full per-unit value stored in board EEPROM @0x10, read by the kernel via the DTB nvmem cell (see config/web888.dts gem0/macaddr@10); check `cat /sys/class/net/eth0/address` on your unit | live `eth0/address` |
+| Ethernet MAC | `ce:cf:3f:*` prefix; full per-unit value stored in board EEPROM @0x10. U-Boot reads it (register-level — the r1p10 cdns i2c driver's multi-message read wedges on the HOLD-bit erratum) and sets `ethaddr` before ethernet probes, so the fdt `local-mac-address` fixup carries it to the kernel; the DTB nvmem cell (config/web888.dts gem0/macaddr@10) remains as the kernel-side fallback. Check `cat /sys/class/net/eth0/address` on your unit | live `eth0/address` |
 
 > **MAC scope (honest):** this value is verified on the **one** unit available
 > (this project has a single Web-888). An earlier claim that "ALL stock units

@@ -132,3 +132,7 @@ pre-cleanup archive branch.
   + Web-888 drivers + ULPI patch), full U-Boot v2026.07 as SSBL behind
   the stock FSBL, kernel/dtb loaded from FAT via boot.scr/uEnv.txt;
   QEMU gates passed (linux-xlnx 6.6 chain kept buildable as rollback).
+  U-Boot plants the factory MAC from the board EEPROM into `ethaddr`
+  before ethernet probes (register-level read — the r1p10 cdns driver's
+  multi-message read is broken by the HOLD-bit erratum; see CHANGELOG
+  2026-08-10).

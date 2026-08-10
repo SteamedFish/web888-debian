@@ -9,6 +9,33 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-10] — U-Boot plants the factory MAC from the board EEPROM
+
+### Added
+
+- **U-Boot reads the per-unit MAC from the board EEPROM and sets
+  `ethaddr` before ethernet probes** (`config/u-boot/0002-board-eeprom-mac.patch`,
+  `CONFIG_WEB888_EEPROM_MAC`). The MAC is stored raw at offset 0x10 of the
+  24c64 EEPROM on i2c0 (chip 0x50). Previously the GEM fell back to
+  `CONFIG_NET_RANDOM_ETHADDR`, U-Boot's `fdt_fixup_ethernet` injected that
+  random MAC into the kernel fdt as `local-mac-address`, and the board
+  re-IPed on every boot. An `ethaddr` already in the environment (uEnv.txt
+  operator override) still wins. Verified on hardware: eth0 and the kernel
+  fdt `local-mac-address` are the factory MAC (`ce:cf:3f:*`) across reboots.
+- **Register-level EEPROM read in board code, bypassing the cdns i2c
+  driver** — the Zynq i2c0 controller is the r1p10 core with the
+  BROKEN_HOLD_BIT erratum (compatible `cdns,i2c-r1p10`): the driver's
+  multi-message read (offset write + 6-byte read) wedges with the HOLD bit
+  stuck and times out with no RXDV, while 1-byte reads complete. The
+  board code instead bit-bangs the controller registers directly: a 2-byte
+  offset write with STOP (the 24c64 address counter survives STOP), then a
+  plain current-address read — no HOLD, no repeated start. Probing the i2c0
+  bus device first initializes the controller (clock divisors); bus state
+  varies boot-to-boot, so the read retries 5× with 50 ms backoff.
+- `config/u-boot/zynq-web888.dts` — `u-boot,i2c-offset-len = <2>` on the
+  eeprom node (24c64 needs 2-byte addressing; needed if anything binds the
+  i2c_eeprom driver in U-Boot).
+
 ## [2026-08-08] — Research: stock FSBL is source-rebuildable (new TODO F1)
 
 ### Added

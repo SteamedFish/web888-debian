@@ -24,6 +24,10 @@ cp config/u-boot/zynq-web888.dts "$UBDIR/arch/arm/dts/zynq-web888.dts"
 if ! grep --quiet "zynq-web888" "$UBDIR/arch/arm/dts/Makefile"; then
     patch -p1 -d "$UBDIR" < config/u-boot/0001-dts-makefile-web888.patch
 fi
+# Board EEPROM → ethaddr hook (per-unit MAC; see web888.fragment notes).
+if ! grep --quiet "WEB888_EEPROM_MAC" "$UBDIR/board/xilinx/zynq/Kconfig"; then
+    patch -p1 -d "$UBDIR" < config/u-boot/0002-board-eeprom-mac.patch
+fi
 
 # --- 2. defconfig + our fragment --------------------------------------------
 make -C "$UBDIR" xilinx_zynq_virt_defconfig < /dev/null
@@ -38,7 +42,7 @@ make -C "$UBDIR" olddefconfig < /dev/null
 fail=0
 need_y="ARCH_ZYNQ ZYNQ_SERIAL MMC_SDHCI MMC_SDHCI_ZYNQ ZYNQ_GEM PHY_REALTEK \
         DM_ETH_PHY OF_SEPARATE REMAKE_ELF ENV_IS_NOWHERE CMD_MMC CMD_FAT \
-        DISTRO_DEFAULTS SKIP_LOWLEVEL_INIT"
+        DISTRO_DEFAULTS SKIP_LOWLEVEL_INIT WEB888_EEPROM_MAC"
 need_n="SPL ENV_IS_IN_FAT ENV_IS_IN_NAND ENV_IS_IN_SPI_FLASH ENV_REDUNDANT \
         ZYNQ_QSPI NAND_ZYNQ MTD_RAW_NAND MTD_NOR_FLASH CMD_UBI CMD_UBIFS \
         MTD_UBI"

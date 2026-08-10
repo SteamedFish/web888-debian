@@ -1,0 +1,184 @@
+--- a/board/xilinx/zynq/board.c
++++ b/board/xilinx/zynq/board.c
+@@ -15,13 +15,18 @@
+ #include <env_internal.h>
+ #include <fdtdec.h>
+ #include <fpga.h>
++#include <i2c.h>
+ #include <malloc.h>
+ #include <memalign.h>
+ #include <mmc.h>
++#include <net-common.h>
+ #include <watchdog.h>
+ #include <wdt.h>
+ #include <zynqpl.h>
+ #include <asm/global_data.h>
++#include <asm/io.h>
++#include <linux/delay.h>
++#include <linux/errno.h>
+ #include <asm/arch/hardware.h>
+ #include <asm/arch/sys_proto.h>
+ #include "../common/board.h"
+@@ -35,6 +40,133 @@
+ }
+ #endif
+ 
++#if !defined(CONFIG_XPL_BUILD) && CONFIG_IS_ENABLED(WEB888_EEPROM_MAC)
++/*
++ * Web-888: the per-unit MAC is stored raw at offset 0x10 of the 24c64
++ * EEPROM on i2c0 (chip 0x50) - see docs/research/hardware-facts.md in the
++ * web888-debian tree. Plant it into ethaddr before ethernet probes;
++ * without it the GEM falls back to NET_RANDOM_ETHADDR and the fdt
++ * local-mac-address fixup then hides the kernel dtb's nvmem mac cell.
++ * An ethaddr already in the environment (uEnv.txt operator override) wins.
++ */
++#define WEB888_I2C0_CR	0xe0004000
++#define WEB888_I2C0_SR	0xe0004004
++#define WEB888_I2C0_ADDR	0xe0004008
++#define WEB888_I2C0_DATA	0xe000400c
++#define WEB888_I2C0_ISR	0xe0004010
++#define WEB888_I2C0_TSIZE	0xe0004014
++
++/* control register bits (see i2c-cdns.c) */
++#define WEB888_CR_RW		0x01
++#define WEB888_CR_MS		0x02
++#define WEB888_CR_NEA		0x04
++#define WEB888_CR_ACKEN		0x08
++#define WEB888_CR_CLR_FIFO	0x40
++#define WEB888_CR_DIV_MASK	0xff00	/* keep clock divisors */
++/* status / interrupt bits */
++#define WEB888_SR_RXDV		0x20
++#define WEB888_ISR_COMP		0x01
++#define WEB888_ISR_NACK		0x04
++#define WEB888_ISR_ALL		0x3ff	/* W1C mask */
++
++static int web888_i2c0_poll(uint addr, u32 mask)
++{
++	int i;
++
++	for (i = 0; i < 10000; i++) {
++		if (readl(addr) & mask)
++			return 0;
++		udelay(10);
++	}
++	return -ETIMEDOUT;
++}
++
++/*
++ * Read len bytes at 16-bit word offset off from the 24c64 at 7-bit
++ * address addr on I2C0, by banging the cadence controller registers
++ * directly. The U-Boot cdns driver is bypassed: its multi-message
++ * (offset write + read) path holds the bus, which hits the r1p10
++ * BROKEN_HOLD_BIT erratum and wedges multi-byte reads. A STOP after
++ * the offset write is fine - the 24c64 address counter survives STOP,
++ * so the read is a plain current-address read. No HOLD, no repeated
++ * start, no erratum.
++ */
++static int web888_eeprom_read(u8 addr, u16 off, u8 *data, u32 len)
++{
++	u32 cr = readl(WEB888_I2C0_CR) & WEB888_CR_DIV_MASK;
++	u32 i;
++	int ret;
++
++	/* Phase 1: write the 2-byte word offset, STOP at the end. */
++	writel(WEB888_ISR_ALL, WEB888_I2C0_ISR);
++	writel(cr | WEB888_CR_CLR_FIFO | WEB888_CR_MS | WEB888_CR_NEA |
++	       WEB888_CR_ACKEN, WEB888_I2C0_CR);
++	writel(off >> 8, WEB888_I2C0_DATA);
++	writel(off & 0xff, WEB888_I2C0_DATA);
++	writel(addr, WEB888_I2C0_ADDR);
++	ret = web888_i2c0_poll(WEB888_I2C0_ISR,
++			       WEB888_ISR_COMP | WEB888_ISR_NACK);
++	if (ret || (readl(WEB888_I2C0_ISR) & WEB888_ISR_NACK))
++		return ret ?: -ENODEV;
++
++	/* Phase 2: current-address read, controller NAKs the last byte. */
++	writel(WEB888_ISR_ALL, WEB888_I2C0_ISR);
++	writel(cr | WEB888_CR_CLR_FIFO | WEB888_CR_MS | WEB888_CR_NEA |
++	       WEB888_CR_ACKEN | WEB888_CR_RW, WEB888_I2C0_CR);
++	writel(len, WEB888_I2C0_TSIZE);
++	writel(addr, WEB888_I2C0_ADDR);
++	for (i = 0; i < len; i++) {
++		ret = web888_i2c0_poll(WEB888_I2C0_SR, WEB888_SR_RXDV);
++		if (ret)
++			return ret;
++		data[i] = readl(WEB888_I2C0_DATA) & 0xff;
++	}
++	ret = web888_i2c0_poll(WEB888_I2C0_ISR,
++			       WEB888_ISR_COMP | WEB888_ISR_NACK);
++	if (ret || (readl(WEB888_I2C0_ISR) & WEB888_ISR_NACK))
++		return ret ?: -ENODEV;
++
++	return 0;
++}
++
++static void web888_ethaddr_from_eeprom(void)
++{
++	struct udevice *bus;
++	u8 mac[ARP_HLEN] = { 0 };
++	char buf[ARP_HLEN * 3];
++	int ret, i;
++
++	if (env_get("ethaddr"))
++		return;
++
++	/* Probing the bus initializes the controller (clock divisors). */
++	ret = uclass_get_device_by_name(UCLASS_I2C, "i2c@e0004000", &bus);
++	if (ret) {
++		printf("web888: i2c0 probe failed (%d), no factory MAC\n", ret);
++		return;
++	}
++
++	for (i = 0; i < 5; i++) {
++		ret = web888_eeprom_read(0x50, 0x10, mac, ARP_HLEN);
++		if (!ret)
++			break;
++		mdelay(50);
++	}
++	if (ret) {
++		printf("web888: factory MAC read failed (%d)\n", ret);
++		return;
++	}
++
++	if (!is_valid_ethaddr(mac)) {
++		printf("web888: no valid factory MAC in EEPROM\n");
++		return;
++	}
++
++	snprintf(buf, sizeof(buf), "%pM", mac);
++	env_set("ethaddr", buf);
++}
++#endif
++
+ int board_init(void)
+ {
+ 	if (IS_ENABLED(CONFIG_XPL_BUILD))
+@@ -108,6 +240,10 @@
+ 
+ 	env_set("boot_targets", new_targets);
+ 
++#if !defined(CONFIG_XPL_BUILD) && CONFIG_IS_ENABLED(WEB888_EEPROM_MAC)
++	web888_ethaddr_from_eeprom();
++#endif
++
+ 	return board_late_init_xilinx();
+ }
+ 
+--- a/board/xilinx/zynq/Kconfig
++++ b/board/xilinx/zynq/Kconfig
+@@ -30,4 +30,15 @@
+ 	  and authentication feature enabled while generating
+ 	  BOOT.BIN using Xilinx bootgen tool.
+ 
++config WEB888_EEPROM_MAC
++	bool "Plant ethaddr from the Web-888 board EEPROM"
++	depends on DM_I2C && I2C_EEPROM
++	help
++	  Web-888 boards keep the per-unit MAC raw at offset 0x10 of the
++	  24c64 EEPROM on i2c0 (chip 0x50). Read it in board_late_init()
++	  (the env store must be ready) and set ethaddr before ethernet
++	  probes, so the GEM and the fdt local-mac-address fixup use the
++	  factory MAC instead of a random one. A pre-existing ethaddr in
++	  the environment wins.
++
+ endif

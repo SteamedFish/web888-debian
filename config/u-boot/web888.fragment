@@ -21,6 +21,16 @@ CONFIG_ENV_IS_NOWHERE=y
 # CONFIG_ENV_IS_IN_SPI_FLASH is not set
 # CONFIG_ENV_REDUNDANT is not set
 
+# Per-unit factory MAC: read 6 raw bytes from the 24c64 EEPROM (offset
+# 0x10, i2c0 @0x50) in board_late_init() (env must be ready) and plant
+# ethaddr before ethernet probes (patch 0002). READ-ONLY — the EEPROM env
+# stays untouched per the project rule. The read bypasses the cdns driver
+# (r1p10 HOLD-bit erratum wedges multi-message reads; see CHANGELOG
+# 2026-08-10). Without this the GEM uses NET_RANDOM_ETHADDR and the fdt
+# local-mac-address fixup hides the kernel dtb's nvmem mac cell, breaking
+# mDNS rediscovery (new random MAC → new DHCP lease → new IP every boot).
+CONFIG_WEB888_EEPROM_MAC=y
+
 # Drop flash boot targets the board does not have: keeps boot_targets at
 # mmc (+usb/dhcp fallback) so distro bootcmd finds /boot.scr on the FAT
 # partition without probing nonexistent qspi/nand/nor first. NOTE: MTD
