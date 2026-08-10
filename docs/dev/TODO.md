@@ -131,7 +131,9 @@ pre-cleanup archive branch.
   kernel deb `6.12.100-web888` (Debian linux-source-6.12 + armmp config
   + Web-888 drivers + ULPI patch), full U-Boot v2026.07 as SSBL behind
   the stock FSBL, kernel/dtb loaded from FAT via boot.scr/uEnv.txt;
-  QEMU gates passed (linux-xlnx 6.6 chain kept buildable as rollback).
+  QEMU gates passed. `build-all.sh` defaults to this chain
+  (`CHAIN=uboot`); `CHAIN=stub KERNEL=6.6` keeps the stub-SSBL +
+  linux-xlnx 6.6 chain buildable as rollback.
   U-Boot plants the factory MAC from the board EEPROM into `ethaddr`
   before ethernet probes (register-level read — the r1p10 cdns driver's
   multi-message read is broken by the HOLD-bit erratum; see CHANGELOG

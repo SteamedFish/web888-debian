@@ -2,9 +2,13 @@
 # test-qemu.sh — QEMU boot gate. Boots the assembled card image on
 # xilinx-zynq-a9 with serial on stdio. QEMU tests gate every hardware flash.
 #
-# usage: test-qemu.sh [test|final]
+# usage: test-qemu.sh [test|final|uboot]
 #   test  — -initrd initramfs gate: must print DEBIAN_ROOTFS_MOUNTED and exec
 #   final — direct ext4 boot: must reach a login prompt on /dev/mmcblk0p2
+#   uboot — real-flow gate: QEMU direct-boots the U-Boot ELF, U-Boot runs
+#           boot.scr from the image FAT which loads zImage+dtb; must reach a
+#           login prompt on the serial log (no ssh hostfwd: eth0 can't probe
+#           under QEMU — phy@1 mismatch, no 24c64 for the MAC either)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -13,10 +17,11 @@ IMG=output/web888-debian-${MODE}.img
 DTB=output/web888.dtb
 [[ $MODE == test ]] && DTB=output/web888-test.dtb
 
-[[ $MODE == test || $MODE == final ]] || { echo "usage: $0 [test|final]" >&2; exit 1; }
+[[ $MODE == test || $MODE == final || $MODE == uboot ]] || { echo "usage: $0 [test|final|uboot]" >&2; exit 1; }
 for f in "$IMG" output/zImage "$DTB"; do
     [[ -f $f ]] || { echo "Error: missing $f (run build-image.sh $MODE first)" >&2; exit 1; }
 done
+[[ $MODE != uboot || -f output/u-boot.bin ]] || { echo "Error: output/u-boot.bin missing (run build-uboot.sh)" >&2; exit 1; }
 
 # QEMU's cadence_gem PHY is fixed at MDIO address 7 and emulates no 24c64
 # EEPROM on i2c0 — so the production DTB can never probe eth0 under QEMU
@@ -43,21 +48,32 @@ PY
 fi
 
 QEMU_ARGS=(-M xilinx-zynq-a9 -m 512M -display none -serial stdio
-    -kernel output/zImage -dtb "$DTB"
     -drive "file=$IMG,if=sd,format=raw,index=0"
     -net nic -no-reboot)
+if [[ $MODE == uboot ]]; then
+    # QEMU xilinx-zynq-a9 loads raw -kernel at 0x10000 (our TEXT_BASE is
+    # 0x04000000) and the ELF carries no appended FDT — only the generic
+    # loader with the dtb-appended binary boots U-Boot here (FSBL skipped).
+    # U-Boot then finds boot.scr on the SD image FAT, which supplies the
+    # kernel dtb + bootargs.
+    QEMU_ARGS+=(-device loader,file=output/u-boot.bin,addr=0x04000000,cpu-num=0)
+else
+    QEMU_ARGS+=(-kernel output/zImage -dtb "$DTB")
+fi
 
 # panic=-1 + -no-reboot: a kernel panic exits QEMU immediately instead of looping
 if [[ $MODE == test ]]; then
     # -initrd sets linux,initrd-start/end in the dtb, so no initrd= bootarg needed
     QEMU_ARGS+=(-net user -initrd output/initramfs.cpio.gz
         -append "console=ttyPS0,115200 earlycon panic=-1")
-else
+elif [[ $MODE == final ]]; then
     # fw_devlink=off net.ifnames=0 must match the final dtb bootargs in
     # build-bootbin.sh — -append overrides dtb bootargs when -kernel is used.
     # hostfwd enables the post-boot ssh check (openssh-server) over QEMU user-net.
     QEMU_ARGS+=(-net "user,hostfwd=tcp:127.0.0.1:12222-:22"
         -append "console=ttyPS0,115200 earlycon root=/dev/mmcblk0p2 rw rootwait panic=-1 fw_devlink=off net.ifnames=0")
+else
+    QEMU_ARGS+=(-net user)
 fi
 
 timeout --foreground 120 qemu-system-arm "${QEMU_ARGS[@]}" || true

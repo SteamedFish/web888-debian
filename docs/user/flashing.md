@@ -16,18 +16,19 @@ keep it as the known-good rollback.**
 ## 1. Build the image
 
 See the **Building** section of the top-level `README.md` for prerequisites
-and the full build. The short form:
+and the full build; every configurable knob (boot chain, kernel, mirrors) is
+documented in [building.md](building.md). The short form:
 
 ```sh
-scripts/build-all.sh           # incremental build, Debian-source 6.12 kernel
-scripts/test-qemu.sh final     # QEMU boot gate — ALWAYS run before flashing
+scripts/build-all.sh           # incremental build, U-Boot chain (default)
+scripts/test-qemu.sh uboot     # QEMU boot gate — ALWAYS run before flashing
 ```
 
 The QEMU gate boots the exact image in an emulated Zynq and verifies the
 boot chain end-to-end. Never flash an image that has not passed it (there
 is no serial adapter on this board — QEMU is the only pre-hardware test).
 
-Output: `output/web888-debian-final.img`.
+Output: `output/web888-debian-uboot.img`.
 
 ## 2. Flash
 
@@ -35,7 +36,7 @@ Insert the TF card into a **USB** card reader and identify it (`lsblk` —
 it must show transport `usb` and appear as `/dev/sdX`):
 
 ```sh
-scripts/flash-image.sh /dev/sdX output/web888-debian-final.img
+scripts/flash-image.sh /dev/sdX output/web888-debian-uboot.img
 ```
 
 The script enforces, in order:
@@ -93,7 +94,7 @@ You normally do **not** re-flash for software updates:
 - Kernel: follow `../dev/kernel-update-sop.md` (host-built pinned deb).
 - Device-tree changes: the running DT comes from the DTB **embedded in
   boot.bin**, not from `/boot/web888.dtb` — rebuild with
-  `scripts/build-bootbin.sh final`, replace `/boot/boot.bin` on the FAT
+  `scripts/build-bootbin.sh uboot`, replace `/boot/boot.bin` on the FAT
   partition, reboot (see `../research/hardware-facts.md`, "DT deploy
   lesson").
 

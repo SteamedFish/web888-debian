@@ -88,12 +88,16 @@ cpio rsync`，外加从 Debian qemu-user-static .deb 项目内提取的
 `qemu-arm-static`（`scripts/env-setup.sh`）。
 
 ```sh
-scripts/build-all.sh            # 增量构建（跳过已有产物），6.12 内核
+scripts/build-all.sh            # 增量构建（跳过已有产物），U-Boot 链路
 scripts/build-all.sh --clean    # 从零完整复现
-KERNEL=6.6 scripts/build-all.sh # 回滚链路（linux-xlnx 6.6 + stub SSBL）
-scripts/test-qemu.sh final      # QEMU 门禁 —— 刷机前必过
-scripts/flash-image.sh /dev/sdX output/web888-debian-final.img
+CHAIN=stub KERNEL=6.6 \
+scripts/build-all.sh            # 回滚链路（linux-xlnx 6.6 + stub SSBL）
+scripts/test-qemu.sh uboot      # QEMU 门禁 —— 刷机前必过
+scripts/flash-image.sh /dev/sdX output/web888-debian-uboot.img
 ```
+
+所有可配置项（`KERNEL`、`CHAIN`、镜像源）见
+[`docs/user/building.md`](docs/user/building.md)。
 
 所有非生成的构建输入已收录进 `resources/`（原装 boot.bin、busybox-static
 .deb —— 见 `resources/README.md`），全新 clone 即可直接构建，无需任何手工

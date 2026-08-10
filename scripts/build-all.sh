@@ -24,13 +24,22 @@
 #  8e. build-redpitaya-deb.sh  web888-redpitaya deb (step 4; same chroot +
 #                              stale-deb sentinel pattern as 8c)
 #  8f. install-redpitaya.sh    install the deb into rootfs (units disabled)
-#   9. build-bootbin.sh final  output/web888.dtb + output/boot-final.bin
-#  10. build-image.sh final    output/web888-debian-final.img  <- deliverable
+#  8g. build-uboot.sh          work/u-boot + output/u-boot.bin (CHAIN=uboot only)
+#   9. build-bootbin.sh $MODE  output/web888.dtb + output/boot-$MODE.bin
+#  10. build-image.sh $MODE    output/web888-debian-$MODE.img  <- deliverable
 #
 # usage: build-all.sh [--clean]
 #   --clean  delete work/ and output/ first (true from-scratch reproduction;
 #            .tmp/ is kept — it holds the stock firmware inputs and the
 #            kernel git cache)
+#
+# Options (environment variables):
+#   CHAIN=uboot|stub   boot chain; uboot = stock FSBL + full U-Boot as SSBL
+#                      (default, production), stub = stock stub-SSBL chain
+#                      (rollback; maps to bootbin/image mode "final")
+#   KERNEL=6.12|6.6    kernel flow; 6.12 = Debian source + debs (default),
+#                      6.6 = legacy linux-xlnx (rollback variant)
+#   DEBIAN_MIRROR=URL  debootstrap mirror (default: tuna.tsinghua.edu.cn)
 #
 # Steps 7-10 need sudo (debootstrap/chroot/losetup); run `sudo -v` first or
 # let sudo prompt. Everything else runs unprivileged.
@@ -47,6 +56,15 @@ if [[ $KERNEL == 6.12 ]]; then
     # write-dtb.sh picks its dtsi tree from this; xlnx default otherwise.
     export KERNEL_DTS_TREE=work/linux-debian-6.12
 fi
+
+# Boot-chain switch: uboot (stock FSBL + full U-Boot as SSBL) is the default
+# production chain; stub maps to bootbin/image mode "final" (rollback).
+CHAIN="${CHAIN:-uboot}"
+case "$CHAIN" in
+    uboot) IMG_MODE=uboot ;;
+    stub)  IMG_MODE=final ;;
+    *) echo "Error: CHAIN must be uboot or stub (got '$CHAIN')" >&2; exit 1 ;;
+esac
 
 if [[ "${1:-}" == --clean ]]; then
     echo "== --clean: removing work/ and output/ (rootfs is root-owned, needs sudo) =="
@@ -179,12 +197,17 @@ fi
 echo "== 8f/10 install web888-redpitaya into rootfs =="
 bash scripts/install-redpitaya.sh
 
-echo "== 9/10 boot.bin =="
-bash scripts/build-bootbin.sh final
+if [[ $CHAIN == uboot ]]; then
+    echo "== 8g/10 U-Boot =="
+    bash scripts/build-uboot.sh
+fi
 
-echo "== 10/10 card image =="
-bash scripts/build-image.sh final
+echo "== 9/10 boot.bin ($IMG_MODE) =="
+bash scripts/build-bootbin.sh "$IMG_MODE"
 
-echo "== DONE: output/web888-debian-final.img =="
-echo "   QEMU gate: bash scripts/test-qemu.sh final"
-echo "   Flash:     bash scripts/flash-image.sh /dev/sdX output/web888-debian-final.img"
+echo "== 10/10 card image ($IMG_MODE) =="
+bash scripts/build-image.sh "$IMG_MODE"
+
+echo "== DONE: output/web888-debian-${IMG_MODE}.img (chain=$CHAIN kernel=$KERNEL) =="
+echo "   QEMU gate: bash scripts/test-qemu.sh $IMG_MODE"
+echo "   Flash:     bash scripts/flash-image.sh /dev/sdX output/web888-debian-${IMG_MODE}.img"

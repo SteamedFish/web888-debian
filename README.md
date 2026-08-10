@@ -95,12 +95,15 @@ dosfstools parted cpio rsync`, plus `qemu-arm-static` extracted
 project-locally from Debian's qemu-user-static .deb (`scripts/env-setup.sh`).
 
 ```sh
-scripts/build-all.sh            # incremental (skips existing outputs), 6.12 kernel
+scripts/build-all.sh            # incremental (skips existing outputs), U-Boot chain
 scripts/build-all.sh --clean    # true from-scratch reproduction
-KERNEL=6.6 scripts/build-all.sh # rollback chain (linux-xlnx 6.6 + stub SSBL)
-scripts/test-qemu.sh final      # QEMU gate — mandatory before flashing
-scripts/flash-image.sh /dev/sdX output/web888-debian-final.img
+CHAIN=stub KERNEL=6.6 scripts/build-all.sh            # rollback chain (linux-xlnx 6.6 + stub SSBL)
+scripts/test-qemu.sh uboot      # QEMU gate — mandatory before flashing
+scripts/flash-image.sh /dev/sdX output/web888-debian-uboot.img
 ```
+
+All knobs (`KERNEL`, `CHAIN`, mirrors) are documented in
+[`docs/user/building.md`](docs/user/building.md).
 
 All non-generated build inputs are vendored in `resources/` (stock boot.bin,
 busybox-static .deb — see `resources/README.md`), so a fresh clone builds

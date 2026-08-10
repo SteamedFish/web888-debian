@@ -9,6 +9,36 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-11] — build-all.sh defaults to the U-Boot chain
+
+### Changed
+
+- **`scripts/build-all.sh` defaults to the U-Boot boot chain.** New
+  `CHAIN=uboot|stub` knob (default `uboot` = stock FSBL + full U-Boot as
+  SSBL — now the production chain); `CHAIN=stub` keeps the legacy
+  stub-SSBL chain buildable as rollback (pairs with `KERNEL=6.6` for the
+  full linux-xlnx 6.6 rollback). When `CHAIN=uboot`, the pipeline runs
+  `scripts/build-uboot.sh` as step 8g and emits
+  `output/web888-debian-uboot.img`; `stub` keeps the previous
+  `final` behaviour. The run banner prints the selected chain and kernel.
+
+### Added
+
+- **`scripts/test-qemu.sh` `uboot` mode** — boots
+  `output/web888-debian-uboot.img` through the real boot flow: QEMU
+  direct-boots the U-Boot ELF (FSBL not emulated), U-Boot finds and runs
+  `boot.scr` from the image FAT, which loads zImage+dtb and boots Linux
+  from the ext4 rootfs. Gate = login prompt on the serial log. No ssh
+  hostfwd in this mode (eth0 still cannot probe under QEMU — phy@1
+  mismatch, and no 24c64 for the MAC).
+- **`docs/user/building.md`** — user documentation for the build system:
+  the two boot chains, every configurable knob of `build-all.sh`
+  (`KERNEL`, `CHAIN`, `DEBIAN_MIRROR`) and of the per-step scripts
+  (`DEBIAN_SECURITY_MIRROR`, `GOVERNOR`, `KIWI_TREE`), the manual per-chain
+  build commands, QEMU gate usage including the known QEMU-vs-hardware
+  differences, and the produced artifacts. Linked from the docs/user
+  index, README.md, README.zh-CN.md, and docs/user/flashing.md.
+
 ## [2026-08-10] — U-Boot plants the factory MAC from the board EEPROM
 
 ### Added
