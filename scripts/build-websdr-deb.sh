@@ -105,11 +105,13 @@ sudo chown "$USER":"$USER" "$OUT"/websdr/web888-websdr_* 2>/dev/null || true
 # Capture the deb listing once: invoking dpkg-deb -c twice on a 30 MB deb in
 # quick succession has raced ("tar subprocess killed by signal (Broken pipe)")
 # when the host is still under load from the qemu build.
-DEB_CONTENTS=$(dpkg-deb -c "$OUT"/websdr/web888-websdr_*_armhf.deb)
+# The glob can match leftover debs from earlier versions — pick the newest.
+DEB=$(ls -t "$OUT"/websdr/web888-websdr_*_armhf.deb | head -1)
+DEB_CONTENTS=$(dpkg-deb -c "$DEB")
 EXPECTED=$(ls -1 "$SRC"/unix_env/kiwi.config/dist.* 2>/dev/null | wc -l)
 COUNT=$(printf '%s\n' "$DEB_CONTENTS" | grep -c "dist/config/dist\.")
 [[ $COUNT -ge $EXPECTED ]] || { echo "FATAL: only $COUNT dist.* files in deb, expected ≥$EXPECTED — install mapping broken"; exit 1; }
 printf '%s\n' "$DEB_CONTENTS" | grep -q "libfdk-aac.so.2.0.1" \
   || { echo "FATAL: vendored libfdk-aac.so.2.0.1 missing from deb"; exit 1; }
-md5sum "$OUT"/websdr/web888-websdr_*_armhf.deb
+md5sum "$DEB"
 ls -la "$OUT"/websdr/web888-websdr_*
