@@ -33,8 +33,10 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 ## KiwiSDR upstream alignment (step 5)
 
-- [ ] B.4: port `rx_snr` (next feature epic after the completed B.1
-      mongoose 7.14 and B.2 admin re-sync)
+- [x] B.4: port `rx_snr` — done as 0149 (framework imported wholesale and
+      adapted: no ant_switch coupling, MAX_ZOOM, minute/custom intervals,
+      custom band, ham/BCB, VDSL filter, full admin.js SNR options UI +
+      kiwi.js snr_stats MSG handling)
 - [x] FAX recording rework — cherry-picked as 0147 (upstream f98b3779,
       post-v1.902): fixed-filename server-side recording (info leak)
       replaced by a browser-side Save button (canvas JPEG download)

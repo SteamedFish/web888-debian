@@ -9,6 +9,33 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-11] — websdr: KiwiSDR rx_snr SNR framework port (cherry-pick 0149)
+
+### Added
+
+- **Cherry-pick 0149: port KiwiSDR's `rx_snr` SNR measurement framework**
+  (plan doc step B.4). `rx/rx_snr.{h,cpp}` imported wholesale and adapted
+  to Web-888's scheduler (TaskSleepSec/TaskWakeupF instead of coroutine
+  deadline flags Web-888 lacks), globals (`freq_offset_kHz`,
+  `MAX_ZOOM` ≡ upstream `ZOOM_CAP`, moved to `rx_waterfall.h`), and missing
+  helpers (`cfg_true`/`cfg_int_` local macros). Old hourly-only SNR block
+  removed from `rx/rx_util.{h,cpp}`. Gains vs the old code: VDSL
+  strong-signal run filter (`snr_filter_*` cfg), minute-granularity and
+  fully custom measurement intervals (`snr_meas_custom_min`), custom band
+  definition, ham-band and AM-broadcast-band measurements (gated by
+  `snr_meas_ham`), `/snr` JSON now reports `imin`/`ant` and float band
+  edges, and the admin **"Measure SNR now"** button finally triggers an
+  on-demand measurement server-side (`SET snr_meas` →
+  `TaskWakeupF(SNR_meas_tid)`; previously a UI no-op). New local
+  `snd_send_msg()` with `SM_SND_ADM_ALL` (upstream port) pushes
+  `snr_stats` spinner feedback to live admin pages. `web/kiwi/admin.js`
+  gains the full v1.902 SNR options UI (9-entry interval select, custom
+  interval/band inputs, measuring spinner). KiwiSDR's
+  `snr_meas_ant_sw`/ant-switch integration deliberately skipped — Web-888's
+  ant_switch extension has no SNR coupling. New patch
+  `config/websdr/cherry-picks/0149-kiwi-rx-snr-port.patch`; deb
+  `web888-websdr 2026.730-5`.
+
 ## [2026-08-11] — websdr: mongoose EPOLLERR graceful-close fix (0148)
 
 ### Fixed

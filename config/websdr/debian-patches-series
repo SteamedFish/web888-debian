@@ -76,6 +76,13 @@
 # Background: docs/dev/mongoose-websocket-socket-error-investigation.md.
 0148-mongoose-epollerr-graceful-close.patch
 
+# 0149: KiwiSDR rx_snr SNR framework port (plan doc step B.4) — imports
+# rx/rx_snr.{h,cpp} wholesale (adapted: no ant_switch coupling, MAX_ZOOM,
+# scheduler differences), full admin.js SNR options UI (custom intervals,
+# custom band, ham/BCB, measure-now spinner) and kiwi.js snr_stats MSG
+# handling. Replaces the hourly-only SNR block in rx_util.
+0149-kiwi-rx-snr-port.patch
+
 # Step 3.5 Debian compatibility fixes.
 # These apply AFTER the cherry-picks: 0104 rewrites admin.cpp's DNS block
 # (inet4_d2h_strict) in the same region 0014 touches — applying 0014 first

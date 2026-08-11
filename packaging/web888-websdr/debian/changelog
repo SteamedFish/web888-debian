@@ -1,3 +1,18 @@
+web888-websdr (2026.730-5) UNRELEASED; urgency=medium
+
+  * Cherry-pick 0149: port KiwiSDR's rx_snr SNR measurement framework
+    (rx_snr.h/rx_snr.cpp wholesale, adapted to Web-888's scheduler and
+    globals): VDSL strong-signal run filter, minute-granularity and custom
+    measurement intervals, custom band definition, ham-band and AM-broadcast
+    -band measurements, /snr JSON gains imin/ant fields and float band edges,
+    "Measure SNR now" admin button now actually triggers an on-demand
+    measurement server-side (it was a UI no-op before), SNR no longer forces
+    waterfall zoom 0 for every band (per-band zoom capability, unused on
+    Web-888's faster fixed waterfall). Local snd_send_msg() with
+    SM_SND_ADM_ALL added so live admin pages get snr_stats spinner feedback.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Tue, 11 Aug 2026 21:40:00 +0800
+
 web888-websdr (2026.730-4) UNRELEASED; urgency=medium
 
   * Cherry-pick 0148 (Web-888 local): epoll EPOLLERR on a gracefully

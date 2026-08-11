@@ -1,0 +1,1192 @@
+Cherry-pick: KiwiSDR rx_snr SNR measurement framework port (plan doc step B.4)
+
+Imports KiwiSDR's rx/rx_snr.{h,cpp} wholesale and adapts it to Web-888:
+- scheduler: TaskSleepSec/TaskWakeupF(TWF_CANCEL_DEADLINE) — Web-888 lacks
+  upstream's TWF_TIME_REMAINING/NEW_DEADLINE_SEC and FROM/TO_VOID_PARAM.
+- globals: freq_offset_kHz/freq_offmax_kHz plain doubles instead of
+  freq.offset_kHz struct; ZOOM_CAP -> MAX_ZOOM (same value, moved from
+  rx_waterfall.cpp to rx_waterfall.h).
+- helpers: cfg_true()/cfg_int_() local macros (Web-888 cfg.h only has
+  cfg_bool()/cfg_int()).
+- dropped: ant_switch integration (snr_meas_ant_sw, antsw.snr_ant,
+  ant_switch_check_set_default, snr_initial_meas_done) — Web-888's
+  ant_switch extension has no SNR coupling.
+- kiwi.snr_meas_active -> file-global snr_meas_active.
+
+Replaces Web-888's hourly-only SNR block in rx/rx_util.{h,cpp} and the old
+int-edge "ihr" /snr JSON. Adds: VDSL strong-signal run filter, minute-
+granularity + custom intervals (snr_meas_custom_min), custom band def,
+ham-band + AM BCB measurements (snr_meas_ham), imin/ant + float band edges
+in /snr JSON, working "Measure SNR now" (SET snr_meas handler already
+shipped in ui/admin.cpp via 0145).
+
+Client side: admin.js gets upstream's full SNR config UI (9-entry interval
+menu incl. 1/5/10 min + custom, "SNR measurement options" block, custom
+band lo/hi/zoom inputs, measure-now spinner, "next measurement in N min"
+countdown via id-snr-remain) minus the ant_switch checkbox; kiwi.js gets
+kiwi.SNR_CUSTOM/kiwi.snr_intervals_min constants, the kiwi_snr_stats()
+helper and the MSG snr_stats case (server sends snr_all/snr_hf via
+MSG snr_stats after each measurement). Fork display strings kept; no
+position_top_bar() call (absent in fork).
+
+Web-888 deviations are marked with "Web-888 0149:" comments.
+diff --git a/rx/rx_snr.h b/rx/rx_snr.h
+new file mode 100644
+index 0000000..81f5892
+--- /dev/null
++++ b/rx/rx_snr.h
+@@ -0,0 +1,72 @@
++/*
++--------------------------------------------------------------------------------
++This library is free software; you can redistribute it and/or
++modify it under the terms of the GNU Library General Public
++License as published by the Free Software Foundation; either
++version 2 of the License, or (at your option) any later version.
++This library is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++Library General Public License for more details.
++You should have received a copy of the GNU Library General Public
++License along with this library; if not, write to the
++Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++Boston, MA  02110-1301, USA.
++--------------------------------------------------------------------------------
++*/
++
++// Copyright (c) 2023-2025 John Seamons, ZL4VO/KF6VO
++
++#pragma once
++
++#include "types.h"
++
++#define SNR_MEAS_MAX    (24 * 7)
++
++#define SNR_BAND_ALL        0
++#define SNR_BAND_HF         1
++#define SNR_BAND_0_2        2
++#define SNR_BAND_2_10       3
++#define SNR_BAND_10_20      4
++#define SNR_BAND_20_MAX     5
++#define SNR_BAND_NSTD       6
++#define SNR_BAND_CUSTOM     6
++
++#define SNR_BAND_HAM_LF     7
++#define SNR_BAND_HAM_MF     8
++#define SNR_BAND_HAM_160    9
++#define SNR_BAND_HAM_80     10
++#define SNR_BAND_HAM_60     11
++#define SNR_BAND_HAM_40     12
++#define SNR_BAND_HAM_30     13
++#define SNR_BAND_HAM_20     14
++#define SNR_BAND_HAM_17     15
++#define SNR_BAND_HAM_15     16
++#define SNR_BAND_HAM_12     17
++#define SNR_BAND_HAM_10     18
++#define SNR_BAND_AM_BCB     19
++#define SNR_NBANDS          20
++
++typedef struct {
++    float fkHz_lo, fkHz_hi;
++    u1_t min, max, pct_50, pct_95, snr;
++} SNR_data_t;
++
++typedef struct {
++    #define SNR_F_ANT       0x0f
++    #define SNR_F_VALID     0x10
++    #define SNR_F_TLOCAL    0x20
++	u1_t flags;
++    u2_t seq;
++    time_t tstamp;
++    SNR_data_t data[SNR_NBANDS];
++} SNR_meas_t;
++
++extern SNR_meas_t SNR_meas_data[SNR_MEAS_MAX];
++extern int SNR_meas_tid;
++
++// Web-888 port additions: globals consumed outside rx_snr.cpp
++extern int snr_meas_interval_min, snr_all, snr_HF, ant_connected;
++extern bool snr_meas_active;
++
++void SNR_meas(void *param);
+diff --git a/rx/rx_snr.cpp b/rx/rx_snr.cpp
+new file mode 100644
+index 0000000..a8f2740
+--- /dev/null
++++ b/rx/rx_snr.cpp
+@@ -0,0 +1,420 @@
++/*
++--------------------------------------------------------------------------------
++This library is free software; you can redistribute it and/or
++modify it under the terms of the GNU Library General Public
++License as published by the Free Software Foundation; either
++version 2 of the License, or (at your option) any later version.
++This library is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++Library General Public License for more details.
++You should have received a copy of the GNU Library General Public
++License along with this library; if not, write to the
++Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++Boston, MA  02110-1301, USA.
++--------------------------------------------------------------------------------
++*/
++
++// Copyright (c) 2023-2025 John Seamons, ZL4VO/KF6VO
++
++#include "types.h"
++#include "kiwi.h"
++#include "cfg.h"
++#include "printf.h"
++#include "services.h"
++#include "rx_util.h"
++#include "rx_snr.h"
++#include "rx_waterfall.h"
++
++// Web-888 port: cfg_true() is a KiwiSDR cfg.h helper; Web-888 only has cfg_bool()
++#define cfg_true(s) cfg_bool(s, NULL, CFG_OPTIONAL)
++#define cfg_int_(s) cfg_int(s, NULL, CFG_OPTIONAL)
++
++// SNR measurement
++
++int snr_meas_interval_min, snr_all, snr_HF;
++int ant_connected = 1;
++bool snr_meas_active;   // Web-888 port: upstream has this in the kiwi struct
++SNR_meas_t SNR_meas_data[SNR_MEAS_MAX];
++static s2_t dB_raw[WF_WIDTH];
++
++int SNR_calc(SNR_meas_t *meas, int band, double f_lo, double f_hi, int zoom, bool filter = false)
++{
++    SNR_data_t *data = &meas->data[band];
++    memset(data, 0, sizeof(*data));
++    if ((f_lo == 0 && f_hi == 0) || f_lo < 0 || f_hi < 0 || f_hi < f_lo) return 0;
++
++    static int dB[WF_WIDTH];
++    int i, j, rv = 0, masked = 0;
++    double lo_kHz = f_lo - freq_offset_kHz, hi_kHz = f_hi - freq_offset_kHz;
++
++    zoom = CLAMP(zoom, 0, MAX_ZOOM);    // MAX_ZOOM == upstream ZOOM_CAP
++    double span_kHz = (ui_srate_kHz / (1 << zoom));
++    double cf_kHz = zoom? (lo_kHz + (hi_kHz - lo_kHz) / 2) : (ui_srate_kHz/2);
++    double left_kHz = cf_kHz - span_kHz/2;
++    if (left_kHz < 0) left_kHz = 0;
++    int start = (lo_kHz - left_kHz) / span_kHz * WF_WIDTH;
++    start = CLAMP(start, 0, WF_WIDTH);
++    int stop  = (hi_kHz - left_kHz) / span_kHz * WF_WIDTH;
++    stop = CLAMP(stop, 0, WF_WIDTH);
++
++    for (i = (int) start; i < stop; i++) {
++        //#define TEST_VDSL
++        #ifdef TEST_VDSL
++            if (band == SNR_BAND_ALL || band == SNR_BAND_HF) {
++                double kpp = span_kHz / WF_WIDTH;
++                double f = i*kpp;
++                if (f >= 2000 && f <= 3000) dB_raw[i] = -70;
++                if (f >= 4000 && f <= 6500) dB_raw[i] = -70;
++            }
++        #endif
++
++        if (dB_raw[i] <= -190) masked++;
++        dB[i] = dB_raw[i];
++    }
++    printf("SNR_calc-%d f=%.0f-%.0f z=%d bb=%.0f-%.0f fo=%.0f cf=%.0f span=%.3f left=%.3f start|stop=%d|%d masked_bins=%d\n",
++        band, f_lo, f_hi, zoom, lo_kHz, hi_kHz, freq_offset_kHz, cf_kHz, span_kHz, left_kHz, start, stop, masked);
++
++    // dB[bins = start:stop]
++    
++    // apply VDSL filter
++    if (filter && (band == SNR_BAND_ALL || band == SNR_BAND_HF)) {
++        int run = 0, prev_dBm = -190, have_run = 0, last_idx;
++        double kpp = span_kHz / WF_WIDTH, last_start;
++        int threshold = cfg_int_("snr_filter_thresh");
++        int delta = cfg_int_("snr_filter_delta");
++        int runlen_kHz = cfg_int_("snr_filter_runlen");
++        int runlen = ceilf((float) runlen_kHz / span_kHz * WF_WIDTH);
++        printf("SNR_calc-%d filtering: thresh=%d delta=%d runlen=%d(kHz)|%d(bins)\n",
++            band, threshold, delta, runlen_kHz, runlen);
++        
++        for (i = (int) start; i < stop; i++) {
++            double f = i*kpp;
++            int dBm = dB[i];
++            int diff = abs(dBm - prev_dBm);
++            //printf("f:%.0f dBm:%d|%d(%d)\n", f, dBm, prev_dBm, diff);
++            //real_printf("%.0f:%d:%d|%d(%d) ", f, i, dBm, prev_dBm, diff); fflush(stdout);
++            if (dBm >= threshold && prev_dBm >= threshold) {
++                if (diff <= delta) {
++                    if (run == 0) {
++                        last_start = f;
++                        last_idx = i;
++                    }
++                    run++;
++                    //printf("  #%d\n", run);
++                    //real_printf(GREEN "#%d" NORM " ", run); fflush(stdout);
++                } else {
++                    if (run > runlen) have_run = run;
++                    run = 0;
++                    //printf("  RESET delta\n");
++                    //real_printf(BLUE "DELTA" NORM " "); fflush(stdout);
++                }
++            } else {
++                if (run) //printf("  RESET level\n");
++                //if (run) { real_printf(RED "LEVEL" NORM " "); fflush(stdout); }
++                if (run > runlen) have_run = run;
++                run = 0;
++            }
++            if (have_run) {
++                //real_printf("\n");
++                printf("SNR_calc-%d FILTERED OUT: %.0f-%.0f(%.0f)\n",
++                    band, last_start, f, have_run * kpp);
++                for (j = last_idx; j < i+1; j++) {
++                    dB[j] = -190;       // notch the run
++                }
++                have_run = 0;
++            }
++            prev_dBm = dBm;
++        }
++    }
++    
++    // disregard masked and notched areas
++    int bins = 0;
++    for (i = (int) start; i < stop; i++) {
++        if (dB[i] <= -190) continue;
++        dB[bins] = dB[i];
++        bins++;
++    }
++
++    if (bins >= 32) {
++        data->fkHz_lo = f_lo; data->fkHz_hi = f_hi;
++        int pct_95 = 95;
++        int pct_50 = median_i(dB, bins, &pct_95);    // does int qsort on dB array
++        //#define TEST_USE_MAX
++        #ifdef TEST_USE_MAX
++            pct_95 = dB[bins-1];
++        #endif
++        #define FIT(x) ( ((x) > 0)? 0 : ( ((-(x)) > 255)? 255 : -(x) ) )
++        data->pct_50 = FIT(pct_50);
++        data->pct_95 = FIT(pct_95);
++        data->min = FIT(dB[0]); data->max = FIT(dB[bins-1]);
++        int snr = pct_95 - pct_50;
++        if (snr < 0) snr = 0;
++        rv = data->snr = snr;
++        //printf("SNR_calc-%d 50|%d,%d 95|%d,%d\n", band, pct_50, data->pct_50, pct_95, data->pct_95);
++        
++        // Antenna disconnect detector
++        // Rules based on observed cases. Avoiding false-positives is very important.
++        // Disconnected if:
++        // 1) freq_offset_kHz == 0 (via band == SNR_BAND_HF),
++        //      i.e. no V/UHF transverter setups that might be inherently quiet when no signals.
++        // 2) HF snr <= 3
++        // 3) Not greater than 2 peaks stronger than -100 dBm
++        if (band == SNR_BAND_HF) {
++            int peaks = 0;
++            for (i = 0; i < bins; i++) {
++                if (dB[i] >= -100) peaks++;
++            }
++            int _ant_connected = (data->snr <= 3 && peaks <= 2)? 0:1;
++            if (ant_connected != _ant_connected) {
++            
++                // wakeup the registration process (if any) so that the change in
++                // antenna disconnection shows up on rx.kiwisdr.com as soon as possible
++                bool woke = wakeup_reg_kiwisdr_com(WAKEUP_REG);
++                ant_connected = _ant_connected;
++                printf("SNR_calc-%d%s ant_connected=%d\n",
++                    band, woke? " WAKEUP_REGISTRATION" : "", ant_connected);
++            }
++        }
++        
++        printf("SNR_calc-%d min,max=%d,%d noise(50%%)=%d signal(95%%)=%d snr=%d\n",
++            band, -(data->min), -(data->max), -(data->pct_50), -(data->pct_95), data->snr);
++    } else {
++        printf("SNR_calc-%d WARNING: not enough bins for meaningful measurement\n", band);
++    }
++    
++    return rv;
++}
++
++int SNR_meas_tid;
++
++typedef struct {
++    float fkHz_lo, fkHz_hi;
++    u1_t band, zoom;
++} SNR_bands_t;
++SNR_bands_t SNR_bands[SNR_NBANDS];
++
++#define SNR_INTERVAL_CUSTOM 8
++static int snr_interval_min[] = { 0, 60, 4*60, 6*60, 24*60, 1, 5, 10, 0 };
++
++void SNR_meas(void *param)
++{
++    int i, j, n;
++    static internal_conn_t iconn;
++    static u2_t snr_seq;
++	bool on_demand = true;      // run once after restart
++    TaskSleepSec(20);           // long enough for autoruns to start first
++    
++    //#define SNR_MEAS_SELECT WF_SELECT_1FPS
++    //#define SNR_MEAS_SPEED WF_SPEED_1FPS
++    //#define SNR_MEAS_NAVGS 64
++    #define SNR_MEAS_SELECT WF_SELECT_FAST
++    #define SNR_MEAS_SPEED WF_SPEED_FAST
++    #define SNR_MEAS_NAVGS 32
++    //printf("SNR_meas SNR_MEAS_SELECT/SPEED=%d/%d\n", SNR_MEAS_SELECT, SNR_MEAS_SPEED);
++    //printf("SNR_meas sizeof(SNR_meas_data)=%d\n", sizeof(SNR_meas_data));
++    
++    do {
++        static int meas_idx;
++        snr_meas_active = true;
++        //bool filter = cfg_true("snr_meas_filter");
++        bool filter = false;
++	
++        // "snr_meas_interval_hrs" is really the menu index
++        int custom_min = cfg_int_("snr_meas_custom_min");
++        custom_min = CLAMP(custom_min, 0, 10080);   // 7-days max
++        int idx = cfg_int_("snr_meas_interval_hrs");
++        idx = CLAMP(idx, 0, SNR_INTERVAL_CUSTOM);
++        if (idx == SNR_INTERVAL_CUSTOM && custom_min != 0) {
++            snr_meas_interval_min = custom_min;
++        } else {
++            snr_meas_interval_min = snr_interval_min[idx];
++        }
++        printf("SNR_meas: snr_meas_interval_min=%d\n", snr_meas_interval_min);
++
++        for (int loop = 0; loop == 0 && (snr_meas_interval_min || on_demand); loop++) {     // so break can be used below
++
++            int f_lo = freq_offset_kHz, f_hi = freq_offmax_kHz;
++            int itu = cfg_int_("init.ITU_region") + 1;
++        
++            #define SNR_setup(b, lo, hi, z) \
++                SNR_bands[b].band = b; \
++                SNR_bands[b].fkHz_lo = lo; \
++                SNR_bands[b].fkHz_hi = hi; \
++                SNR_bands[b].zoom = z;
++        
++            SNR_setup(SNR_BAND_ALL,     f_lo,   f_hi,   0);
++            SNR_setup(SNR_BAND_HF,      1800,   f_hi,   0);
++            SNR_setup(SNR_BAND_0_2,     0,      1800,   0);
++            SNR_setup(SNR_BAND_2_10,    1800,   10000,  0);
++            SNR_setup(SNR_BAND_10_20,   10000,  20000,  0);
++            SNR_setup(SNR_BAND_20_MAX,  20000,  f_hi,   0);
++        
++            int custom_lo = cfg_int_("snr_meas_custom_lo");
++            custom_lo = CLAMP(custom_lo, f_lo, f_hi);
++            int custom_hi = cfg_int_("snr_meas_custom_hi");
++            custom_hi = CLAMP(custom_hi, f_lo, f_hi);
++            int custom_zoom = cfg_int_("snr_meas_custom_zoom");
++            custom_zoom = CLAMP(custom_zoom, 0, MAX_ZOOM);  // MAX_ZOOM == upstream ZOOM_CAP
++            SNR_setup(SNR_BAND_CUSTOM, custom_lo, custom_hi, custom_zoom);
++        
++            SNR_setup(SNR_BAND_HAM_LF,  135.7,  137.8,  13);
++            SNR_setup(SNR_BAND_HAM_MF,  472,    479,    11);
++            SNR_setup(SNR_BAND_HAM_160, 1800,   2000,   7);
++            SNR_setup(SNR_BAND_HAM_80,  3500,   (itu == 1)? 3800 : ((itu == 2)? 4000:3900), 5);
++            SNR_setup(SNR_BAND_HAM_60,  5250,   5450,   7);
++            SNR_setup(SNR_BAND_HAM_40,  7000,   (itu == 1)? 7200:7300, 6);
++            SNR_setup(SNR_BAND_HAM_30,  10100,  (itu == 3)? 10157.3:10150, 8);
++            SNR_setup(SNR_BAND_HAM_20,  14000,  14350,  6);
++            SNR_setup(SNR_BAND_HAM_17,  18068,  18168,  7);
++            SNR_setup(SNR_BAND_HAM_15,  21000,  21450,  6);
++            SNR_setup(SNR_BAND_HAM_12,  24890,  24990,  7);
++            SNR_setup(SNR_BAND_HAM_10,  28000,  29700,  4);
++            
++            SNR_setup(SNR_BAND_AM_BCB,  530,    (itu == 2)? 1700:1602, 4);
++
++            // Web-888 port: ant_switch extension has no snr support, no antenna settle delay needed
++
++            if (internal_conn_setup(ICONN_WS_WF, &iconn, 0, PORT_BASE_INTERNAL_SNR, WS_FL_PREEMPT_AUTORUN | WS_FL_NO_LOG,
++                NULL, 0, 0, 0,
++                "SNR-measure", "internal%20task", "SNR",
++                0, 15000, -110, -10, SNR_MEAS_SELECT, WF_COMP_OFF) == false) {
++                printf("SNR_meas: all channels busy\n");
++                break;
++            };
++    
++            SNR_meas_t *meas = &SNR_meas_data[meas_idx];
++            memset(meas, 0, sizeof(*meas));
++            meas_idx = ((meas_idx + 1) % SNR_MEAS_MAX);
++            // Web-888 port: no ant_switch snr support (antsw.snr_ant doesn't exist here)
++            meas->flags = 0;
++
++	        // relative to local time if timezone has been determined, utc otherwise
++	        if (cfg_true("snr_local_time")) {
++                bool is_local_time;
++                meas->tstamp = local_time(&is_local_time);
++                if (is_local_time) meas->flags |= SNR_F_TLOCAL;
++            } else {
++                meas->tstamp = utc_time();
++            }
++            
++            meas->seq = snr_seq++;
++            bool early_exit = false;
++            
++            for (int band = 0; band < SNR_NBANDS && !early_exit; band++) {
++                SNR_bands_t *bp = &SNR_bands[band];
++                float cf_kHz = bp->fkHz_lo + (bp->fkHz_hi - bp->fkHz_lo) / 2;
++                //printf("SNR_meas-%d CONSIDER\n", band);
++                
++                if (band == SNR_BAND_CUSTOM) {
++                    if ((custom_lo == 0 && custom_hi == 0) || custom_lo < f_lo || custom_hi > f_hi) {
++                        printf("SNR_meas CUSTOM band: not enabled\n");
++                        continue;
++                    }
++                } else
++                if (band > SNR_BAND_CUSTOM) {
++                    if (!cfg_true("snr_meas_ham")) {
++                        printf("SNR_meas HAM & AM BCB bands: not enabled\n");
++                        break;
++                    }
++                }
++                
++                //printf("SNR_meas-%d SET zoom=%d cf=%.3f\n", band, bp->zoom, cf_kHz);
++                if (bp->zoom != 0) {
++                    input_msg_internal(iconn.cwf, (char *) "SET zoom=%d cf=%.3f", bp->zoom, cf_kHz);
++                    TaskSleepMsec(500);
++                }
++        
++                memset(dB_raw, 0, sizeof(dB_raw));
++                nbuf_t *nb = NULL;
++                int nsamps;
++                for (nsamps = 0; nsamps < SNR_MEAS_NAVGS && !early_exit;) {
++                    do {
++                        if (nb) web_to_app_done(iconn.cwf, nb);
++                        if (iconn.cwf->kick) {
++                            printf("SNR_meas KICKED\n");
++                            early_exit = true;
++                            break;
++                        }
++                        n = web_to_app(iconn.cwf, &nb, INTERNAL_CONNECTION);
++                        if (n == 0) continue;
++                        if (n <= -1) {
++                            printf("SNR_meas early exit\n");
++                            early_exit = true;
++                            break;
++                        }
++                        wf_pkt_t *wf = (wf_pkt_t *) nb->buf;
++                        //printf("SNR_meas nsamps=%d rcv=%d <%.3s>\n", nsamps, n, wf->id4);
++                        if (strncmp(wf->id4, "W/F", 3) != 0) continue;
++                        for (j = 0; j < WF_WIDTH; j++) {
++                            dB_raw[j] += dB_wire_to_dBm(wf->un.buf[j]);
++                        }
++                        nsamps++;
++                        if (nsamps > SNR_MEAS_NAVGS) {
++                            printf("SNR_meas nsamps\n");
++                            early_exit = true;
++                            break;
++                        }
++                    } while (n);
++                    TaskSleepMsec(900 / SNR_MEAS_SPEED);
++                }
++                printf("SNR_meas DONE nsamps=%d early_exit=%d\n", nsamps, early_exit);
++                if (nsamps) {
++                    for (i = 0; i < WF_WIDTH; i++) {
++                            dB_raw[i] /= nsamps;
++                    }
++                }
++                
++                if (band == SNR_BAND_ALL) {
++                    for (int b = 0; b < SNR_BAND_NSTD; b++) {
++                        bp = &SNR_bands[b];
++                        int snr = SNR_calc(meas, b, bp->fkHz_lo, bp->fkHz_hi, bp->zoom, filter);
++                        if (b == SNR_BAND_ALL) snr_all = snr;
++                        if (b == SNR_BAND_HF) {
++                            if (f_lo != 0) {    // only measure HF if no transverter frequency offset has been set
++                                snr_HF = 0;
++                                break;
++                            }
++                            snr_HF = snr;
++                        }
++                    }
++                    band = SNR_BAND_NSTD - 1;
++                    continue;
++                } else
++                
++                if (band == SNR_BAND_CUSTOM) {
++                    printf("SNR_meas: CUSTOM %.0f-%.0f z%d\n", bp->fkHz_lo, bp->fkHz_hi, bp->zoom);
++                    SNR_calc(meas, band, bp->fkHz_lo, bp->fkHz_hi, bp->zoom);
++                } else {
++                    SNR_calc(meas, band, bp->fkHz_lo, bp->fkHz_hi, bp->zoom);
++                }
++            }
++
++            meas->flags |= SNR_F_VALID;
++            internal_conn_shutdown(&iconn);
++            
++            #ifdef OPTION_HONEY_POT
++                snr_all = snr_HF = 55;
++            #endif
++
++            if (on_demand) {
++                printf("SNR_meas: admin MEASURE NOW %d:%d\n", snr_all, freq_offset_kHz? -1 : snr_HF);
++                snd_send_msg(SM_SND_ADM_ALL, SM_NO_DEBUG,
++                    "MSG snr_stats=%d,%d", snr_all, freq_offset_kHz? -1 : snr_HF);
++            }
++        }
++        
++        // if disabled check again in an hour to see if re-enabled
++        u64_t min = snr_meas_interval_min? snr_meas_interval_min : 60;
++        
++        // an on_demand occurs where there is an on-demand request, such as the admin control tab
++        // "measure SNR now" button or the /snr?meas control URL
++        printf("SNR_meas: SLEEP min=%lld snr_meas_interval_min=%d %lld\n", min, snr_meas_interval_min, SEC_TO_USEC(min*60));
++        snr_meas_active = false;
++        // rv > 0: deadline expired
++        // rv == 0: on-demand measurement or antenna switched
++        int rv = (int) (intptr_t) TaskSleepSec(min * 60);   // Web-888 port: upstream uses FROM_VOID_PARAM
++        on_demand = (rv == 0)? true:false;
++        printf("SNR_meas: WAKEUP on_demand=%d seq=%d\n", on_demand, snr_seq);
++    } while (1);
++}
+diff --git a/rx/rx_waterfall.h b/rx/rx_waterfall.h
+index 2e13e02..d01d5dc 100644
+--- a/rx/rx_waterfall.h
++++ b/rx/rx_waterfall.h
+@@ -105,6 +105,9 @@ enum { WF_SELECT_OFF = 0,
+ 
+ #define WF_ZOOM_MIN 0
+ 
++// Web-888 0149: moved here from rx_waterfall.cpp so rx_snr.cpp can use it (== upstream ZOOM_CAP)
++#define MAX_ZOOM (kiwi.wf_share ? 11 : 14)
++
+ #define WF_COMP_OFF 0
+ #define WF_COMP_ON  1
+ 
+diff --git a/rx/rx_waterfall.cpp b/rx/rx_waterfall.cpp
+index 5f76241..967dff8 100644
+--- a/rx/rx_waterfall.cpp
++++ b/rx/rx_waterfall.cpp
+@@ -70,8 +70,6 @@ Boston, MA  02110-1301, USA.
+ #define WF_NSPEEDS 5
+ static const int wf_fps[] = { WF_SPEED_OFF, WF_SPEED_1FPS, WF_SPEED_SLOW, WF_SPEED_MED, WF_SPEED_FAST };
+ 
+-#define MAX_ZOOM (kiwi.wf_share ? 11 : 14)
+-
+ static const char* interp_s[] = { "max", "min", "last", "drop", "cma" };
+ 
+ static wf_shmem_t wf_shmem;
+diff --git a/rx/rx_util.h b/rx/rx_util.h
+index 197b1f1..280089f 100644
+--- a/rx/rx_util.h
++++ b/rx/rx_util.h
+@@ -48,33 +48,9 @@ typedef struct {
+ 
+ extern rx_util_t rx_util;
+ 
+-#define SNR_MEAS_MAX (24 * 7)
+-
+-#define SNR_MEAS_ALL    0
+-#define SNR_MEAS_HF     1
+-#define SNR_MEAS_0_2    2
+-#define SNR_MEAS_2_10   3
+-#define SNR_MEAS_10_20  4
+-#define SNR_MEAS_20_MAX 5
+-#define SNR_MEAS_NDATA  6
+-
+-typedef struct {
+-    int f_lo, f_hi, min, max, pct_50, pct_95, snr;
+-} SNR_data_t;
+-
+-typedef struct {
+-    bool valid;
+-    u4_t seq;
+-    char tstamp[CTIME_R_NL + 1 + SPACE_FOR_NULL];
+-    bool is_local_time;
+-    SNR_data_t data[SNR_MEAS_NDATA];
+-} SNR_meas_t;
+-
+-extern SNR_meas_t SNR_meas_data[SNR_MEAS_MAX];
+-extern int SNR_meas_tid;
++#include "rx_snr.h"
+ 
+ int dB_wire_to_dBm(int db_value);
+-void SNR_meas_task(void* param);
+ 
+ typedef enum { LOG_ARRIVED,
+                LOG_UPDATE,
+diff --git a/rx/rx_util.cpp b/rx/rx_util.cpp
+index 4410f30..33642a9 100644
+--- a/rx/rx_util.cpp
++++ b/rx/rx_util.cpp
+@@ -1122,186 +1122,3 @@ int dB_wire_to_dBm(int db_value) {
+ }
+ 
+ 
+-// schedule SNR measurements
+-
+-int snr_meas_interval_hrs, snr_all, snr_HF;
+-int ant_connected = 1;
+-bool snr_local_time;
+-SNR_meas_t SNR_meas_data[SNR_MEAS_MAX];
+-static int dB_raw[WF_WIDTH];
+-
+-/**
+- * Calculates the Signal-to-Noise Ratio (SNR) for a given frequency range.
+- *
+- * @param meas a pointer to the SNR_meas_t structure that will store the SNR data
+- * @param meas_type the type of SNR measurement being performed (e.g., SNR_MEAS_HF)
+- * @param f_lo the lower frequency boundary of the frequency range
+- * @param f_hi the upper frequency boundary of the frequency range
+- *
+- * @return the calculated SNR value
+- *
+- * @throws None
+- */
+-int SNR_calc(SNR_meas_t* meas, int meas_type, int f_lo, int f_hi) {
+-    static int dB[WF_WIDTH];
+-    int i, rv = 0, len = 0, masked = 0;
+-    int b_lo = f_lo - freq_offset_kHz, b_hi = f_hi - freq_offset_kHz;
+-    int start = (float)WF_WIDTH * b_lo / ui_srate_kHz;
+-    int stop = (float)WF_WIDTH * b_hi / ui_srate_kHz;
+-    // printf("b_lo=%d b_hi=%d fo=%d s/s=%d/%d\n", b_lo, b_hi, (int) freq_offset_kHz, start, stop);
+-
+-    for (i = (int)start; i < stop; i++) {
+-        if (dB_raw[i] <= -190) {
+-            masked++;
+-            continue; // disregard masked areas
+-        }
+-        dB[len] = dB_raw[i];
+-        len++;
+-    }
+-    // printf("SNR_calc-%d base=%d:%d freq=%d:%d start/stop=%d/%d len=%d masked=%d\n",
+-    //     meas_type, b_lo, b_hi, f_lo, f_hi, start, stop, len, masked);
+-
+-    if (len) {
+-        SNR_data_t* data = &meas->data[meas_type];
+-        data->f_lo = f_lo;
+-        data->f_hi = f_hi;
+-        data->pct_95 = 95;
+-        data->pct_50 = median_i(dB, len, &data->pct_95); // does int qsort on dB array
+-        data->min = dB[0];
+-        data->max = dB[len - 1];
+-        data->snr = data->pct_95 - data->pct_50;
+-        rv = data->snr;
+-
+-        // Antenna disconnect detector
+-        // Rules based on observed cases. Avoiding false-positives is very important.
+-        // Disconnected if:
+-        // 1) freq_offset_kHz == 0 (via meas_type == SNR_MEAS_HF),
+-        //      i.e. no V/UHF transverter setups that might be inherently quiet when no signals.
+-        // 2) HF snr <= 3
+-        // 3) Not greater than 2 peaks stronger than -100 dBm
+-        if (meas_type == SNR_MEAS_HF) {
+-            int peaks = 0;
+-            for (i = 0; i < len; i++) {
+-                if (dB[i] >= -100) peaks++;
+-            }
+-            int _ant_connected = (data->snr <= 3 && peaks <= 2) ? 0 : 1;
+-            if (ant_connected != _ant_connected) {
+-
+-                // wakeup the registration process (if any) so that the change in
+-                // antenna disconnection shows up on rx.kiwisdr.com as soon as possible
+-                bool woke = wakeup_reg_kiwisdr_com(WAKEUP_REG);
+-                ant_connected = _ant_connected;
+-                printf("SNR_calc-%d:%s ant_connected=%d\n",
+-                       meas_type, woke ? " WAKEUP_REGISTRATION" : "", ant_connected);
+-            }
+-        }
+-
+-        printf("SNR_calc-%d: [%d,%d] noise(50%%)=%d signal(95%%)=%d snr=%d range=%d|%d\n",
+-               meas_type, data->min, data->max, data->pct_50, data->pct_95,
+-               data->snr, data->pct_95 - data->min, data->max - data->min);
+-    }
+-
+-    return rv;
+-}
+-
+-int SNR_meas_tid;
+-
+-void SNR_meas_task(void* param) {
+-    int i, j, n, len;
+-    static internal_conn_t iconn;
+-    TaskSleepSec(20);
+-
+-//#define SNR_MEAS_SELECT WF_SELECT_1FPS
+-//#define SNR_MEAS_SPEED WF_SPEED_1FPS
+-//#define SNR_MEAS_NAVGS 64
+-#define SNR_MEAS_SELECT WF_SELECT_FAST
+-#define SNR_MEAS_SPEED  WF_SPEED_FAST
+-#define SNR_MEAS_NAVGS  32
+-    // printf("SNR_meas SNR_MEAS_SELECT/SPEED=%d/%d\n", SNR_MEAS_SELECT, SNR_MEAS_SPEED);
+-
+-    do {
+-        static int meas_idx;
+-
+-        for (int loop = 0; loop == 0 && snr_meas_interval_hrs; loop++) { // so break can be used below
+-            if (internal_conn_setup(ICONN_WS_WF, &iconn, 0, PORT_BASE_INTERNAL_SNR, WS_FL_PREEMPT_AUTORUN | WS_FL_NO_LOG,
+-                                    NULL, 0, 0, 0,
+-                                    "SNR-measure", "internal%20task", "SNR",
+-                                    WF_ZOOM_MIN, ADC_CLOCK_NOM / 4.0, -110, -10, SNR_MEAS_SELECT, WF_COMP_OFF) == false) {
+-                printf("SNR_meas: all channels busy\n");
+-                break;
+-            };
+-
+-            SNR_meas_t* meas = &SNR_meas_data[meas_idx];
+-            memset(meas, 0, sizeof(*meas));
+-            meas_idx = ((meas_idx + 1) % SNR_MEAS_MAX);
+-
+-            // relative to local time if timezone has been determined, utc otherwise
+-            if (snr_local_time) {
+-                time_t local = local_time(&meas->is_local_time);
+-                var_ctime_r(&local, meas->tstamp);
+-            }
+-            else {
+-                utc_ctime_r(meas->tstamp);
+-            }
+-            static u4_t snr_seq;
+-            meas->seq = snr_seq++;
+-
+-            memset(dB_raw, 0, sizeof(dB_raw));
+-
+-            nbuf_t* nb = NULL;
+-            bool early_exit = false;
+-            int nsamps;
+-            for (nsamps = 0; nsamps < SNR_MEAS_NAVGS && !early_exit;) {
+-                do {
+-                    if (nb) web_to_app_done(iconn.cwf, nb);
+-                    n = web_to_app(iconn.cwf, &nb, /* internal_connection */ true);
+-                    if (n == 0) continue;
+-                    if (n == -1) {
+-                        if (nsamps == 0) nsamps = 1;
+-                        early_exit = true;
+-                        break;
+-                    }
+-                    wf_pkt_t* wf = (wf_pkt_t*)nb->buf;
+-                    // printf("SNR_meas nsamps=%d rcv=%d <%.3s>\n", nsamps, n, wf->id4);
+-                    if (strncmp(wf->id4, "W/F", 3) != 0) continue;
+-                    for (j = 0; j < WF_WIDTH; j++) {
+-                        dB_raw[j] += dB_wire_to_dBm(wf->un.buf[j]);
+-                    }
+-                    nsamps++;
+-                } while (n);
+-                TaskSleepMsec(900 / SNR_MEAS_SPEED);
+-            }
+-            // printf("SNR_meas DONE nsamps=%d\n", nsamps);
+-            for (i = 0; i < WF_WIDTH; i++) {
+-                dB_raw[i] /= nsamps;
+-            }
+-
+-            int f_lo = freq_offset_kHz, f_hi = freq_offmax_kHz;
+-
+-            snr_all = SNR_calc(meas, SNR_MEAS_ALL, f_lo, f_hi);
+-
+-            // only measure HF if no transverter frequency offset has been set
+-            snr_HF = 0;
+-            if (f_lo == 0) {
+-                snr_HF = SNR_calc(meas, SNR_MEAS_HF, 1800, f_hi);
+-                SNR_calc(meas, SNR_MEAS_0_2, 0, 1800);
+-                SNR_calc(meas, SNR_MEAS_2_10, 1800, 10000);
+-                SNR_calc(meas, SNR_MEAS_10_20, 10000, 20000);
+-                SNR_calc(meas, SNR_MEAS_20_MAX, 20000, f_hi);
+-            }
+-
+-            meas->valid = true;
+-            internal_conn_shutdown(&iconn);
+-
+-#ifdef OPTION_HONEY_POT
+-            snr_all = snr_HF = 55;
+-#endif
+-        }
+-
+-        // TaskSleepSec(60);
+-        //  if disabled check again in an hour to see if re-enabled
+-        u64_t hrs = snr_meas_interval_hrs ? snr_meas_interval_hrs : 1;
+-        TaskSleepSec(hrs * 60 * 60);
+-        // TaskSleepSec(60);
+-    } while (1);
+-}
+diff --git a/kiwi.h b/kiwi.h
+index d4c8244..7f6f7e7 100644
+--- a/kiwi.h
++++ b/kiwi.h
+@@ -82,7 +82,7 @@ extern int version_maj, version_min;
+ extern bool background_mode, need_hardware, any_preempt_autorun,
+     DUC_enable_start, rev_enable_start, web_nocache, kiwi_reg_debug, cmd_debug,
+     have_ant_switch_ext, disable_led_task, debug_printfs, force_camp,
+-    snr_local_time, log_local_ip, DRM_enable, have_snd_users, admin_keepalive;
++    log_local_ip, DRM_enable, have_snd_users, admin_keepalive;
+ 
+ extern int ev_dump, tone, down, navg, meas, monitors_max,
+     gps_chans, rx_num, wf_num, bg, dx_print,
+@@ -90,7 +90,7 @@ extern int ev_dump, tone, down, navg, meas, monitors_max,
+     inactivity_timeout_mins, S_meter_cal, waterfall_cal, current_nusers, debug_v,
+     utc_offset, dst_offset, reg_kiwisdr_com_status, kiwi_reg_lo_kHz, kiwi_reg_hi_kHz,
+     debian_maj, debian_min, use_foptim, web_caching_debug,
+-    drm_nreg_chans, snr_meas_interval_hrs, snr_all, snr_HF, ant_connected;
++    drm_nreg_chans;
+ 
+ extern char** main_argv;
+ 
+diff --git a/rx/rx_init.cpp b/rx/rx_init.cpp
+index 22ac196..a40ed40 100644
+--- a/rx/rx_init.cpp
++++ b/rx/rx_init.cpp
+@@ -138,8 +138,6 @@ TYPEREAL DC_offset_I, DC_offset_Q;
+ #define WATERFALL_CALIBRATION_DEFAULT -13
+ #define SMETER_CALIBRATION_DEFAULT    -13
+ 
+-static int snr_interval[] = { 0, 1, 4, 6, 24 };
+-
+ void update_freqs(bool* update_cfg) {
+     ui_srate = ADC_CLOCK_TYP / 2.0;
+     ui_srate_kHz = round(ui_srate / kHz);
+@@ -306,8 +304,21 @@ void update_vars_from_config(bool called_at_init) {
+     max_thr = (float)cfg_default_int("overload_mute", -15, &update_cfg);
+     cfg_default_bool("agc_thresh_smeter", true, &update_cfg);
+     n_camp = cfg_default_int("n_camp", N_CAMP, &update_cfg);
+-    snr_meas_interval_hrs = snr_interval[cfg_default_int("snr_meas_interval_hrs", 1, &update_cfg)];
+-    snr_local_time = cfg_default_bool("snr_local_time", true, &update_cfg);
++
++    // Web-888 0149: snr_meas_interval_hrs is now the menu index (0-8); rx_snr.cpp
++    // maps it to minutes. Defaults ported from KiwiSDR rx_init.cpp (minus snr_meas_ant_sw).
++    cfg_default_int("snr_meas_interval_hrs", 1, &update_cfg);
++    cfg_default_bool("snr_local_time", true, &update_cfg);
++    cfg_default_bool("snr_meas_ham", false, &update_cfg);
++    cfg_default_bool("snr_meas_filter", true, &update_cfg);
++    cfg_default_int("snr_meas_custom_min", 0, &update_cfg);
++    cfg_default_int("snr_meas_custom_lo", 0, &update_cfg);
++    cfg_default_int("snr_meas_custom_hi", 0, &update_cfg);
++    cfg_default_int("snr_meas_custom_zoom", 0, &update_cfg);
++    cfg_default_int("snr_filter_thresh", -82, &update_cfg);
++    cfg_default_int("snr_filter_delta", 25, &update_cfg);
++    cfg_default_int("snr_filter_runlen", 300, &update_cfg);
++
+     any_preempt_autorun = cfg_default_bool("any_preempt_autorun", true, &update_cfg);
+     cfg_default_int("ident_len", IDENT_LEN_MIN, &update_cfg);
+     cfg_default_bool("show_geo", true, &update_cfg);
+diff --git a/rx/rx_server_ajax.cpp b/rx/rx_server_ajax.cpp
+index 398192f..8557588 100644
+--- a/rx/rx_server_ajax.cpp
++++ b/rx/rx_server_ajax.cpp
+@@ -458,23 +458,43 @@ char* rx_server_ajax(struct mg_connection* mc, char* ip_forwarded, void* ev_data
+     //	Can be requested by anyone.
+     //	Returns JSON
+     case AJAX_SNR: {
++        // Web-888 0149: handler ported from KiwiSDR v1.902 (rx_server_ajax.cpp);
++        // adaptations: no ant_switch support, TaskWakeupF (no TWF_TIME_REMAINING), var_ctime_r.
++        if (kiwi_nonEmptyStr(mc->query) && strncmp(mc->query, "meas", 4) == 0) {
++            if (isLocalIP) {
++                if (SNR_meas_tid) {
++                    TaskWakeupF(SNR_meas_tid, TWF_CANCEL_DEADLINE);
++                }
++                asprintf(&sb, "/snr: measuring..\n");
++            } else {
++                asprintf(&sb, "/snr: NON_LOCAL MEASURE ATTEMPT from %s\n", ip_unforwarded);
++            }
++            printf("%s", sb);
++            break;
++        }
++
+         bool need_comma1 = false;
+         char *sb = (char*)"[", *sb2;
+         for (i = 0; i < SNR_MEAS_MAX; i++) {
+             SNR_meas_t* meas = &SNR_meas_data[i];
+-            if (!meas->valid) continue;
+-            asprintf(&sb2, "%s{\"ts\":\"%s\",\"seq\":%u,\"utc\":%d,\"ihr\":%d,\"snr\":[",
+-                     need_comma1 ? "," : "", meas->tstamp, meas->seq, meas->is_local_time ? 0 : 1, snr_meas_interval_hrs);
++            if (!(meas->flags & SNR_F_VALID)) continue;
++            char tb[32];
++            var_ctime_r(&meas->tstamp, tb);
++            asprintf(&sb2, "%s{\"ts\":\"%s\",\"seq\":%u,\"utc\":%d,\"imin\":%d,\"ant\":%d,\"snr\":[",
++                     need_comma1 ? "," : "", tb, meas->seq, (meas->flags & SNR_F_TLOCAL) ? 0 : 1,
++                     snr_meas_interval_min, meas->flags & SNR_F_ANT);
+             need_comma1 = true;
+             sb = kstr_cat(sb, kstr_wrap(sb2));
+ 
++            bool ham = cfg_bool("snr_meas_ham", NULL, CFG_OPTIONAL);
+             bool need_comma2 = false;
+-            for (j = 0; j < SNR_MEAS_NDATA; j++) {
++            for (j = 0; j < SNR_NBANDS; j++) {
++                if (!ham && j == SNR_BAND_HAM_LF) break;
+                 SNR_data_t* data = &meas->data[j];
+-                if (data->f_lo == 0 && data->f_hi == 0) continue;
+-                asprintf(&sb2, "%s{\"lo\":%d,\"hi\":%d,\"min\":%d,\"max\":%d,\"p50\":%d,\"p95\":%d,\"snr\":%d}",
+-                         need_comma2 ? "," : "", data->f_lo, data->f_hi,
+-                         data->min, data->max, data->pct_50, data->pct_95, data->snr);
++                if (data->fkHz_lo == 0 && data->fkHz_hi == 0) continue;
++                asprintf(&sb2, "%s{\"lo\":%.0f,\"hi\":%.0f,\"min\":%d,\"max\":%d,\"p50\":%d,\"p95\":%d,\"snr\":%d}",
++                         need_comma2 ? "," : "", data->fkHz_lo, data->fkHz_hi,
++                         -(data->min), -(data->max), -(data->pct_50), -(data->pct_95), data->snr);
+                 need_comma2 = true;
+                 sb = kstr_cat(sb, kstr_wrap(sb2));
+             }
+diff --git a/net/services.cpp b/net/services.cpp
+index 0a5f291..66f9dfc 100644
+--- a/net/services.cpp
++++ b/net/services.cpp
+@@ -852,7 +852,7 @@ void services_start() {
+     CreateTask(pub_NET, 0, SERVICES_PRIORITY);
+     CreateTask(get_TZ, 0, SERVICES_PRIORITY);
+     CreateTask(misc_NET, 0, SERVICES_PRIORITY);
+-    SNR_meas_tid = CreateTaskF(SNR_meas_task, 0, SERVICES_PRIORITY, CTF_NO_LOG);
++	SNR_meas_tid = CreateTaskF(SNR_meas, 0, SERVICES_PRIORITY, CTF_NO_LOG);
+     // CreateTask(git_commits, 0, SERVICES_PRIORITY);
+ 
+     if (!disable_led_task)
+diff --git a/support/misc.h b/support/misc.h
+index ed3326c..112c5aa 100644
+--- a/support/misc.h
++++ b/support/misc.h
+@@ -36,6 +36,8 @@ int median_i(int* i, int len, int* pct_1 = NULL, int* pct_2 = NULL);
+ #define SM_DEBUG       true
+ #define SM_NO_DEBUG    false
+ #define SM_RX_CHAN_ALL -1
++#define SM_SND_ADM_ALL -2
++#define SM_ADMIN_ALL   -3
+ 
+ void send_msg_buf(conn_t* c, char* s, int slen);
+ void send_msg(conn_t* c, bool debug, const char* msg, ...);
+@@ -44,6 +46,7 @@ void send_msg_data2(conn_t *c, bool debug, u1_t cmd, u1_t *bytes2, int nbytes2,
+ void send_msg_mc(struct mg_connection* mc, bool debug, const char* msg, ...);
+ void send_msg_encoded(conn_t* conn, const char* dst, const char* cmd, const char* fmt, ...);
+ void send_msg_mc_encoded(struct mg_connection* mc, const char* dst, const char* cmd, const char* fmt, ...);
++int snd_send_msg(int rx_chan, bool debug, const char* msg, ...);
+ int snd_send_msg_encoded(int rx_chan, bool debug, const char* dst, const char* cmd, const char* msg, ...);
+ void snd_send_msg_data(int rc_chan, bool debug, u1_t cmd, u1_t* bytes, int nbytes);
+ void input_msg_internal(conn_t* conn, const char* fmt, ...);
+diff --git a/support/misc.cpp b/support/misc.cpp
+index c1f3a9d..1566a17 100644
+--- a/support/misc.cpp
++++ b/support/misc.cpp
+@@ -30,6 +30,8 @@ Boston, MA  02110-1301, USA.
+ #include "net.h"
+ #include "debug.h"
+ #include "mongoose.h"
++#include "conn.h"
++#include "rx_server_ajax.h"
+ 
+ #include <sys/file.h>
+ #include <fcntl.h>
+@@ -223,6 +225,46 @@ void send_msg_mc_encoded(struct mg_connection* mc, const char* dst, const char*
+ // send to the SND web socket
+ // note the conn_t difference below
+ // rx_chan == SM_RX_CHAN_ALL means send to all connected channels
++// Web-888 0149: snd_send_msg ported from KiwiSDR v1.902 (support/misc.cpp);
++// adds SM_SND_ADM_ALL / SM_ADMIN_ALL broadcast targets needed by rx_snr.
++int snd_send_msg(int rx_chan, bool debug, const char* msg, ...)
++{
++    int rv = -1;
++    char* s;
++
++    va_list ap;
++    va_start(ap, msg);
++    vasprintf(&s, msg, ap);
++    va_end(ap);
++
++    if (rx_chan == SM_ADMIN_ALL) {
++        for (conn_t* c = conns; c < &conns[N_CONNS]; c++) {
++            if (!c->valid || c->type != STREAM_ADMIN) continue;
++            send_msg_buf(c, s, strlen(s));
++            rv = 0;
++        }
++    } else if (rx_chan == SM_SND_ADM_ALL) {
++        for (conn_t* c = conns; c < &conns[N_CONNS]; c++) {
++            if (!c->valid || (c->type != STREAM_SOUND && c->type != STREAM_ADMIN)) continue;
++            send_msg_buf(c, s, strlen(s));
++            rv = 0;
++        }
++    } else {
++        for (int ch = 0; ch < rx_chans; ch++) {
++            if (rx_chan == SM_RX_CHAN_ALL || rx_chan == ch) {
++                conn_t* c = rx_channels[ch].conn;
++                if (!c) continue;
++                if (debug) printf("send_msg: RX%d(%p) <%s>\n", ch, c, s);
++                send_msg_buf(c, s, strlen(s));
++                rv = 0;
++            }
++        }
++    }
++
++    kiwi_asfree(s, "snd_send_msg");
++    return rv;
++}
++
+ int snd_send_msg_encoded(int rx_chan, bool debug, const char* dst, const char* cmd, const char* msg, ...) {
+     int rv = -1;
+     va_list ap;
+diff --git a/web/kiwi/admin.js b/web/kiwi/admin.js
+index 7633291..f037b6f 100644
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -460,8 +460,7 @@ function control_html()
+    var n_camp_u = [ 'disable camping' ];
+    for (i = 1; i <= max_camp; i++)
+       n_camp_u[i] = i.toFixed(0);
+-   // Web-888: keep the old 5-entry interval menu until the B.4 rx_snr port brings the custom-interval server side
+-   var snr_interval_u = [ 'disable', 'hourly', '4 hours', '6 hours', '24 hours' ];
++   var snr_interval_u = [ 'disable', 'hourly', '4 hours', '6 hours', '24 hours', '1 min', '5 min', '10 min', 'custom' ];
+ 
+ 	var s3 =
+ 		'<hr>' +
+@@ -494,19 +493,38 @@ function control_html()
+          ),
+ 
+ 			w3_divs('/w3-center w3-tspace-8',
+-            w3_select('w3-width-auto', 'SNR measurement interval', '', 'cfg.snr_meas_interval_hrs', cfg.snr_meas_interval_hrs, snr_interval_u, 'admin_select_cb'),
++            w3_select('w3-width-auto', 'SNR measurement interval', '', 'cfg.snr_meas_interval_hrs', cfg.snr_meas_interval_hrs, snr_interval_u, 'control_snr_interval_cb'),
+ 				w3_text('w3-text-black w3-center',
+ 				   'Enables automatic sampling of <br>' +
+ 				   'signal-to-noise ratio (SNR) at the specified interval. <br>' +
+ 				   'Access SNR data in JSON format using <br>' +
+ 				   'URL of the form: <i>my_sdr:8073/snr</i>'
+-				)
++				),
++				w3_div('id-snr-remain w3-margin-top w3-bold')
+ 			),
+ 
+ 			w3_divs('/w3-tspace-8',
+             w3_checkbox_get_param('//w3-label-inline w3-restart', 'Non native connections can preempt autorun processes', 'any_preempt_autorun', 'admin_bool_cb', true),
+-            w3_checkbox_get_param('//w3-label-inline', 'Timestamp SNR with local time', 'snr_local_time', 'admin_bool_cb', true),
+-            w3_button('w3-aqua w3-margin-T-16', 'Measure SNR now', 'control_snr_measure_cb')
++            w3_div('w3-margin-T-8',
++               w3_text('w3-margin-B-8 w3-text-teal w3-bold', 'SNR measurement options:'),
++               w3_checkbox_get_param('//w3-label-inline', 'Timestamp SNR with local time', 'snr_local_time', 'admin_bool_cb', true),
++               w3_checkbox_get_param('//w3-label-inline', 'Also measure ham bands and AM BCB', 'snr_meas_ham', 'admin_bool_cb', false),
++               // Web-888 0149: no snr_meas_ant_sw ("Measure on antenna change") — ant_switch not supported
++               w3_input_get('w3-margin-top//', 'Custom interval (min)', 'snr_meas_custom_min', 'control_snr_measure_custom_cb'),
++               w3_inline('w3-margin-T-8',
++                  w3_text('w3-text-teal w3-bold', 'Custom band:'),
++                  w3_link('w3-link-darker-color w3-margin-L-4', '//forum.kiwisdr.com/index.php?p=/discussion/comment/21044/#Comment_21044', 'more info')
++               ),
++               w3_inline('w3-valign w3-gap-16 w3-halign-space-between/',
++                  w3_input_get('', 'Freq lo (kHz)', 'snr_meas_custom_lo', 'admin_int_cb'),
++                  w3_input_get('', 'Freq hi (kHz)', 'snr_meas_custom_hi', 'admin_int_cb'),
++                  w3_input_get('', 'Zoom', 'snr_meas_custom_zoom', 'admin_int_cb')
++               )
++            ),
++            w3_inline('w3-margin-top w3-valign/',
++               w3_button('w3-aqua', 'Measure SNR now', 'control_snr_measure_cb'),
++               w3_div('id-msg-snr-now w3-margin-left w3-text-black')
++            )
+          )
+ 		) +
+ 		'<hr>';
+@@ -572,11 +590,37 @@ function control_user_kick_cb(id, idx)
+ 	ext_send('SET user_kick=-1');
+ }
+ 
++function control_snr_measure_custom_cb(id, idx, first)
++{
++   //console.log('control_snr_measure_custom_cb id='+ id +' idx='+ idx +' first='+ first);
++   if (first) return;
++   admin_int_cb(id, idx, first);
++   if (cfg.snr_meas_interval_hrs == kiwi.SNR_CUSTOM) {
++      var min = cfg.snr_meas_custom_min;
++      ext_send('SET snr_interval='+ (min * 60));
++      w3_innerHTML('id-snr-remain', 'Next measurement in '+ min +' min');
++   }
++}
++
+ function control_snr_measure_cb(id, idx)
+ {
++   kiwi.snr_measuring = true;
++   w3_innerHTML('id-msg-snr-now', w3_icon('', 'fa-refresh fa-spin', 24) + ' &nbsp; measuring..');
+ 	ext_send('SET snr_meas');
+ }
+ 
++function control_snr_interval_cb(path, idx, first)
++{
++   idx = +idx;
++   //console.log('control_snr_interval_cb path='+ path +' idx='+ idx +' first='+ first);
++   if (first) return;
++   admin_select_cb(path, idx, first);
++   var min = (idx == kiwi.SNR_CUSTOM)? cfg.snr_meas_custom_min : kiwi.snr_intervals_min[idx];
++   ext_send('SET snr_interval='+ (min * 60));
++   var s = idx? ('Next measurement in '+ min +' min') : 'Measurement disabled';
++   w3_innerHTML('id-snr-remain', s);
++}
++
+ function reason_cb(path, val)
+ {
+ 	w3_string_set_cfg_cb(path, val);
+diff --git a/web/kiwi/kiwi.js b/web/kiwi/kiwi.js
+index 40cab02..2cc6b53 100644
+--- a/web/kiwi/kiwi.js
++++ b/web/kiwi/kiwi.js
+@@ -12,6 +12,10 @@ var kiwi = {
+ 
+    platform: -1,
+    platform_s: [ "Zynq7010" ],
++
++   snr_measuring: false,
++   SNR_CUSTOM: 8,
++   snr_intervals_min: [ 0, 60, 4*60, 6*60, 24*60, 1, 5, 10, 0 ],
+    
+    cfg:   { seq:0, name:'cfg',   cmd:'save_cfg',   lock:0, timeout:null },
+    dxcfg: { seq:0, name:'dxcfg', cmd:'save_dxcfg', lock:0, timeout:null },
+@@ -2866,6 +2870,44 @@ var kiwi_output_msg_p = { scroll_only_at_bottom: true, inline_returns: true, pro
+ var client_public_ip;
+ 
+ // includes msgs relevant for both user and admin modes
++function kiwi_snr_stats(all, hf, remain)
++{
++   all = parseInt(all);
++   hf = parseInt(hf);
++   remain = parseInt(remain);
++   //console.log('kiwi_snr_stats snr='+ all +':'+ hf +' remain='+ remain);
++   if (!isNaN(all)) {
++      if (hf == -1) {
++         // only show single SNR when transverter frequency offset
++         w3_innerHTML('id-rx-snr', ', SNR ', all, ' dB');
++         w3_innerHTML('id-msg-snr', 'SNR: All ', all, ' dB');
++      } else {
++         w3_innerHTML('id-rx-snr', ', SNR ', all, ':', hf, ' dB');
++         w3_innerHTML('id-msg-snr', 'SNR: All ', all, ' dB, HF ', hf, ' dB');
++      }
++      if (!kiwi.snr_measuring) {
++         w3_innerHTML('id-msg-snr-now', 'SNR: All ', all, ' dB', (hf != -1)? (', HF '+ hf +' dB') : '');
++      }
++      if (all == -1 && hf == -1) {
++         w3_innerHTML('id-msg-snr-now', 'ERROR: antenna is grounded');
++      }
++
++      if (remain > 0) {
++         if (cfg.snr_meas_interval_hrs == 0) {
++            w3_innerHTML('id-snr-remain', 'Measurement disabled');
++         } else {
++            remain = Math.floor(remain/60);
++            if (remain == 0) remain = 'less than 1';
++            w3_innerHTML('id-snr-remain', 'Next measurement in '+ remain +' min');
++         }
++      } else
++      if (remain == -1) {
++         w3_innerHTML('id-snr-remain', w3_icon('', 'fa-refresh fa-spin', 24) + ' &nbsp; measuring..');
++      }
++   }
++   // Web-888 0149: no trailing position_top_bar() call (function absent in fork)
++}
++
+ function kiwi_msg(param, ws)
+ {
+ 	var rtn = true;
+@@ -2883,9 +2925,15 @@ function kiwi_msg(param, ws)
+ 			kiwi.platform = parseInt(param[1]);
+ 			break;
+ 
+-		case "ext_clk":
+-			kiwi.ext_clk = parseInt(param[1]);
+-			break;
++	case "ext_clk":
++		kiwi.ext_clk = parseInt(param[1]);
++		break;
++
++	case "snr_stats":
++		kiwi.snr_measuring = false;
++		var p = param[1].split(',');
++		kiwi_snr_stats(p[0], p[1], 0);
++		break;
+ 
+ 		case "client_public_ip":
+ 			client_public_ip = param[1].replace(/::ffff:/, '');    // remove IPv4-mapped IPv6 if any
+@@ -3104,14 +3152,7 @@ function kiwi_msg(param, ws)
+ 				   //console.log('stat kiwi.WSPR_rgrid='+ kiwi.WSPR_rgrid);
+ 				}
+ 				
+-				if (o.sh == -1) {
+-				   // only show single SNR when transverter frequency offset
+-               w3_innerHTML('id-rx-snr', ', SNR ', o.sa, ' dB');
+-               w3_innerHTML('id-msg-snr', 'SNR: All ', o.sa, ' dB');
+-				} else {
+-               w3_innerHTML('id-rx-snr', ', SNR ', o.sa, ':', o.sh, ' dB');
+-               w3_innerHTML('id-msg-snr', 'SNR: All ', o.sa, ' dB, HF ', o.sh, ' dB');
+-				}
++				kiwi_snr_stats(o.sa, o.sh, o.tr);
+ 
+ 				admin_stats_cb(o.ad, o.au, o.ae, o.ar, o.an, o.ap, o.an2, o.ai);
+ 				w3_call('config_status_cb', o);

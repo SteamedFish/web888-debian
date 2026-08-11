@@ -381,3 +381,32 @@ patches (0104) — only reports drift on those.
   tree. QEMU + hardware smoke gate owed before release (watch for the
   absence of `socket error 2` lines while browsing /admin, and confirm real
   connection errors still close).
+
+## 0149-kiwi-rx-snr-port.patch
+
+- **Upstream:** KiwiSDR v1.902 `rx/rx_snr.{h,cpp}` + `web/kiwi/admin.js`
+  SNR config UI + `web/kiwi/kiwi.js` `kiwi_snr_stats()`/`snr_stats` MSG
+  handling (feature port, no single commit — the framework grew across many
+  upstream commits; source: `.tmp/repos/KiwiSDR` at c40ecb4).
+- **Why:** plan doc step B.4, the last feature epic of the KiwiSDR
+  alignment work. Web-888's stock SNR support was hourly-interval only with
+  an integer-edge `/snr` JSON and no custom band / ham-band measurements.
+- **What it does:** imports `rx_snr.{h,cpp}` wholesale and adapts it:
+  TaskSleepSec/TaskWakeupF(TWF_CANCEL_DEADLINE) scheduling (no
+  TWF_TIME_REMAINING), plain-double `freq_offset_kHz` globals,
+  `ZOOM_CAP -> MAX_ZOOM` (moved to `rx_waterfall.h`), `cfg_true()`/
+  `cfg_int_()` local macros, and **no ant_switch SNR coupling**
+  (`snr_meas_ant_sw`/`antsw.snr_ant` dropped). Replaces the hourly-only
+  SNR block in `rx/rx_util.{h,cpp}` and the old int-edge `/snr` JSON with
+  imin/ant + float band edges. `admin.js` gets the full upstream SNR
+  options UI (1/5/10-min + custom intervals, custom band lo/hi/zoom,
+  ham-band checkbox, measure-now spinner, countdown) minus the ant_switch
+  checkbox; `kiwi.js` gets `kiwi.SNR_CUSTOM`, `kiwi.snr_intervals_min`,
+  `kiwi_snr_stats()` and the `MSG snr_stats` case.
+- **Scope:** 14 files — 2 new (`rx/rx_snr.{h,cpp}`), 10 C++ modified, 2 JS
+  modified. All fork deviations marked `Web-888 0149:`.
+- **Verification:** `patch -p1 --dry-run` clean against the post-0148
+  series tree; host `g++ -fsyntax-only` pass on all touched C++; `node
+  --check` on both JS files. QEMU + hardware smoke gate owed before
+  release (watch `/snr` JSON for `imin`, "Measure SNR now" button, custom
+  interval save/reload).
