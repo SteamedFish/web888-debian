@@ -9,6 +9,17 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-12] — websdr: 0147 patch refresh (dpkg-source fuzz-0 build fix)
+
+### Fixed
+
+- **0147 FaxDecoder.cpp section regenerated with exact context** — the
+  original hand-applied hunk #2 only applied with fuzz 2, which plain
+  `patch --dry-run` tolerates but `dpkg-source` (`patch -F 0`) rejects,
+  breaking the deb build at the 0147 step. The section was regenerated
+  from a reconstructed post-0146 series tree; 0147/0148/0149 all verified
+  with `patch -p1 --dry-run -F 0` on their respective bases.
+
 ## [2026-08-11] — websdr: KiwiSDR rx_snr SNR framework port (cherry-pick 0149)
 
 ### Added

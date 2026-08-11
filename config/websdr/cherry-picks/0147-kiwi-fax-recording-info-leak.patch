@@ -26,8 +26,8 @@ index 9aef440..bfa0c01 100644
      NextTaskFast("DecodeImageLine end");
  }
 @@ -554,42 +553,3 @@ void FaxDecoder::CleanUpBuffers()
-     delete [] m_demod_data;
-     delete [] phasingPos;
+      delete [] m_demod_data;
+      delete [] phasingPos;
  }
 -
 -// SECURITY:
