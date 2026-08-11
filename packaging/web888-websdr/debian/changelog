@@ -1,3 +1,12 @@
+web888-websdr (2026.730-4) UNRELEASED; urgency=medium
+
+  * Cherry-pick 0148 (Web-888 local): epoll EPOLLERR on a gracefully
+    closing peer (/admin websocket "socket error 2" drops) no longer
+    takes the mg_error hard-close path; SO_ERROR is checked first
+    (sdrpp_server precedent).
+
+ -- SteamedFish <steamedfish@hotmail.com>  Tue, 11 Aug 2026 15:10:00 +0800
+
 web888-websdr (2026.730-3) UNRELEASED; urgency=medium
 
   * Cherry-pick 0147 (KiwiSDR f98b3779, post-v1.902): remove the FAX

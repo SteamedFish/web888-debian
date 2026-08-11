@@ -1,0 +1,43 @@
+Web-888-local fix (no upstream equivalent): stop logging "socket error 2"
+(mg_error, which also hard-closes) when epoll reports EPOLLERR for a
+gracefully-closing peer. EPOLLERR fires on any pending error condition, but
+also accompanies a normal peer close — the /admin websocket was being dropped
+~0.5 s after connect with an mg_error log line every time the browser
+navigated away or reconnected. Now SO_ERROR is read via getsockopt() first:
+only a real pending socket error takes the mg_error path; a clean SO_ERROR
+treats the event as readable/HUP so the normal read path closes the
+connection quietly. Precedent: pkgs/sdrpp_server/sdrpp_server.cpp SO_ERROR
+check. Scope: epoll branch only (the poll/select "socket error 3/4" paths
+are not used by the Web-888 build and keep upstream behavior).
+Background: docs/dev/mongoose-websocket-socket-error-investigation.md.
+
+diff --git a/pkgs/mongoose/mongoose.cpp b/pkgs/mongoose/mongoose.cpp
+index f1aac37..c87231a 100644
+--- a/pkgs/mongoose/mongoose.cpp
++++ b/pkgs/mongoose/mongoose.cpp
+@@ -7722,7 +7722,24 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
+   for (int i = 0; i < n; i++) {
+     struct mg_connection *c = (struct mg_connection *) evs[i].data.ptr;
+     if (evs[i].events & EPOLLERR) {
+-      mg_error(c, "socket error 2");
++      // Web-888 0148: EPOLLERR also fires when the peer closed gracefully
++      // (e.g. the /admin browser navigating away ~0.5 s after connect).
++      // Only hard-close on a real pending socket error; a clean SO_ERROR
++      // means graceful close — drive the normal read path (read returns 0)
++      // so the connection shuts down without an mg_error log line.
++      // Precedent: pkgs/sdrpp_server/sdrpp_server.cpp SO_ERROR check.
++      int soerr = 0;
++      socklen_t soerr_len = sizeof(soerr);
++      if (getsockopt(FD(c), SOL_SOCKET, SO_ERROR, &soerr, &soerr_len) == 0 &&
++          soerr == 0) {
++        bool rd = evs[i].events & (EPOLLIN | EPOLLHUP | EPOLLERR);
++        bool wr = evs[i].events & EPOLLOUT;
++        c->is_readable = can_read(c) && rd ? 1U : 0;
++        c->is_writable = can_write(c) && wr ? 1U : 0;
++        if (c->rtls.len > 0 || mg_tls_pending(c) > 0) c->is_readable = 1;
++      } else {
++        mg_error(c, "socket error 2");
++      }
+     } else if (c->is_readable == 0) {
+       bool rd = evs[i].events & (EPOLLIN | EPOLLHUP);
+       bool wr = evs[i].events & EPOLLOUT;

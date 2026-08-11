@@ -70,6 +70,12 @@
 # info leak) in favor of a browser-side Save button (canvas JPEG download).
 0147-kiwi-fax-recording-info-leak.patch
 
+# 0148: Web-888-local mongoose fix — epoll EPOLLERR on a gracefully-closing
+# peer (admin websocket navigating away) no longer takes the mg_error
+# hard-close path; SO_ERROR is checked first (sdrpp_server precedent).
+# Background: docs/dev/mongoose-websocket-socket-error-investigation.md.
+0148-mongoose-epollerr-graceful-close.patch
+
 # Step 3.5 Debian compatibility fixes.
 # These apply AFTER the cherry-picks: 0104 rewrites admin.cpp's DNS block
 # (inet4_d2h_strict) in the same region 0014 touches — applying 0014 first

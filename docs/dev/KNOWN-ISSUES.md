@@ -27,6 +27,11 @@ materialises:
 
 ## 4. Minor / watchlist
 
+- **0148 mongoose EPOLLERR fix pending hardware verification** — the
+  `/admin` websocket "socket error 2" drop ~0.5 s after connect is fixed
+  locally (0148, SO_ERROR pre-check), but watch for regressions both ways
+  once deployed: no more spurious `socket error 2` lines while browsing
+  /admin, and real connection errors must still close/log.
 - **PSKReporter UDP path untested** — the KiwiSDR cherry-pick batch touched
   this code; autorun is off on the development unit, so it has never
   exercised the path on hardware.

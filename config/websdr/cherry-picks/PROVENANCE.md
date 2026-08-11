@@ -356,3 +356,28 @@ patches (0104) — only reports drift on those.
   `FAX_blur` is kept, matching upstream post-fix.
 - **Verification:** `patch -p1 --dry-run` clean against the pristine pin tree
   (FaxDecoder.cpp hunk #2 applies with fuzz 2 — context-only drift).
+
+## 0148-mongoose-epollerr-graceful-close.patch
+
+- **Upstream:** none — Web-888-local fix (mongoose 7.14 and cesanta master both
+  keep the plain `mg_error(c, "socket error")` behavior; verified in
+  `docs/dev/mongoose-websocket-socket-error-investigation.md`).
+- **Why:** on the Debian image the `/admin` websocket was dropped ~0.5 s after
+  connect with `mongoose ... socket error 2` in the log. Code-traced: epoll
+  reports `EPOLLERR` for the connection's socket; that also fires on a
+  *graceful* peer close (browser navigating away / reconnecting), so the
+  connection took the `mg_error` hard-close path and logged an error for a
+  normal event.
+- **What it does:** in `mg_iotest()`'s epoll branch, `SO_ERROR` is read via
+  `getsockopt()` before deciding. Only a real pending socket error takes the
+  `mg_error` path; a clean `SO_ERROR` treats the event as readable/HUP
+  (same handling as the non-error branch, `EPOLLERR` included in the read
+  mask) so the next read returns 0 and the connection closes quietly.
+  Precedent: `pkgs/sdrpp_server/sdrpp_server.cpp` SO_ERROR check.
+- **Scope:** epoll branch only. The poll/select `socket error 3/4` paths are
+  not used by the Web-888 build (`MG_ENABLE_EPOLL`) and keep upstream
+  behavior.
+- **Verification:** `patch -p1 --dry-run` clean against the post-0147 series
+  tree. QEMU + hardware smoke gate owed before release (watch for the
+  absence of `socket error 2` lines while browsing /admin, and confirm real
+  connection errors still close).

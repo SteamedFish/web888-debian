@@ -9,6 +9,23 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-11] — websdr: mongoose EPOLLERR graceful-close fix (0148)
+
+### Fixed
+
+- **Cherry-pick 0148 (Web-888 local): `/admin` websocket `socket error 2`
+  drops.** epoll `EPOLLERR` in mongoose's `mg_iotest()` also fires on a
+  graceful peer close (admin browser navigating away), sending the
+  connection down the `mg_error` hard-close path and logging an error
+  ~0.5 s after every connect. The epoll branch now reads `SO_ERROR` via
+  `getsockopt()` first (`sdrpp_server` precedent): only real pending
+  socket errors hard-close; graceful closes shut down quietly through the
+  normal read path. New patch
+  `config/websdr/cherry-picks/0148-mongoose-epollerr-graceful-close.patch`;
+  background in
+  `docs/dev/mongoose-websocket-socket-error-investigation.md` (now
+  tracked). Deb `web888-websdr 2026.730-4`.
+
 ## [2026-08-11] — websdr: FAX recording info-leak fix (cherry-pick 0147)
 
 ### Fixed
