@@ -330,3 +330,29 @@ patches (0104) — only reports drift on those.
   new-style detected by `id-` prefix on the nav argument; RaspSDR's original bodies
   kept verbatim as `*_legacy` functions; old-style `w3_fillText` font-string arg is
   mapped to the new opts object.
+
+## 0147-kiwi-fax-recording-info-leak.patch
+
+- **Upstream:** KiwiSDR `f98b3779` (2026-06-29, post-v1.902), "use standard image
+  save button like other exts".
+- **Why cherry-picked:** security/info-leak. The FAX extension's server-side
+  recording wrote every FAX received by any user to a fixed, world-downloadable
+  file `/root/samples/fax.chN.pgm` (DIR_DATA) — anyone could download other
+  users' receptions afterwards (the pre-fix upstream code even carries a
+  "Little bit of a security hole" comment). Upstream removed recording entirely
+  in favor of a browser-side Save button exporting the displayed canvas as a
+  timestamped JPEG download, consistent with the other extensions. This also
+  drops the pgmtoppm/ppmtogif conversion plumbing the close handler needed.
+- **What it touches:** `extensions/FAX/FaxDecoder.{cpp,h}` (verbatim upstream
+  diff — files were identical to upstream pre-fix), `extensions/FAX/fax.cpp`
+  (remove `serno[]` + `SET fax_file_open`/`SET fax_file_close` handlers),
+  `web/extensions/FAX/FAX.js` (remove record icon + `fax_download_avail`
+  handling, add `fax_save_cb`).
+- **Fork adaptations:** Web-888 ships no `.min.js`/`.gz` files (upstream's
+  minified-file hunks are N/A). fax.cpp/FAX.js hunks were hand-applied around
+  pre-existing fork tweaks (4-channel `SND_RATE` ProcessSamples signature,
+  per-bandwidth `MIDDLE/NARROW` init, `w3-ext-retain-input-focus sfmt`, HF FAX
+  panel layout). The commented-out `//fax_file_cb(0, 0, 0);` trace in
+  `FAX_blur` is kept, matching upstream post-fix.
+- **Verification:** `patch -p1 --dry-run` clean against the pristine pin tree
+  (FaxDecoder.cpp hunk #2 applies with fuzz 2 — context-only drift).

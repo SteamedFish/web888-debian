@@ -65,6 +65,11 @@
 # on admin.html + extension JS no longer loaded on the admin page).
 0146-webcpp-restore-ext-list-js.patch
 
+# 0147: cherry-pick KiwiSDR f98b3779 (post-v1.902) — remove FAX extension's
+# server-side recording (fixed, world-downloadable /root/samples/fax.chN.pgm
+# info leak) in favor of a browser-side Save button (canvas JPEG download).
+0147-kiwi-fax-recording-info-leak.patch
+
 # Step 3.5 Debian compatibility fixes.
 # These apply AFTER the cherry-picks: 0104 rewrites admin.cpp's DNS block
 # (inet4_d2h_strict) in the same region 0014 touches — applying 0014 first

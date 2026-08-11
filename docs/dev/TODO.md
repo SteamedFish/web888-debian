@@ -35,8 +35,11 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 - [ ] B.4: port `rx_snr` (next feature epic after the completed B.1
       mongoose 7.14 and B.2 admin re-sync)
-- [ ] Optional, if their value case materialises: ipset blacklist, FAX
-      recording rework, kiwi_output_chars console rework
+- [x] FAX recording rework — cherry-picked as 0147 (upstream f98b3779,
+      post-v1.902): fixed-filename server-side recording (info leak)
+      replaced by a browser-side Save button (canvas JPEG download)
+- [ ] Optional, if their value case materialises: ipset blacklist,
+      kiwi_output_chars console rework
 - Cherry-pick surface otherwise exhausted as of KiwiSDR v1.902 — see
   `web888-kiwisdr-cherry-pick-plan.md` and `config/websdr/cherry-picks/`
 

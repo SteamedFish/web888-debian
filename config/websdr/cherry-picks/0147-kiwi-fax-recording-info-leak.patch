@@ -1,0 +1,235 @@
+Cherry-pick of KiwiSDR f98b3779 ("use standard image save button like other exts",
+2026-06-29, post-v1.902): removes the FAX extension's server-side recording feature.
+
+The recording wrote every FAX received by any user to a fixed, world-downloadable
+file /root/samples/fax.chN.pgm (DIR_DATA) — an information leak (anyone could
+fetch other users' receptions), and it dragged in pgmtoppm/ppmtogif conversion
+plumbing. Upstream replaced it with a browser-side Save button exporting the
+displayed canvas as a JPEG download, like the other extensions.
+
+Fork adaptations vs upstream: Web-888 ships no .min.js/.gz (those upstream hunks
+are N/A); fax.cpp/FAX.js hunks were applied by hand around pre-existing fork
+tweaks (4-channel SND_RATE ProcessSamples signature, per-bandwidth init,
+w3-ext-retain-input-focus sfmt, HF FAX panel layout). The commented-out
+//fax_file_cb(0, 0, 0); trace in FAX_blur is kept, matching upstream post-fix.
+
+diff --git a/extensions/FAX/FaxDecoder.cpp b/extensions/FAX/FaxDecoder.cpp
+index 9aef440..bfa0c01 100644
+--- a/extensions/FAX/FaxDecoder.cpp
++++ b/extensions/FAX/FaxDecoder.cpp
+@@ -402,7 +402,6 @@ void FaxDecoder::DecodeImageLine(u1_t* buffer, int buffer_len, u1_t *image)
+         //real_printf("%.2f ", m_lineNextBlend); fflush(stdout);
+         NextTaskFast("DecodeImageLine send");
+         ext_send_msg_data(m_rx_chan, false, FAX_MSG_DRAW, m_debug? image : m_outImage, m_imagewidth);
+-        FileWrite(m_outImage, m_imagewidth);
+     }
+     NextTaskFast("DecodeImageLine end");
+ }
+@@ -554,42 +553,3 @@ void FaxDecoder::CleanUpBuffers()
+     delete [] m_demod_data;
+     delete [] phasingPos;
+ }
+-
+-// SECURITY:
+-// Little bit of a security hole: Can look at previously saved fax images by downloading the fixed filename.
+-// Not a big deal really.
+-
+-void FaxDecoder::FileOpen()
+-{
+-    FileClose();
+-    asprintf(&m_fn, DIR_DATA "/fax.ch%d.pgm", m_rx_chan);
+-    m_file = pgm_file_open(m_fn, &m_offset, m_imagewidth, 0, 255);
+-
+-    if (m_file == NULL) {
+-        faxprintf("FAX open FAILED %s\n", m_fn);
+-    } else {
+-        faxprintf("FAX open %s\n", m_fn);
+-    }
+-}
+-
+-void FaxDecoder::FileWrite(u1_t *data, int datalen)
+-{
+-    if (m_file == NULL) return;
+-    //faxprintf("len=%d m_fax_line=%d\n", datalen, m_fax_line);
+-    fwrite(data, datalen, 1, m_file);
+-    m_fax_line++;
+-    ext_send_msg(m_rx_chan, false, "EXT fax_record_line=%d", m_fax_line);
+-}
+-
+-void FaxDecoder::FileClose()
+-{
+-    if (m_file == NULL) return;
+-    
+-    fflush(m_file);
+-    pgm_file_height(m_file, m_offset, m_fax_line);
+-    fclose(m_file);
+-    faxprintf("FAX %s wrote %d lines\n", m_fn, m_fax_line);
+-    if (m_fn) kiwi_asfree(m_fn, "FileClose"); m_fn = NULL;
+-    m_file = NULL;
+-    m_fax_line = 0;
+-}
+diff --git a/extensions/FAX/FaxDecoder.h b/extensions/FAX/FaxDecoder.h
+index d0613d3..3d3f2e3 100644
+--- a/extensions/FAX/FaxDecoder.h
++++ b/extensions/FAX/FaxDecoder.h
+@@ -58,9 +58,6 @@ public:
+                    bool use_phasing, bool autostop, int debug, bool reset);
+ 
+     void ProcessSamples(s2_t *samps, int nsamps, float shift);
+-    void FileOpen();
+-    void FileWrite(u1_t *data, int datalen);
+-    void FileClose();
+     
+     bool DecodeFaxFromFilename();
+     bool DecodeFaxFromDSP();
+diff --git a/extensions/FAX/fax.cpp b/extensions/FAX/fax.cpp
+index ca85d7b..40e2821 100644
+--- a/extensions/FAX/fax.cpp
++++ b/extensions/FAX/fax.cpp
+@@ -29,7 +29,6 @@ struct fax_t {
+ };
+ 
+ static fax_t fax[MAX_RX_CHANS];
+-static u4_t serno[MAX_RX_CHANS];
+ 
+ //static void fax_data(int rx_chan, int chan, int nsamps, TYPEMONO16 *samps)
+ void fax_task(void *param)
+@@ -170,50 +169,6 @@ bool fax_msgs(char *msg, int rx_chan)
+ 		return true;
+ 	}
+ 
+-	if (strcmp(msg, "SET fax_file_open") == 0) {
+-		rcprintf(rx_chan, "FAX fax_file_open\n");
+-		m_FaxDecoder[rx_chan].FileOpen();
+-		return true;
+-	}
+-
+-	if (strcmp(msg, "SET fax_file_close") == 0) {
+-		rcprintf(rx_chan, "FAX fax_file_close\n");
+-		m_FaxDecoder[rx_chan].FileClose();
+-		
+-		u4_t sn = serno[rx_chan];
+-		#if 1
+-		    // Debian 11 doesn't have pnmtopng anymore, use .ppm intermediate format
+-		    // Also, have to use .gif now instead of .png (there is no p*topng)
+-            non_blocking_cmd_system_child("kiwi.fax", 
+-                stprintf("cd " DIR_DATA "; "
+-                    "pgmtoppm rgbi:1/1/1 fax.ch%d.pgm > fax.ch%d.ppm; "
+-                    "ppmtogif fax.ch%d.ppm > fax.ch%d_%d.gif; "
+-                    "pnmscale fax.ch%d.pgm -width=96 -height=32 > fax.ch%d.thumb.pgm; "
+-                    "pgmtoppm rgbi:1/1/1 fax.ch%d.thumb.pgm > fax.ch%d.thumb.ppm; "
+-                    "ppmtogif fax.ch%d.thumb.ppm > fax.ch%d_%d.thumb.gif",
+-                    rx_chan, rx_chan,
+-                    rx_chan, rx_chan, sn,
+-                    rx_chan, rx_chan,
+-                    rx_chan, rx_chan,
+-                    rx_chan, rx_chan, sn),
+-                POLL_MSEC(500));
+-		#else
+-            non_blocking_cmd_system_child("kiwi.fax", 
+-                stprintf("cd " DIR_DATA ";"
+-                    "pnmtopng fax.ch%d.pgm > fax.ch%d_%d.png; "
+-                    "pnmscale fax.ch%d.pgm -width=96 -height=32 > fax.ch%d.thumb.pgm; "
+-                    "pnmtopng fax.ch%d.thumb.pgm > fax.ch%d_%d.thumb.png",
+-                    rx_chan, rx_chan, sn,
+-                    rx_chan, rx_chan,
+-                    rx_chan, rx_chan, sn),
+-                POLL_MSEC(500));
+-        #endif
+-        
+-        ext_send_msg(rx_chan, false, "EXT fax_download_avail=%d", sn);
+-        serno[rx_chan]++;
+-		return true;
+-	}
+-
+ 	return false;
+ }
+ 
+diff --git a/web/extensions/FAX/FAX.js b/web/extensions/FAX/FAX.js
+index 21bf43c..bbb34af 100644
+--- a/web/extensions/FAX/FAX.js
++++ b/web/extensions/FAX/FAX.js
+@@ -19,7 +19,6 @@ var fax = {
+    autostop:   false,
+    debug:      0,
+    contrast:   1,
+-   file:       0,
+    ch:         0,
+    data_canvas:   0,
+    copy_canvas:   0,
+@@ -171,15 +170,6 @@ function fax_recv(data)
+ 				fax.ch = parseInt(param[1]);
+ 				break;
+ 
+-			case "fax_download_avail":
+-            var file = kiwi_url_origin() +'/kiwi.data/fax.ch'+ fax.ch +'_'+ param[1];
+-            var gif = file +'.gif';
+-            var thumb = file +'.thumb.gif';
+-            w3_remove_then_add('id-fax-file-icon', 'fa-refresh fa-spin w3-text-aqua', 'fa-repeat w3-text-pink');
+-            w3_el('id-fax-file-status').innerHTML =
+-               w3_link('', gif, '<img src='+ dq(thumb) +' />');
+-				break;
+-
+ 			case "fax_sps_changed":
+ 			   if (fax_mkr) {
+                var ct = canvas.ctx;
+@@ -267,16 +257,9 @@ function fax_controls_setup()
+ 					w3_button('w3-padding-smaller', 'Next', 'w3_select_next_prev_cb', { dir:w3_MENU_NEXT, id:'fax.menu', func:'fax_pre_select_cb' }),
+ 					w3_button('w3-padding-smaller', 'Prev', 'w3_select_next_prev_cb', { dir:w3_MENU_PREV, id:'fax.menu', func:'fax_pre_select_cb' }),
+ 					w3_button('id-fax-stop-start w3-padding-smaller', 'Stop', 'fax_stop_start_cb'),
+-					w3_button('w3-padding-smaller', 'Clear', 'fax_clear_cb'),
+-					w3_inline('',
+-                  w3_div('',
+-                     w3_div('fa-stack||title="record"',
+-                        w3_icon('id-fax-file-icon', 'fa-repeat fa-stack-1x w3-text-pink', 22, '', 'fax_file_cb')
+-                     )
+-                  ),
+-                  w3_div('id-fax-file-status w3-margin-left')
+-               )
+-            ),
++					w3_button('w3-css-yellow w3-padding-smaller', 'Clear', 'fax_clear_cb'),
++					w3_button('w3-blue w3-padding-smaller', 'Save', 'fax_save_cb')
++             ),
+             w3_inline('',
+                w3_checkbox('w3-label-inline w3-label-not-bold/', 'auto align', 'fax.phasing', fax.phasing, 'fax_phasing_cb'),
+                w3_div('id-fax-phased w3-margin-left w3-padding-small w3-text-black w3-css-lime w3-hidden', 'aligned'),
+@@ -560,29 +543,20 @@ function fax_lpm_cb(path, idx, first)
+ function fax_clear_cb()
+ {
+    fax_clear_display();
+-   if (!fax.file) {
+-      w3_remove_then_add('id-fax-file-icon', 'fa-repeat fa-refresh fa-spin w3-text-aqua', 'fa-repeat  w3-text-pink');
+-      w3_el('id-fax-file-status').innerHTML = '';
+-   }
+ }
+ 
+-function fax_file_cb(path, param, first)
++function fax_save_cb(path, val, first)
+ {
+    if (first) return;
+-   fax.file ^= 1;
+-   //console.log('flip fax.file='+ fax.file +' param='+ param);
+-   var el1 = w3_el('id-fax-file-icon');
+-   
+-   if (fax.file) {
+-	   ext_send('SET fax_file_open');
+-      w3_spin(el1);
+-      w3_el('id-fax-file-status').innerHTML =
+-         w3_div('w3-show-inline-block', 'recording<br>line '+ w3_div('id-fax-line w3-show-inline-block'));
+-	} else {
+-	   ext_send('SET fax_file_close');
+-      w3_remove_then_add(el1, 'fa-repeat w3-text-pink', 'fa-refresh fa-spin w3-text-aqua');
+-      w3_el('id-fax-file-status').innerHTML = 'processing';
+-	}
++   var imgURL = fax.data_canvas.toDataURL("image/jpeg", 0.85);
++   var dlLink = document.createElement('a');
++   dlLink.download = kiwi_timestamp_filename('FAX.', '.jpg');
++   dlLink.href = imgURL;
++   dlLink.target = '_blank';  // opens new tab in iOS instead of download
++   dlLink.dataset.downloadurl = ["image/jpeg", dlLink.download, dlLink.href].join(':');
++   document.body.appendChild(dlLink);
++   dlLink.click();
++   document.body.removeChild(dlLink);
+ }
+ 
+ function FAX_blur()

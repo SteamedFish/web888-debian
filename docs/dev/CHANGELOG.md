@@ -9,6 +9,21 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-11] — websdr: FAX recording info-leak fix (cherry-pick 0147)
+
+### Fixed
+
+- **Cherry-pick 0147: KiwiSDR `f98b3779` (post-v1.902) — remove the FAX
+  extension's server-side recording.** Every FAX received by any user was
+  written to a fixed, world-downloadable file `/root/samples/fax.chN.pgm`
+  that anyone could fetch afterwards, leaking other users' receptions.
+  Recording is replaced by a browser-side **Save** button exporting the
+  displayed canvas as a timestamped JPEG download (like the other
+  extensions). New patch
+  `config/websdr/cherry-picks/0147-kiwi-fax-recording-info-leak.patch`
+  (registered in the series, manifest, and PROVENANCE); deb
+  `web888-websdr 2026.730-3`.
+
 ## [2026-08-11] — build-all.sh defaults to the U-Boot chain
 
 ### Changed

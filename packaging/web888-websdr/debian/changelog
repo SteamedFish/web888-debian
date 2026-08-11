@@ -1,3 +1,12 @@
+web888-websdr (2026.730-3) UNRELEASED; urgency=medium
+
+  * Cherry-pick 0147 (KiwiSDR f98b3779, post-v1.902): remove the FAX
+    extension's server-side recording (fixed, world-downloadable
+    /root/samples/fax.chN.pgm info leak) in favor of a browser-side
+    Save button exporting the canvas as a JPEG download.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Tue, 11 Aug 2026 14:30:00 +0800
+
 web888-websdr (2026.730-2) UNRELEASED; urgency=medium
 
   * Step 3.5 Debian compatibility fixes
