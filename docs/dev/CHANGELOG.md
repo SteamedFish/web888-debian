@@ -39,6 +39,16 @@ this is a hard project rule).
   differences, and the produced artifacts. Linked from the docs/user
   index, README.md, README.zh-CN.md, and docs/user/flashing.md.
 
+### Verified on hardware
+
+- Flashed `output/web888-debian-uboot.img` to SD and booted the board:
+  the full chain (stock FSBL → full U-Boot SSBL → boot.scr → 6.12
+  kernel) comes up; `eth0` and the kernel fdt `local-mac-address` carry
+  the factory MAC (`ce:cf:3f:f6:d5:1b`); the DHCP lease is stable across
+  a controlled reboot (same IP); `web888-websdr.service` starts, the
+  FPGA bitstream loads (zynqsdr control+data plane), and the OpenWebRX
+  UI answers HTTP 200 on `:8073`; zero journal errors on both boots.
+
 ## [2026-08-10] — U-Boot plants the factory MAC from the board EEPROM
 
 ### Added

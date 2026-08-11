@@ -12,8 +12,11 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
         `ZYNQSDR_SMOKE_OK`) and websdr E2E with bitstream on the 6.12
         kernel (`scripts/hw-test/ws-e2e.py` → audio + waterfall frames)
   - [ ] USB-WiFi probe on the 6.12 kernel (needs a USB dongle plugged in)
-  - [ ] Blind HW gate for full U-Boot as SSBL (P2.5 — QEMU-verified from
-        U-Boot onward; FSBL handoff is not emulatable)
+  - [x] Blind HW gate for full U-Boot as SSBL (P2.5 — QEMU-verified from
+        U-Boot onward; FSBL handoff is not emulatable). Done 2026-08-11:
+        flashed `web888-debian-uboot.img` boots on hardware (twice, incl.
+        controlled reboot), factory MAC stable across reboot (same DHCP
+        lease), websdr serves HTTP 200 on :8073, zero journal errors.
   - [ ] Kernel-update SOP final docs sync (P3)
 - [ ] **Red Pitaya coexistence (step 4)**
   - [x] Round-trip switching ×10 (60 s :8073 poll — websdr needs ~33 s
