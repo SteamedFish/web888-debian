@@ -9,6 +9,28 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-12] — websdr: antenna-switch SNR re-measure (patch 0150)
+
+### Added
+
+- **0150: SNR re-measurement on antenna change** — restores the
+  ant_switch↔rx_snr coupling 0149 had dropped (on the wrong assumption
+  that the fork had no ant_switch support). A server-side hook in
+  `ant_switch_setantenna()`/`ant_switch_toggleantenna()` immediately
+  re-wakes the SNR measurement task after an antenna change when the
+  admin checkbox "Measure on antenna change" (`snr_meas_ant_sw`) is
+  enabled — adapted from upstream's client-side `SET antsw_snr` (5 s
+  delayed wake; the fork's scheduler has no delayed re-wake primitive).
+  Deb 2026.730-6.
+
+### Rejected
+
+- **Upstream SNR-gated default antenna selection** — evaluated and not
+  ported: requires re-platforming upstream's pluggable ant_switch backend
+  framework for a public-multi-antenna-site feature (idle default antenna
+  / ground-when-idle). Rationale recorded in
+  `config/websdr/cherry-picks/PROVENANCE.md` (0150 section).
+
 ## [2026-08-12] — websdr: 0147 patch refresh (dpkg-source fuzz-0 build fix)
 
 ### Fixed

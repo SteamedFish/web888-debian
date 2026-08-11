@@ -93,3 +93,9 @@
 
 # Bundle Leaflet locally (web/pkgs_maps/leaflet/) instead of unpkg.com CDN.
 0017-bundle-leaflet.patch
+
+# Antenna-switch SNR re-measure (0150): adapted from KiwiSDR's SET antsw_snr
+# handler — re-wakes the SNR measurement task after a server-side antenna
+# change so the admin SNR page reflects the newly selected antenna.
+# Verified with -F 0 against the full post-0017 series tree.
+0150-antenna-switch-snr-remeasure.patch

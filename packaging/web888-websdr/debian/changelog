@@ -1,3 +1,15 @@
+web888-websdr (2026.730-6) UNRELEASED; urgency=medium
+
+  * Patch 0150: re-measure SNR when the antenna selection changes.
+    Restores the "Measure on antenna change" (snr_meas_ant_sw) admin
+    checkbox and hooks ant_switch_setantenna()/ant_switch_toggleantenna()
+    server-side to wake the SNR measurement task immediately after a
+    switch (upstream triggers from the client via SET antsw_snr with a
+    5 s delay; Web-888's coroutines have no delayed re-wake primitive,
+    and the server-side hook also covers server-initiated switches).
+
+ -- SteamedFish <steamedfish@hotmail.com>  Wed, 12 Aug 2026 09:10:00 +0800
+
 web888-websdr (2026.730-5) UNRELEASED; urgency=medium
 
   * Cherry-pick 0149: port KiwiSDR's rx_snr SNR measurement framework

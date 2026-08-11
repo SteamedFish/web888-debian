@@ -1,0 +1,82 @@
+From: Web-888 port (Kimi K3)
+Date: Wed, 12 Aug 2026
+Subject: ant_switch: re-measure SNR when the antenna selection changes
+
+Adapted from KiwiSDR pkgs/ant_switch/ant_switch.cpp (the SET antsw_snr
+handler that re-wakes the SNR measurement task 5 s after an antenna
+change). Upstream delivers the trigger from the client via a websocket
+message; the Web-888 fork switches antennas entirely on the server side
+(ant_switch_setantenna/ant_switch_toggleantenna drive the FPGA
+directly), so the hook is placed at those two call sites instead -
+this is more robust as it also covers server-initiated switches.
+
+Web-888 adaptations:
+ - fork coroutines.h has no TWF_NEW_DEADLINE_SEC, so the measurement
+   is woken immediately (TaskWakeupF + TWF_CANCEL_DEADLINE) instead of
+   after upstream's 5 second delay; the admin checkbox label is
+   shortened accordingly.
+ - cfg key read with cfg_bool(..., CFG_OPTIONAL), matching rx_snr.cpp.
+ - restores the snr_meas_ant_sw admin checkbox that 0149 had left
+   commented out.
+
+diff --git a/extensions/ant_switch/ant_switch.cpp b/extensions/ant_switch/ant_switch.cpp
+index 6ba919d..d816f58 100644
+--- a/extensions/ant_switch/ant_switch.cpp
++++ b/extensions/ant_switch/ant_switch.cpp
+@@ -6,6 +6,8 @@
+ #include "cfg.h"
+ #include "str.h"
+ #include "peri.h"
++#include "coroutines.h"
++#include "rx_snr.h"
+ 
+ #include <stdio.h>
+ #include <unistd.h>
+@@ -38,6 +40,16 @@ static void ant_switch_init(int rx_chan)
+     ext_send_msg(rx_chan, ANT_SWITCH_DEBUG_MSG, "EXT channels=%d", n_ch);
+ }
+ 
++// Web-888 0150: re-measure SNR after antenna change (adapted from KiwiSDR "SET antsw_snr").
++// Upstream re-arms a 5s deadline via TWF_NEW_DEADLINE_SEC, which the fork coroutines lack;
++// wake the SNR task immediately instead (same mechanism as admin "Measure SNR now").
++static void ant_switch_snr_remeas()
++{
++    if (cfg_bool("snr_meas_ant_sw", NULL, CFG_OPTIONAL) && SNR_meas_tid) {
++        TaskWakeupF(SNR_meas_tid, TWF_CANCEL_DEADLINE);
++    }
++}
++
+ void ant_switch_setantenna(int antenna)
+ {
+     if (antenna == 0) {
+@@ -48,6 +60,7 @@ void ant_switch_setantenna(int antenna)
+     }
+ 
+     fpga_set_antenna(antenna_current);
++    ant_switch_snr_remeas();
+     return;
+ }
+ 
+@@ -68,6 +81,7 @@ void ant_switch_toggleantenna(int antenna)
+     }
+ 
+     fpga_set_antenna(antenna_current);
++    ant_switch_snr_remeas();
+ 
+     return;
+ }
+diff --git a/web/kiwi/admin.js b/web/kiwi/admin.js
+index f037b6f..24f2103 100644
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -509,7 +509,9 @@ function control_html()
+                w3_text('w3-margin-B-8 w3-text-teal w3-bold', 'SNR measurement options:'),
+                w3_checkbox_get_param('//w3-label-inline', 'Timestamp SNR with local time', 'snr_local_time', 'admin_bool_cb', true),
+                w3_checkbox_get_param('//w3-label-inline', 'Also measure ham bands and AM BCB', 'snr_meas_ham', 'admin_bool_cb', false),
+-               // Web-888 0149: no snr_meas_ant_sw ("Measure on antenna change") — ant_switch not supported
++               // Web-888 0150: upstream label is "Measure on antenna change (after 5 second delay)";
++               // fork wakes the SNR task immediately (coroutines lack TWF_NEW_DEADLINE_SEC)
++               w3_checkbox_get_param('//w3-label-inline', 'Measure on antenna change', 'snr_meas_ant_sw', 'admin_bool_cb', false),
+                w3_input_get('w3-margin-top//', 'Custom interval (min)', 'snr_meas_custom_min', 'control_snr_measure_custom_cb'),
+                w3_inline('w3-margin-T-8',
+                   w3_text('w3-text-teal w3-bold', 'Custom band:'),

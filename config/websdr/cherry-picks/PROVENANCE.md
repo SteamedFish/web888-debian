@@ -410,3 +410,39 @@ patches (0104) — only reports drift on those.
   --check` on both JS files. QEMU + hardware smoke gate owed before
   release (watch `/snr` JSON for `imin`, "Measure SNR now" button, custom
   interval save/reload).
+
+## 0150-antenna-switch-snr-remeasure.patch
+
+- **Upstream:** adapted from KiwiSDR `pkgs/ant_switch/ant_switch.cpp`'s
+  `SET antsw_snr` handler (re-wakes the SNR measurement task 5 s after an
+  antenna change so the admin SNR page reflects the new antenna).
+- **Why:** 0149 dropped the ant_switch SNR coupling on the assumption the
+  fork had no ant_switch support — wrong: the fork ships an FPGA-direct
+  ant_switch variant (`extensions/ant_switch/`), so an antenna change left
+  stale SNR data until the next scheduled measurement.
+- **What it does:** restores the `snr_meas_ant_sw` admin checkbox and
+  calls a new static `ant_switch_snr_remeas()` hook from
+  `ant_switch_setantenna()`/`ant_switch_toggleantenna()` after
+  `fpga_set_antenna()`. Server-side hook instead of upstream's client
+  `SET antsw_snr` message — the fork switches antennas entirely on the
+  server, so this also covers server-initiated switches. Fork
+  `coroutines.h` has no `TWF_NEW_DEADLINE_SEC`, so the wake is immediate
+  (`TaskWakeupF` + `TWF_CANCEL_DEADLINE`, the fork's established on-demand
+  pattern) and the checkbox label drops upstream's "(after 5 second
+  delay)". Deviations marked `Web-888 0150:`.
+- **Scope:** 2 files (`extensions/ant_switch/ant_switch.cpp`,
+  `web/kiwi/admin.js`).
+- **Rejected (evaluated, not ported):** upstream's SNR-gated default
+  antenna selection (`ant_switch.antNdefault`, `ground_when_no_users`,
+  `kiwi.snr_initial_meas_done` gating in `ant_switch_select_default_antenna()`).
+  It needs upstream's whole pluggable ant_switch backend framework
+  (`pkgs/ant_switch/backends`, `ant_switch.enable`, 10 s poll task, ADM
+  antsw_* admin messages) re-platformed onto the fork's FPGA-direct
+  variant, and serves public multi-antenna sites (idle default antenna /
+  ground-when-idle); Web-888's variant already has thunderstorm mode.
+  Revisit if a real deployment asks for it.
+- **Verification:** `patch -p1 --dry-run -F 0` clean against the full
+  post-0017 series tree; host `g++ -fsyntax-only` on ant_switch.cpp;
+  `node --check` on admin.js. Hardware smoke owed: enable the checkbox,
+  switch antennas from the user page, watch journal for an on-demand
+  `SNR_meas` wakeup.

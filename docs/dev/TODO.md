@@ -34,9 +34,13 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 ## KiwiSDR upstream alignment (step 5)
 
 - [x] B.4: port `rx_snr` — done as 0149 (framework imported wholesale and
-      adapted: no ant_switch coupling, MAX_ZOOM, minute/custom intervals,
-      custom band, ham/BCB, VDSL filter, full admin.js SNR options UI +
-      kiwi.js snr_stats MSG handling)
+      adapted: MAX_ZOOM, minute/custom intervals, custom band, ham/BCB,
+      VDSL filter, full admin.js SNR options UI + kiwi.js snr_stats MSG
+      handling); ant_switch SNR coupling followed as 0150 (re-measure on
+      antenna change, server-side hook). Upstream's SNR-gated default
+      antenna selection (ant_switch.antNdefault, ground_when_no_users)
+      evaluated and rejected — needs upstream's whole ant_switch backend
+      framework for a public-multi-antenna-site feature.
 - [x] FAX recording rework — cherry-picked as 0147 (upstream f98b3779,
       post-v1.902): fixed-filename server-side recording (info leak)
       replaced by a browser-side Save button (canvas JPEG download)
