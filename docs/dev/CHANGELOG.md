@@ -16,6 +16,15 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F14: `pipefail` added to two bash verify/test scripts** —
+  `scripts/qemu-verify-step4.sh` and `scripts/test-redpitaya-mode.sh` used
+  bare `set -u`; upgraded to `set -uo pipefail` so a failing command inside
+  one of their piped checks can no longer be swallowed. The third script
+  flagged in the review, `scripts/capture-hw-state.sh`, is `#!/bin/sh`
+  (dash, no `pipefail` support) and has no local pipelines — its only pipes
+  are inside the remote SSH command strings — so it is intentionally left
+  unchanged.
+
 - **F12: `License:` field added to both Debian source control files** —
   `packaging/web888-websdr/debian/control` and
   `packaging/web888-redpitaya/debian/control` declared

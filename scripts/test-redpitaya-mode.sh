@@ -5,7 +5,7 @@
 # No root, no hardware, no systemd required. Scratch lives in .tmp/ per repo
 # rule. Exit 0 iff every case passes.
 
-set -u
+set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 PKG=packaging/web888-redpitaya

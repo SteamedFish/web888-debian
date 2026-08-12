@@ -7,7 +7,7 @@
 # deb installed, units present + disabled, websdr enablement untouched,
 # web888-mode functional (list/status), 0 failed units at boot.
 
-set -u
+set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 SSH="sshpass -p changeme ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8 -p 12222 root@127.0.0.1"
