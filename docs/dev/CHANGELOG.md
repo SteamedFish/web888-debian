@@ -16,6 +16,13 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F12: `License:` field added to both Debian source control files** —
+  `packaging/web888-websdr/debian/control` and
+  `packaging/web888-redpitaya/debian/control` declared
+  `Standards-Version: 4.6.2` but carried no `License:` field. Added
+  `License: GPL-2.0+` (websdr, matching the project declaration) and
+  `License: MIT` (redpitaya, its documented upstream license).
+
 - **F11: `web888-redpitaya` changelog StartLimit values corrected** — the
   changelog entry still read `StartLimitIntervalSec=60 StartLimitBurst=5`
   while the shipped `web888-rpapp@.service` carries the later-tuned

@@ -5,6 +5,7 @@ Maintainer: SteamedFish <steamedfish@hotmail.com>
 Build-Depends: debhelper-compat (= 13), cmake, pkg-config, libfftw3-dev, zlib1g-dev, libfdk-aac-dev, libgps-dev, libunwind-dev, libsqlite3-dev, libcurl4-openssl-dev, libssl-dev, libconfig++-dev, libcrypt-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/RaspSDR/server
+License: GPL-2.0+
 
 Package: web888-websdr
 Architecture: armhf
