@@ -16,6 +16,16 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F16: `debian-kernel-options-research.md` status updated to reflect the
+  implemented decision** — the doc still read "Status: research only — no
+  execution" and its pre-execution checklist was left unchecked, but Option 2
+  (own kernel .deb on Debian's 6.12 source + Debian config) is the default
+  kernel build chain (`scripts/build-kernel-6.12.sh`,
+  `config/kernel-web888-6.12.fragment`, TODO step 6). Status now says
+  "decision implemented"; the checklist is checked off with pointers to the
+  real artifacts; the §7 "Now: Option 3" recommendation is noted as
+  superseded (Option 2 was taken directly).
+
 - **F15: Chinese option labels translated in `debian-kernel-options-research.md`** —
   the doc mixed untranslated `方案一/二/三` (Option 1/2/3) into an otherwise
   English corpus, and those labels are referenced throughout §6–§8. All

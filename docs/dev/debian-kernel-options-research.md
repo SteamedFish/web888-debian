@@ -1,6 +1,13 @@
 # Debian kernel & firmware options — research
 
-Status: research only — **no execution**.
+Status: **decision implemented**. Option 2 (own kernel .deb on Debian's 6.12
+source + Debian config) ships as the default kernel build chain — see
+`scripts/build-kernel-6.12.sh`, `config/kernel-web888-6.12.fragment`,
+`docs/dev/kernel-update-sop.md`, and `docs/dev/TODO.md` step 6. This file is
+the historical decision record; the §7 "Now: Option 3, then Option 2"
+recommendation was superseded — Option 2 was taken directly (`KERNEL` defaults
+to 6.12 in `scripts/build-all.sh`). The commissioned question and analysis
+below are retained unchanged.
 Commissioned question: the custom kernel still lacks many features and firmware
 on real hardware; evaluate three options for closing the gap.
 
@@ -239,16 +246,17 @@ xdevcfg. Worth filing as upstream goodwill; not a plan.
    and the pinned kmod-deb design from §4 drops in unchanged.
 4. **Firmware: option-independent** — do it in the same pass as Option 3.
 
-### Pre-execution checklist (for whichever step is scheduled)
+### Pre-execution checklist (completed during the Option 2 implementation)
 
-- [ ] Generate candidate config (Debian armmp + fragment) on the current
+- [x] Generate candidate config (Debian armmp + fragment) on the current
       tree; `olddefconfig` resolve; diff-review the net delta vs today
-- [ ] Confirm every current `=y` boot-critical symbol survives (extend the
-      build-kernel.sh verification list)
-- [ ] Rootfs budget: full Debian-style /lib/modules ≈ 100–200 MB xz — fine
-- [ ] Firmware: sources.list `non-free-firmware` + 4 packages (§5)
+      (`config/kernel-web888-6.12.fragment`)
+- [x] Confirm every current `=y` boot-critical symbol survives (extend the
+      build-kernel-6.12.sh verification list)
+- [x] Rootfs budget: full Debian-style /lib/modules ≈ 100–200 MB xz — fine
+- [x] Firmware: sources.list `non-free-firmware` + 4 packages (§5)
 - [x] QEMU gate, blind boot, netfilter acceptance — all completed
-- [ ] (Option 2 only) drivers compile vs 6.12 headers; web888.dts vs 6.12
+- [x] (Option 2 only) drivers compile vs 6.12 headers; web888.dts vs 6.12
       dtsi; initrd-less vs initramfs-tools decision; update TODO item
 
 ## 8. Addendum: Debian-on-Zynq community projects — maintenance & trust
