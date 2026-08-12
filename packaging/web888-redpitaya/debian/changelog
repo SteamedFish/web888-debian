@@ -7,7 +7,7 @@ web888-redpitaya (2025.430-2) UNRELEASED; urgency=medium
     peri.c now uses the driver's ZYNQSDR_AD8370_SET ioctl (step-2
     hw-gate proven, PL-bitstream-agnostic) and returns -1 on failure
     instead of crashing.
-  * web888-rpapp@.service: + StartLimitIntervalSec=60 StartLimitBurst=5 —
+  * web888-rpapp@.service: + StartLimitIntervalSec=120 StartLimitBurst=10 —
     a hardware-gate SEGV crash-loop reloaded the bitstream every ~4s for ~15min
     (sustained devcfg churn, device later found hung); cap restarts so a
     failing app gives up instead of churning the PL.

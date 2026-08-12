@@ -16,6 +16,12 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F11: `web888-redpitaya` changelog StartLimit values corrected** — the
+  changelog entry still read `StartLimitIntervalSec=60 StartLimitBurst=5`
+  while the shipped `web888-rpapp@.service` carries the later-tuned
+  `120`/`10` (the unit's own comment documents the 10/120 reasoning).
+  Changelog now matches the unit.
+
 - **F5: `cherry-picks.manifest` 0114 slot reconciled with the on-disk patch** —
   the slot was still `pending 0114-kiwi-kiwi-nonemptystr.patch` while the
   quilt series actually applies `0114-kiwi-str-helpers.patch`, which
