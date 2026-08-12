@@ -16,6 +16,16 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F10: `quick-reference.md` LED section reconciled with hardware-facts.md** —
+  the table claimed D0 "OFF = System not booted" and D2 "flashes with web
+  activity", both misleading on the Debian image (D0 is OFF normally until
+  a bitstream is loaded; D2 is a boot/heartbeat indicator, not a web
+  indicator). Reworded to match the authoritative `hardware-facts.md`:
+  D2 lights briefly then off within ~1 s once the kernel boots (stays on =
+  early-boot stall); D0 steady ON only after a bitstream loads (off is
+  normal early / on non-stock OS); added D3 and the `prog_done` sysfs check
+  as the authoritative FPGA-load indicator.
+
 - **F9: broken source path fixed in mongoose investigation doc** —
   `docs/dev/mongoose-websocket-socket-error-investigation.md` cited the
   SO_ERROR precedent as `pkgs/sdrp_server/sdrp_server.cpp`; the real path

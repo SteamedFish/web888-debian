@@ -7,22 +7,29 @@
 
 ## LED Status Reference
 
-| LED | Color | Normal Behavior | Problem Indication |
-|-----|-------|-----------------|-------------------|
-| **D0** | Blue | Solid ON when system ready | OFF = System not booted |
-| **D2** | Green | OFF during operation, flashes with activity | Solid ON = Boot failure |
+Behaviour below is for the **Debian image** and is reconciled with the
+authoritative `docs/research/hardware-facts.md`. LEDs are **not** a reliable
+FPGA-health indicator; the authoritative load check is
+`cat /sys/devices/soc0/axi/f8007000.devcfg/prog_done` (reads `1` after a
+bitstream has been loaded).
+
+| LED | Color | Normal behavior (Debian image) | Problem indication |
+|-----|-------|--------------------------------|--------------------|
+| **D2** | Green | Lights briefly at power-on, then turns OFF within ~1 s once the kernel has booted | Stays solid ON past early boot — boot stalled before the kernel (BootROM/FSBL/U-Boot) |
+| **D0** | Blue | Steady ON once a bitstream has been loaded (by websdr, or by `si5351-init`/hw-test). **OFF is normal** during early boot and on any non-stock OS — not by itself a boot-failure signal | — |
+| **D3** | Green | Blinks occasionally once the software stack runs | — |
 
 ### Boot Status
 
-✅ **Normal Boot:**
-- Power on → D2 turns on
-- System loads → D2 turns off
-- Ready → D0 (Blue) turns on
-- D2 flashes during web activity
+✅ **Normal Boot (Debian image):**
+- Power on → D2 (green) lights briefly
+- Kernel boots → D2 turns OFF within ~1 s
+- Once websdr (or a hw-test) loads the bitstream → D0 (blue) goes steady ON; D3 (green) may blink occasionally
+- Note: D0 OFF is normal before the bitstream is loaded and on any non-stock OS
 
 ❌ **Boot Failure:**
-- D2 stays ON continuously
-- D0 never turns on
+- D2 (green) stays solid ON well past power-on → the kernel never started (BootROM/FSBL/U-Boot-stage stall)
+- Authoritative FPGA/load check (not an LED): `cat /sys/devices/soc0/axi/f8007000.devcfg/prog_done` should read `1` after a bitstream load
 - **Solution:** Check TF card formatting and files
 
 ## TF Card Requirements
