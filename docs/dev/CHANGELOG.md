@@ -16,6 +16,13 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F8: retracted "D8 LED" claim removed from `zynqsdr-port-notes.md`** —
+  the note said "D8 (FPGA-loaded LED) stays off until userspace loads a
+  bitstream", but `docs/research/hardware-facts.md` explicitly retracts
+  this ("There is NO 'D8' — earlier session notes referencing D8 were a
+  naming error"). Reworded to state `prog_done=0` until userspace loads a
+  bitstream, with no LED reference.
+
 - **F7: GPIO bank corrected EMIO→MIO in two Red Pitaya dev docs** —
   `docs/dev/redpitaya-upstream-delta.md` and
   `docs/dev/redpitaya-websdr-coexistence.md` described the PE4312 DSA

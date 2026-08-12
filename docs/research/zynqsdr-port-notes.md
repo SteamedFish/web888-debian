@@ -259,9 +259,9 @@ hang the same way if called before the bitstream — userspace ordering is the
 gate, same as stock (websdr.bin loads websdr_%s.bit before opening /dev/zynqsdr).
 
 Related: with FPGA_MGR_ZYNQ_FPGA=n nothing programs the PL at boot
-(`platform fpga-region: deferred probe pending` in dmesg; prog_done=0) — D8
-(FPGA-loaded LED) stays off until userspace loads a bitstream, matching stock
-behaviour. xdevcfg's PL reset lives in open() (zynq_slcr_init_preload_fpga +
+(`platform fpga-region: deferred probe pending` in dmesg; prog_done=0) until
+userspace loads a bitstream, matching stock behaviour. xdevcfg's PL reset
+lives in open() (zynq_slcr_init_preload_fpga +
 xdevcfg_reset_pl), not probe — modprobe is PL-safe.
 
 ## 12. The `ad8370` ghost driver + attenuator identity (PE4312, not AD8370)
