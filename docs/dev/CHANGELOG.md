@@ -16,6 +16,12 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F15: Chinese option labels translated in `debian-kernel-options-research.md`** —
+  the doc mixed untranslated `方案一/二/三` (Option 1/2/3) into an otherwise
+  English corpus, and those labels are referenced throughout §6–§8. All
+  occurrences (including a stray standalone `三` in `Option 2/三`) now read
+  `Option 1/2/3`; the file is fully English.
+
 - **F10: `quick-reference.md` LED section reconciled with hardware-facts.md** —
   the table claimed D0 "OFF = System not booted" and D2 "flashes with web
   activity", both misleading on the Debian image (D0 is OFF normally until

@@ -4,12 +4,12 @@ Status: research only — **no execution**.
 Commissioned question: the custom kernel still lacks many features and firmware
 on real hardware; evaluate three options for closing the gap.
 
-- **方案一**: switch to Debian's native kernel package + firmware packages; our
+- **Option 1**: switch to Debian's native kernel package + firmware packages; our
   drivers become standalone .deb packages hard-pinned to the kernel version
   (no DKMS — CPU too weak).
-- **方案二**: build our own kernel package using Debian's kernel build options
+- **Option 2**: build our own kernel package using Debian's kernel build options
   as the base, plus our drivers, plus firmware packages.
-- **方案三**: keep the current kernel tree, but complete the config by
+- **Option 3**: keep the current kernel tree, but complete the config by
   referencing Debian's kernel build options, plus firmware packages.
 
 All externally load-bearing claims below were verified by
@@ -127,7 +127,7 @@ the SSBL gzip-zImage contract.
   with `ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf-`).
 - `linux-source-6.12` and `linux-config-6.12` are apt-installable — the
   full Debian kernel source + the exact config hierarchy used to build
-  their packages, which is the raw material for 方案二.
+  their packages, which is the raw material for Option 2.
 - `MODULE_SIG` without `SIG_FORCE` + no secure boot on this platform ⇒
   unsigned third-party modules load without ceremony.
 
@@ -155,7 +155,7 @@ wanted — the ext4 card has the room.
 
 ## 6. Option analysis
 
-### 方案一 — stock Debian kernel package + pinned driver debs → **NOT VIABLE today**
+### Option 1 — stock Debian kernel package + pinned driver debs → **NOT VIABLE today**
 
 Blocker is §2: without `CONFIG_ARCH_ZYNQ` the stock kernel cannot boot the
 board at all — no UART, no GEM, no SDHCI, no DTB. This is not something we
@@ -176,7 +176,7 @@ Timeline unknown, maintenance justification required, and even then
 `FPGA_MGR_ZYNQ_FPGA` would likely come enabled and need blacklisting for
 xdevcfg. Worth filing as upstream goodwill; not a plan.
 
-### 方案二 — our own kernel .deb on Debian's 6.12 source + Debian config → **VIABLE; recommended target architecture**
+### Option 2 — our own kernel .deb on Debian's 6.12 source + Debian config → **VIABLE; recommended target architecture**
 
 - Base: `linux-source-6.12` (Debian-patched 6.12 LTS) or mainline 6.12.y.
   Config: Debian's armmp config + a small tracked fragment:
@@ -200,11 +200,11 @@ xdevcfg. Worth filing as upstream goodwill; not a plan.
   actual thing we wanted from Debian), a security-tracked LTS base, and a
   6.6→6.12 bump that better matches trixie userspace.
 
-### 方案三 — current xlnx 6.6 tree + Debian-derived config → **VIABLE; recommended immediate step**
+### Option 3 — current xlnx 6.6 tree + Debian-derived config → **VIABLE; recommended immediate step**
 
 - Keep the hardware-proven tree; replace the hand-grown feature surface by
   importing Debian's armmp config onto it (whole-config + our fragment, or
-  a large curated fragment — mechanics identical to 方案二's config work,
+  a large curated fragment — mechanics identical to Option 2's config work,
   zero platform risk).
 - Immediately unblocks step 3.5 (netfilter for iptables/nft), USB serial,
   USB WiFi/BT, FUSE/exFAT, AppArmor, and the general "crippled kernel"
@@ -215,29 +215,29 @@ xdevcfg. Worth filing as upstream goodwill; not a plan.
 - Costs: still 6.6-based; the xlnx branch lags upstream (6.6.80 vs
   6.6.110+) — consider a branch bump or rebasing the fragment onto
   mainline `linux-6.6.y` in the same pass; security tracking stays manual
-  until 方案二 lands.
-- Bonus: ~95 % of the config work done here carries straight into 方案二.
+  until Option 2 lands.
+- Bonus: ~95 % of the config work done here carries straight into Option 2.
 
 ---
 
 ## 7. Recommendation
 
-1. **Now: 方案三.** Regenerate the kernel config from Debian's armmp config
+1. **Now: Option 3.** Regenerate the kernel config from Debian's armmp config
    + our existing fragment (keep all current built-ins, initrd-less flow,
    `-web888` localversion), and add the firmware package set (§5) to the
    image with `non-free-firmware` enabled. This closes the user's actual
    complaint with the least risk and unblocks step 3.5.
-2. **Next milestone (after step 3.5/4 are stable on hardware): 方案二.**
+2. **Next milestone (after step 3.5/4 are stable on hardware): Option 2.**
    Same config, re-based onto Debian `linux-source-6.12`; port the two
    drivers; QEMU gate + blind-boot gate. This is the durable answer to
    "apt-class maintenance for an internet-facing SDR" that motivated the
    earlier TODO item — updated by this research (that item assumed
    Debian's stock kernel was usable and DKMS was the delivery mechanism;
    both assumptions are now superseded).
-3. **方案一: park it.** Optionally file the upstream wishlist bug (1b);
-   if Debian ever enables Zynq in armmp, 方案一 becomes strictly superior
+3. **Option 1: park it.** Optionally file the upstream wishlist bug (1b);
+   if Debian ever enables Zynq in armmp, Option 1 becomes strictly superior
    and the pinned kmod-deb design from §4 drops in unchanged.
-4. **Firmware: option-independent** — do it in the same pass as 方案三.
+4. **Firmware: option-independent** — do it in the same pass as Option 3.
 
 ### Pre-execution checklist (for whichever step is scheduled)
 
@@ -248,7 +248,7 @@ xdevcfg. Worth filing as upstream goodwill; not a plan.
 - [ ] Rootfs budget: full Debian-style /lib/modules ≈ 100–200 MB xz — fine
 - [ ] Firmware: sources.list `non-free-firmware` + 4 packages (§5)
 - [x] QEMU gate, blind boot, netfilter acceptance — all completed
-- [ ] (方案二 only) drivers compile vs 6.12 headers; web888.dts vs 6.12
+- [ ] (Option 2 only) drivers compile vs 6.12 headers; web888.dts vs 6.12
       dtsi; initrd-less vs initramfs-tools decision; update TODO item
 
 ## 8. Addendum: Debian-on-Zynq community projects — maintenance & trust
@@ -306,11 +306,11 @@ an internet-facing device.**
   existing proof that **mainline 6.12 + Zynq-7010 boots initrd-less**
   (ZYBO is the same silicon as the Web-888), with a working defconfig,
   minimal patch set, and a standard deb packaging flow. Directly de-risks
-  方案二's 6.12 port (borrow: defconfig baseline, patch list to check,
+  Option 2's 6.12 port (borrow: defconfig baseline, patch list to check,
   build-doc flow).
 - Trust as a **kernel/binary vendor**: no — rebuild from source with our
   own config instead. Nothing he ships can be used as-is anyway (blockers
-  above), and 方案二/三 give us a strictly more complete feature set with
+  above), and Option 2/3 give us a strictly more complete feature set with
   a security-tracked source base.
 
 ## Evidence appendix
