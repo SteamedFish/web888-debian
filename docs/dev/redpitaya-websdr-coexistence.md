@@ -191,8 +191,8 @@ Switch semantics:
   bitstream expects → switch script may need to re-run the stock Si5351
   init sequence (`scripts/hw-test/si5351-init`) before loading the RP
   bitstream. Measure on hardware.
-- **EMIO GPIO numbering (OPEN QUESTION):** hpsdr's peri.c drives the DSA via
-  sysfs GPIOs 523/525/524 (base 512 + EMIO 11/13/12). Vendor RP DT has
+- **MIO GPIO numbering (OPEN QUESTION):** hpsdr's peri.c drives the DSA via
+  sysfs GPIOs 523/525/524 (base 512 + MIO 11/13/12). Vendor RP DT has
   `emio-gpio-width=64`; our web888.dts follows the stock Web-888 DT (width 1).
   Under our 6.12 DT the sysfs base/width may differ → peri.c may need a small
   patch (or drive the DSA through the same bit-bang our zynqsdr uses — MIO

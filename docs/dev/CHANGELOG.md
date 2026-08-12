@@ -16,6 +16,15 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F7: GPIO bank corrected EMIO→MIO in two Red Pitaya dev docs** —
+  `docs/dev/redpitaya-upstream-delta.md` and
+  `docs/dev/redpitaya-websdr-coexistence.md` described the PE4312 DSA
+  bit-bang pins as "EMIO 11/13/12 (sysfs 523/525/524, base 512)", but
+  base 512 + 11/13/12 are **MIO** pins (per the authoritative
+  `docs/research/hardware-facts.md`); EMIO 11/13/12 would be sysfs
+  577/578/579. Now reads MIO, matching both hardware-facts.md and the
+  coexistence doc's own §6 resolution.
+
 - **F14: `pipefail` added to two bash verify/test scripts** —
   `scripts/qemu-verify-step4.sh` and `scripts/test-redpitaya-mode.sh` used
   bare `set -u`; upgraded to `set -uo pipefail` so a failing command inside
