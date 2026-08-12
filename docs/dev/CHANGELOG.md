@@ -9,6 +9,22 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-12] — project review follow-up: doc/data/packaging/script fixes
+
+Defects surfaced by the 2026-08-12 whole-project review. Each is a
+one-spot factual/consistency fix with no behaviour change.
+
+### Fixed
+
+- **F5: `cherry-picks.manifest` 0114 slot reconciled with the on-disk patch** —
+  the slot was still `pending 0114-kiwi-kiwi-nonemptystr.patch` while the
+  quilt series actually applies `0114-kiwi-str-helpers.patch`, which
+  consolidates the three Batch-B str-helper ports (0114
+  `kiwi_nonEmptyStr`/`kiwi_nonEmptyStrRemNL`, 0115 `kiwi_str_ASCII_static`
+  len param, 0116 `kiwi_fmt_usec`). 0114 is now `applied` with all three
+  Kiwi commits; 0115/0116 marked merged-into-0114. The manifest now matches
+  the series and the on-disk file count.
+
 ## [2026-08-12] — websdr: antenna-switch SNR re-measure (patch 0150)
 
 ### Added
