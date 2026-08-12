@@ -16,6 +16,13 @@ one-spot factual/consistency fix with no behaviour change.
 
 ### Fixed
 
+- **F9: broken source path fixed in mongoose investigation doc** —
+  `docs/dev/mongoose-websocket-socket-error-investigation.md` cited the
+  SO_ERROR precedent as `pkgs/sdrp_server/sdrp_server.cpp`; the real path
+  (and the spelling used in the cherry-picks manifest) is
+  `pkgs/sdrpp_server/sdrpp_server.cpp` (double p). Both occurrences
+  corrected.
+
 - **F8: retracted "D8 LED" claim removed from `zynqsdr-port-notes.md`** —
   the note said "D8 (FPGA-loaded LED) stays off until userspace loads a
   bitstream", but `docs/research/hardware-facts.md` explicitly retracts

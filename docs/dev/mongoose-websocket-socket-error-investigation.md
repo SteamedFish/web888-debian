@@ -75,7 +75,7 @@ with an upstream fix. The numbered strings are local diagnostics only.
 If the drop is confirmed to be a graceful client close (admin page
 navigated away / closed), the epoll path should treat `EPOLLHUP`/graceful
 close as non-fatal instead of hard-closing with `mg_error("socket error 2")`.
-Precedent: `pkgs/sdrp_server/sdrp_server.cpp` L606 reads `SO_ERROR` via
+Precedent: `pkgs/sdrpp_server/sdrpp_server.cpp` L606 reads `SO_ERROR` via
 `getsockopt()` before deciding to hard-close. Only real socket errors
 should hard-close.
 
@@ -90,5 +90,5 @@ to the readable/HUP handling so the connection closes quietly.
 
 - `config/websdr/cherry-picks/0144-kiwi-mongoose-7.14-upgrade.patch`
 - `work/websdr-src/pkgs/mongoose/mongoose.cpp` (Kiwi 7.14 amalgam)
-- `pkgs/sdrp_server/sdrp_server.cpp` L606 (SO_ERROR precedent)
+- `pkgs/sdrpp_server/sdrpp_server.cpp` L606 (SO_ERROR precedent)
 - Upstream: `raw.githubusercontent.com/cesanta/mongoose/master/src/sock.c`
