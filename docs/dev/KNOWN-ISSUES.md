@@ -28,10 +28,11 @@ materialises:
 ## 4. Minor / watchlist
 
 - **0148 mongoose EPOLLERR fix pending hardware verification** — the
-  `/admin` websocket "socket error 2" drop ~0.5 s after connect is fixed
-  locally (0148, SO_ERROR pre-check), but watch for regressions both ways
-  once deployed: no more spurious `socket error 2` lines while browsing
-  /admin, and real connection errors must still close/log.
+  0148 SO_ERROR pre-check only quiets the close logging: the ~0.5 s
+  `/admin` websocket drops it addressed are now known to be *caused by
+  the frame corruption in §6* (browser kills the connection on malformed
+  frames → server sees EPOLLERR). Keep 0148, but the real fix is §6;
+  watch for real connection errors still closing/logging correctly.
 - **PSKReporter UDP path untested** — the KiwiSDR cherry-pick batch touched
   this code; autorun is off on the development unit, so it has never
   exercised the path on hardware.
@@ -59,3 +60,22 @@ These constrain what the pre-flash gate can cover:
 - QEMU masks blank-PL AXI hangs (its Zynq model returns 0 for unmapped GP
   reads) — hardware does not; see `zynqsdr-port-notes.md` §11 for the
   load-bearing probe-must-not-touch-PL rule.
+
+## 6. /admin websocket frame corruption (mongoose 7.14 send path lost its lock)
+
+**Probabilistic `/admin` disconnects** — the page dies right after opening
+or when clicking buttons (e.g. log), in every browser, non-deterministically.
+Cherry-pick **0144 deleted mongoose's global `mongoose_lock`** and split
+frame writes into two unlocked iobuf appends (`mg_ws_send`), while Kiwi
+task threads still call `send_msg*()` directly — concurrent sends race the
+web task's poll flush (`write` + `mg_iobuf_del`) and emit **malformed
+frames**. The browser kills the connection on the protocol error; the
+server then logs `socket error 2` (EPOLLERR) and `ADMIN connection closed`
+~0.5 s after auth. Corruption reproduces under concurrent admin
+connections at the trailing boundary of the 47 KB `load_dxcfg` frame.
+
+Root cause fully identified:
+[`mongoose-websocket-frame-corruption-investigation.md`](mongoose-websocket-frame-corruption-investigation.md).
+Reproducer/validator: `scripts/test-websocket-frames.py`.
+**Fix pending** (planned: route all sends through the s2c nbuf queue —
+see the investigation doc's "Fix directions").

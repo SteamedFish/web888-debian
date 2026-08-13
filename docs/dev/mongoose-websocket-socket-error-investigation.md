@@ -1,5 +1,14 @@
 # Mongoose WebSocket "socket error 2" (EPOLLERR) — investigation
 
+> **2026-08-13 update — conclusion superseded in part**: the ~0.5 s
+> browser-side close this document attributed to a graceful client
+> disconnect is actually *caused by server-side websocket frame
+> corruption* — see
+> [`mongoose-websocket-frame-corruption-investigation.md`](mongoose-websocket-frame-corruption-investigation.md).
+> `socket error 2` is a downstream symptom (browser kills the connection
+> on malformed frames → EPOLLERR). 0148 remains valid as a close/logging
+> fix but does not address the corruption.
+
 **Status**: FIXED locally as cherry-pick 0148
 (`config/websdr/cherry-picks/0148-mongoose-epollerr-graceful-close.patch`) —
 the option-(b) fix below was implemented 2026-08-11. No upstream fix exists

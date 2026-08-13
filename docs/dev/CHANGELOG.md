@@ -9,6 +9,63 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-13] — root cause identified: /admin websocket frame corruption
+
+Investigation only — no code fix yet. The probabilistic `/admin` websocket
+disconnects (page dies right after open or on button clicks, all browsers)
+are caused by cherry-pick 0144 deleting mongoose's global `mongoose_lock`:
+`send_msg*()` from non-webserver threads now races the web task's poll
+flush and emits malformed frames; the browser kills the connection
+(protocol error), producing the server-side `socket error 2` +
+`ADMIN connection closed` symptom.
+
+### Added
+
+- **`docs/dev/mongoose-websocket-frame-corruption-investigation.md`** —
+  full root-cause writeup (wire evidence, code-level race analysis,
+  deployment timeline, fix directions).
+- **`scripts/test-websocket-frames.py`** — concurrent-connection frame
+  validator / corruption reproducer (exit 1 on malformed frames).
+- **KNOWN-ISSUES §6** — the defect; **TODO** fix item under KiwiSDR
+  upstream alignment.
+
+### Changed
+
+- **`docs/dev/mongoose-websocket-socket-error-investigation.md`** (0148
+  investigation) — status amended: the `socket error 2` drop is a
+  downstream symptom of the frame corruption, not an independent issue;
+  0148 remains a close/logging fix only.
+- **KNOWN-ISSUES §4 watchlist** — 0148 bullet reworded accordingly.
+
+## [2026-08-13] — fix web admin console tab on Debian
+
+The admin page Console tab (browser terminal) was completely broken on
+Debian, and several of its shortcut buttons relied on stock-firmware or
+missing tooling.
+
+### Fixed
+
+- **Console tab: `/bin/sh: 0: Illegal option --` on connect** —
+  `ui/admin.cpp` spawned the console shell as `/bin/sh --login`; on Debian
+  `/bin/sh` is dash, which rejects the GNU-style long option and exits
+  immediately. New Debian patch
+  `config/websdr/patches/0018-admin-console-bash.patch` changes the spawn
+  to `/bin/bash --login` (bash is in the base system), appended to
+  `config/websdr/debian-patches-series`.
+- **"enable hotspot" console button pointed at stock-only
+  `/root/wifi/hotspot.sh`** — new patch
+  `config/websdr/patches/0019-admin-console-buttons-debian.patch` guards
+  the command with `test -x` and prints "hotspot.sh not present on
+  Debian" instead of a shell "not found" error. The hotspot feature
+  itself remains stock-only; Debian WiFi uses standard tooling.
+- **Console button commands missing in the image** — `htop`, `tmux`,
+  `curl`, `rsync` and `bash-completion` added to the rootfs package set
+  in `scripts/configure-rootfs.sh` so the console tab's `htop`/`tmux`
+  buttons (and general console use) work out of the box.
+- User docs: new "Admin console tab" subsection in
+  `docs/user/usage.md` (features, tmux 80×24 window-size note, hotspot
+  button behaviour on Debian).
+
 ## [2026-08-12] — project review follow-up: doc/data/packaging/script fixes
 
 Defects surfaced by the 2026-08-12 whole-project review. Each is a
