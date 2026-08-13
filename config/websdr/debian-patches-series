@@ -99,3 +99,13 @@
 # change so the admin SNR page reflects the newly selected antenna.
 # Verified with -F 0 against the full post-0017 series tree.
 0150-antenna-switch-snr-remeasure.patch
+
+# 0018: admin console spawns "/bin/bash --login" instead of "/bin/sh --login"
+# — Debian's /bin/sh is dash, which rejects --login ("Illegal option --") and
+# killed the console immediately after "CONSOLE: open connection".
+0018-admin-console-bash.patch
+
+# 0019: admin console "enable hotspot" button — guard stock-only
+# /root/wifi/hotspot.sh with test -x so the button prints a clear message
+# instead of "not found" on Debian.
+0019-admin-console-buttons-debian.patch

@@ -1,0 +1,11 @@
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -3442,7 +3442,7 @@
+                'title="CAUTION: This will delete all but\n10 MB of your system log file"',
+                'clean logs', 'console_cmd_cb', 'console_input_cb|df -H /; journalctl --vacuum-size=10M; df -H /'),
+ 
+-            w3_button('w3-aqua|margin-left:16px', 'enable hotspot', 'console_cmd_cb', 'console_input_cb|/root/wifi/hotspot.sh'),
++            w3_button('w3-aqua|margin-left:16px', 'enable hotspot', 'console_cmd_cb', 'console_input_cb|test -x /root/wifi/hotspot.sh && /root/wifi/hotspot.sh || echo "hotspot.sh not present on Debian"'),
+ 
+             w3_button('w3-blue|margin-left:16px', 'ping DNS', 'console_cmd_cb',
+                'console_input_cb|ping -c3 1.1.1.1; ping -c3 8.8.8.8'),

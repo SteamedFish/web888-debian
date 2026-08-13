@@ -114,6 +114,12 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     iptables miniupnpc netcat-openbsd sudo \
     zram-tools log2ram cloud-guest-utils \
     avahi-daemon libnss-mdns
+# Admin-console tooling: the websdr admin page's console tab has htop/tmux
+# shortcut buttons and is generally more useful with curl/rsync around
+# (update pulls, log captures). bash-completion gives the console's bash
+# --login shell tab completion.
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+    htop tmux curl rsync bash-completion
 # Step 6: firmware for the USB WiFi adapters websdr images support
 # (rtl8xxxu/rtw88, ath9k_htc, brcmfmac) — sources.list carries
 # non-free-firmware since step 3.5.

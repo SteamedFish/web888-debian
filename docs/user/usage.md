@@ -42,6 +42,25 @@ The unit's `ExecStartPre` seeds missing config files from the dist
 directory into `/etc/web888/` on every start — your edits are never
 overwritten, only absent files are created.
 
+### Admin console tab
+
+The admin page (`http://<device-ip>:8073/admin`) has a **Console** tab
+with an in-browser root shell (xterm.js over websocket, spawning
+`bash --login`) plus shortcut buttons: `htop`, `disk free`
+(`df -H /`), `clean logs`, `ping DNS`, `ping rx-888`, and
+`enable hotspot`.
+
+Notes:
+
+- **tmux button needs a large enough terminal.** The console window
+  size follows your browser window; tmux requires at least 80x24.
+  If tmux fails with "open terminal failed: terminal too small",
+  enlarge the browser window, disconnect, and reconnect.
+- **enable hotspot is a stock-firmware-only feature.** On Debian the
+  button prints "hotspot.sh not present on Debian (stock-firmware
+  only)". WiFi on the Debian image is managed via
+  ifupdown/wpasupplicant/hostapd instead (see `flashing.md`).
+
 ## Switching between WebSDR and Red Pitaya apps
 
 If the `web888-redpitaya` package is installed, the unit can run either
