@@ -316,7 +316,39 @@ acts as the repo. Good escape hatch if Pages ever becomes a problem.
 Switch to Option B (pool layout, reprepro) only if we ever need multiple
 suites/components or per-arch indices.
 
-### 2.7 Alternatives considered (for comparison only)
+### 2.7 Third-party packages we build ourselves (e.g. dumphfdl)
+
+**Also fine.** An APT repo serves whatever debs we publish — apt makes no
+distinction between our own packages (`web888-websdr`, `web888-redpitaya`)
+and rebuilt third-party tools. This also directly solves the known problem
+that the debs in the stock Web-888's built-in APT source were compiled
+against older library versions and no longer install on trixie: building
+them inside **our own trixie armhf chroot** produces `Depends:` lines that
+match the libraries the image actually ships. (Our Debian image replaces
+the stock system entirely, so the stock APT source is simply not used.)
+
+- **Build in CI**: same pattern as our own debs — fetch the pinned upstream
+  source (e.g. `szpajder/dumphfdl` at a fixed tag/commit), build in the
+  trixie armhf chroot under QEMU, emit a deb artifact. Fold into the
+  `debs` job (§1.4) or a separate `thirdparty-debs` job; ccache applies
+  equally.
+- **Pinning**: always pin the upstream tag/commit (same discipline as
+  `config/websdr/upstream.pin`) so releases are reproducible and upgrades
+  are deliberate.
+- **Versioning**: upstream version + Debian revision,
+  `dumphfdl_<upstream>-1_armhf.deb`. These packages are not in the Debian
+  archive, so there is no collision today; if one ever enters Debian, apt
+  pinning or a local suffix (`-1web8881`) keeps our build authoritative.
+  Record provenance (upstream URL + commit) in the deb changelog and in
+  `packaging/`.
+- **Repo layout**: unchanged — the flat repo carries them next to our own
+  debs, and `--multiversion` keeps old versions installable for rollback.
+- **Licensing**: verify at packaging time that each upstream license
+  permits binary redistribution (routine for GPL-family projects) and note
+  it in the provenance — much lower-risk than the FPGA-stack question
+  (§1.7.1), but record it.
+
+### 2.8 Alternatives considered (for comparison only)
 
 - **packagecloud** free tier: 2 GB storage, 10 GB bandwidth
   ([pricing](https://packagecloud.io/pricing/)).
@@ -342,6 +374,10 @@ at our scale, same trust/domain story as the releases themselves.
 5. CI mirror override (`deb.debian.org` from Azure runners).
 6. Whether the QEMU boot gate runs in CI on every tag (recommended: yes,
    as the final job before release).
+7. Inventory of third-party packages to (re)build and publish alongside
+   our own debs (dumphfdl, …) — with pinned upstream versions, since the
+   stock Web-888 APT source ships builds against incompatible library
+   versions (§2.7).
 
 ## Sources
 

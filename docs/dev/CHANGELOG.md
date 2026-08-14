@@ -9,6 +9,16 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — third-party debs in the GitHub-hosted APT repo (research supplement)
+
+### Added
+- `docs/dev/github-ci-apt-repo-research.md`: new §2.7 covering self-built
+  third-party debs (e.g. dumphfdl) in the same APT repo — feasible,
+  built in our trixie armhf chroot so `Depends:` matches the shipped
+  libraries (fixes the stale stock-source builds), with upstream pinning,
+  versioning, and licensing notes; added a corresponding open decision
+  (package inventory + pinning policy).
+
 ## [2026-08-15] — GitHub CI + APT repository feasibility research
 
 ### Added
@@ -41,7 +51,40 @@ this is a hard project rule).
     ed25519 signing key custody, tag naming/push propagation, apt layout
     choice, CI Debian mirror, QEMU gate placement.
 
+## [2026-08-15] — web888-websdr 2026.730-8 (0020/0021: admin console freeze + garbled echo)
+
+### Fixed
+- **Admin console tab froze the browser tab and echoed garbled text**
+  (user report 2026-08-14, after the bash fix in 7746e36 made the console
+  actually usable): one shared root cause on the wire — mongoose
+  `mg_url_encode()` does not percent-encode `%` itself, so any console
+  output containing `%` (notably ping's `0% packet loss`, or typing
+  `echo 100%`) reached the client with a raw `%`. Client-side
+  `decodeURIComponent` then failed; `kiwi_decodeURIComponent()`'s recovery
+  loop only set its `double_fail` bail-out when it actually removed a
+  `%xx` sequence, so a bare `%` made the `while (obj == null)` loop spin
+  forever — 100% CPU, frozen tab. `kiwi_output_msg()`'s catch-fallback
+  displayed the raw percent-encoded string, which was the visible garble.
+  Reproduced by replaying captured `console_c2w` payloads against the
+  stock parser: the first `0%%20` message froze the tab instantly; a
+  no-op `kiwi_output_msg` survived everything.
+- `config/websdr/patches/0020-encode-percent-in-kiwi-str-encode.patch`:
+  expand every raw `%` to `%25` after `mg_url_encode()` in
+  `kiwi_str_encode()` (`support/str.cpp`).
+- `config/websdr/patches/0021-decodeURIComponent-infinite-loop.patch`:
+  track a `removed` flag in `kiwi_decodeURIComponent()`
+  (`web/kiwi/kiwi_util.js`) and force `double_fail` when the cleanup pass
+  removed nothing — malformed encodings can no longer spin the loop even
+  if some other producer leaks a bad payload.
+- Verified on hardware with the user's browser (firefox-mc): Connect →
+  prompt, real "ping DNS"/"ping rx-888"/"disk free"/"htop"/"enable
+  hotspot" buttons all work, `0% packet loss` renders cleanly, 1000-char
+  `%` injection no longer freezes, htop altbuf enters/exits cleanly.
+  Deployed as `web888-websdr_2026.730-8_armhf.deb` (same build also
+  carries 0151+0152).
+
 ## [2026-08-14] — web888-websdr 2026.730-8 (0152: /admin extensions lost on queue overflow)
+
 
 ### Fixed
 - **/admin Extensions tab showed only Antenna Switch** (regression
