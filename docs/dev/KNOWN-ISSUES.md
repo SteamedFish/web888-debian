@@ -63,19 +63,22 @@ These constrain what the pre-flash gate can cover:
 
 ## 6. /admin websocket frame corruption (mongoose 7.14 send path lost its lock)
 
-**Probabilistic `/admin` disconnects** — the page dies right after opening
-or when clicking buttons (e.g. log), in every browser, non-deterministically.
+**FIXED (0151)** — the fix routes every `send_msg*()` send through the
+s2c nbuf queue so only the web_server task touches `c->send`:
+`config/websdr/cherry-picks/0151-kiwi-send-msg-via-s2c-nbuf-queue.patch`,
+built as web888-websdr 2026.730-7, deployed 2026-08-14. Verified: frame
+validator 4 × 60 s clean, dual-tab `/admin` browser soak with zero
+console errors, zero `mg_error` in the server journal. Details:
+[`mongoose-websocket-frame-corruption-investigation.md`](mongoose-websocket-frame-corruption-investigation.md).
+
+Original symptom, kept for archaeology: probabilistic `/admin` disconnects
+right after opening or when clicking buttons (e.g. log), in every browser.
 Cherry-pick **0144 deleted mongoose's global `mongoose_lock`** and split
 frame writes into two unlocked iobuf appends (`mg_ws_send`), while Kiwi
-task threads still call `send_msg*()` directly — concurrent sends race the
-web task's poll flush (`write` + `mg_iobuf_del`) and emit **malformed
-frames**. The browser kills the connection on the protocol error; the
-server then logs `socket error 2` (EPOLLERR) and `ADMIN connection closed`
-~0.5 s after auth. Corruption reproduces under concurrent admin
-connections at the trailing boundary of the 47 KB `load_dxcfg` frame.
-
-Root cause fully identified:
-[`mongoose-websocket-frame-corruption-investigation.md`](mongoose-websocket-frame-corruption-investigation.md).
-Reproducer/validator: `scripts/test-websocket-frames.py`.
-**Fix pending** (planned: route all sends through the s2c nbuf queue —
-see the investigation doc's "Fix directions").
+task threads still called `send_msg*()` directly — concurrent sends raced
+the web task's poll flush (`write` + `mg_iobuf_del`) and emitted
+**malformed frames**. The browser killed the connection on the protocol
+error; the server then logged `socket error 2` (EPOLLERR) and
+`ADMIN connection closed` ~0.5 s after auth. Corruption reproduced under
+concurrent admin connections at the trailing boundary of the 47 KB
+`load_dxcfg` frame. Validator: `scripts/test-websocket-frames.py`.

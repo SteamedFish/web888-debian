@@ -446,3 +446,44 @@ patches (0104) — only reports drift on those.
   `node --check` on admin.js. Hardware smoke owed: enable the checkbox,
   switch antennas from the user page, watch journal for an on-demand
   `SNR_meas` wakeup.
+
+## 0151-websocket-send-via-s2c-queue.patch
+
+- **Upstream:** none — KiwiSDR master has the same unlocked cross-thread
+  `mg_ws_send()` pattern (support/misc.cpp), but upstream coroutine tasks
+  are never truly parallel on the single-core BeagleBone, so the race does
+  not manifest there. This port implements every kiwi task as a real
+  pthread (`support/coroutines.cpp` `_CreateTask` → `pthread_create`),
+  which turns the latent race into observed frame corruption on the
+  dual-core Zynq-7010.
+- **Why:** probabilistic /admin websocket disconnects — browser console
+  `Received unexpected continuation frame` / `Invalid frame header`
+  (kiwi_util.js:2111 → admin_close), server log `ADMIN connection closed`
+  ~0.5 s after allow + `mongoose ... socket error 2`. Wire capture with
+  `scripts/test-websocket-frames.py` showed the server emitting malformed
+  frames exactly at the boundary after the 47821-byte `load_dxcfg` frame
+  (zeroed 2-byte header, or declared length 4 bytes short + zeroed 4-byte
+  extended header) whenever multiple admin connections were active.
+  Root cause: 0144 removed the old mongoose's global `mongoose_lock` that
+  made `mg_websocket_write()` frame-atomic from any thread; 7.14's
+  `mg_ws_send()` does two separate `mg_send()` appends with no locking.
+  Full analysis: `docs/dev/mongoose-websocket-frame-corruption-investigation.md`.
+- **What it does:** `send_msg_buf()` and `send_msg_mc()` (the two leaves
+  every `send_msg*()` wrapper funnels through) no longer call
+  `mg_ws_send()` directly; they queue onto the locked per-connection s2c
+  nbuf (`nbuf_allocq`, takes `nd->lock`), and the sole binary-frame
+  `mg_ws_send()` caller is `iterate_callback()` in `web_server.cpp` — the
+  mongoose poll thread. `send_msg_mc()` looks up the conn_t with
+  `rx_server_websocket(WS_MODE_LOOKUP, mc)`. Restores the send-side
+  architecture the nbuf queue was designed for; latency cost is
+  poll-loop-paced (sub-ms), matching pre-7.14 upstream semantics.
+- **Scope:** 1 file (`support/misc.cpp`). Deliberately unchanged: websocket
+  CLOSE frames (`web/web.cpp` client-close reply — already poll-thread;
+  `rx/rx_server.cpp` WS_MODE_CLOSE teardown — can still run on task
+  threads but only touches dying connections; queueing CLOSE would need
+  opcode-carrying nbufs). Residual risk documented in the investigation
+  doc.
+- **Verification:** `patch -p1 -F 0` clean against the full post-0019
+  series tree; runtime verification on hardware with
+  `scripts/test-websocket-frames.py` (previously reproduced corruption in
+  ~5 s) plus an admin-page browser soak.

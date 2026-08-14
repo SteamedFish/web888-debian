@@ -1,0 +1,97 @@
+From: Web-888 port (Kimi K3)
+Date: Fri, 14 Aug 2026
+Subject: websocket: route send_msg*() through the s2c nbuf queue (fix frame corruption)
+
+Root cause of the probabilistic /admin websocket disconnects (browser console:
+"Received unexpected continuation frame" / "Invalid frame header", server log:
+"ADMIN connection closed" ~0.5 s after an admin connection is allowed):
+
+The 0144 mongoose 7.14 upgrade removed the old mongoose's global mongoose_lock
+that made mg_websocket_write() frame-atomic from any thread. The replacement
+mg_ws_send() appends the frame header and payload to mc->send with TWO separate
+mg_send() calls, and mongoose 7.x has no send-path locking at all (it is
+documented single-threaded). Kiwi nevertheless calls send_msg*() - and hence
+mg_ws_send() - directly from command/application task threads, while the web
+server task's MG_EV_POLL handler concurrently writes the socket and trims the
+same mc->send iobuf. Upstream KiwiSDR gets away with this because its coroutine
+tasks are not truly parallel on the single-core BeagleBone; this Debian port
+implements every kiwi task as a real pthread (support/coroutines.cpp), so on the
+dual-core Zynq-7010 the two threads genuinely run simultaneously and interleave
+the send buffer byte streams.
+
+Observed on the wire (scripts/test-websocket-frames.py): at a frame boundary the
+next frame's 2-byte header is zeroed, or the current frame's declared length is
+4 bytes short and the next frame's 4-byte extended header is zeroed - always
+exactly at the boundary after the 47821-byte load_dxcfg frame during the admin
+config burst, while other admin connections stream concurrently.
+
+Fix: restore the architecture the queue was designed for - all websocket message
+sends go through the locked s2c nbuf queue (nbuf_allocq/nbuf_dequeue take
+nd->lock), and the ONLY caller of mg_ws_send() for binary frames is
+iterate_callback() in web_server.cpp, i.e. the mongoose poll thread. This
+changes send_msg_buf() and send_msg_mc(); every send_msg*() wrapper funnels
+through these two. Latency impact is sub-millisecond (poll-loop paced), the same
+semantic upstream KiwiSDR had before the 7.14 port.
+
+Deliberately NOT changed: websocket CLOSE frames (web/web.cpp client-close
+reply, rx/rx_server.cpp WS_MODE_CLOSE teardown, mongoose-internal PONG/CLOSE)
+are sent directly. The recv-path ones already run in the poll thread; the
+WS_MODE_CLOSE teardown can still be invoked from task threads, but it only
+affects the tail of a connection that is already being closed, and routing a
+zero-length CLOSE through the nbuf queue would require extending the queue to
+carry opcodes. Documented as a residual risk in
+docs/dev/mongoose-websocket-frame-corruption-investigation.md.
+
+Background: docs/dev/mongoose-websocket-frame-corruption-investigation.md
+Verified: patch applies with -F 0 after the full series; runtime verification
+via scripts/test-websocket-frames.py + admin-page soak on hardware.
+
+diff --git a/support/misc.cpp b/support/misc.cpp
+index 1566a17..73264de 100644
+--- a/support/misc.cpp
++++ b/support/misc.cpp
+@@ -31,6 +31,8 @@ Boston, MA  02110-1301, USA.
+ #include "debug.h"
+ #include "mongoose.h"
+ #include "conn.h"
++#include "nbuf.h"
++#include "rx.h"
+ #include "rx_server_ajax.h"
+ 
+ #include <sys/file.h>
+@@ -123,7 +125,17 @@ void send_msg_buf(conn_t* c, char* s, int slen) {
+         }
+ 
+         if (cmd_debug) cmd_debug_print(c, s, slen, true);
+-        mg_ws_send(c->mc, s, slen, WEBSOCKET_OP_BINARY);
++
++        // Never call mg_ws_send() directly here: the mongoose 7.14 upgrade
++        // removed the old global mongoose_lock, mg_ws_send() appends the frame
++        // header and payload to mc->send with two separate mg_send() calls, and
++        // this port runs every kiwi task as a real pthread. A direct send from
++        // this (non-webserver) thread races the web server task's poll-side
++        // socket write + mg_iobuf_del on the same mc->send buffer and puts
++        // malformed frames on the wire (zeroed/misaligned frame headers).
++        // Queue to the locked s2c nbuf instead; iterate_callback() in
++        // web_server.cpp issues the actual mg_ws_send() from the poll thread.
++        nbuf_allocq(&c->s2c, s, slen);
+     }
+ }
+ 
+@@ -184,7 +196,12 @@ void send_msg_mc(struct mg_connection* mc, bool debug, const char* msg, ...) {
+     va_end(ap);
+     size_t slen = strlen(s);
+     if (debug) printf("send_msg_mc: %d <%s>\n", slen, s);
+-    mg_ws_send(mc, s, slen, WEBSOCKET_OP_BINARY);
++    // Same cross-thread send race as send_msg_buf() above: route through the
++    // s2c nbuf queue so the web server task's poll loop performs the send.
++    conn_t* c = rx_server_websocket(WS_MODE_LOOKUP, mc);
++    if (c != NULL) {
++        nbuf_allocq(&c->s2c, s, slen);
++    }
+     kiwi_asfree(s, "send_msg_mc");
+ }
+ 
+-- 
+2.55.0
+

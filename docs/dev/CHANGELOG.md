@@ -9,6 +9,28 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-14] — fix /admin websocket frame corruption (0151)
+
+### Fixed
+- **0151-kiwi-send-msg-via-s2c-nbuf-queue.patch** fixes the probabilistic
+  `/admin` websocket disconnects root-caused on 2026-08-13: the three
+  `mg_ws_send()` leaves in `support/misc.cpp` (`send_msg_buf()`,
+  `send_msg_mc()`, `snd_send_msg_encoded()`) now enqueue onto the
+  connection's s2c nbuf queue instead of touching `c->send` directly, so
+  only the web_server task's MG_EV_POLL flush writes/consume the mongoose
+  send buffer. This restores the cross-thread serialization that 0144 lost
+  together with mongoose's `mongoose_lock`, without patching the vendored
+  mongoose 7.14 amalgam.
+- Built as `web888-websdr 2026.730-7` and deployed to hardware. Verified:
+  `scripts/test-websocket-frames.py` 4 × 60 s runs with zero frame
+  violations (pre-fix: 2 of 6 runs corrupted within seconds), two
+  concurrent `/admin` browser tabs through a several-minute soak incl.
+  Log/Console tab clicks with zero websocket console errors, and zero
+  `mg_error` lines in the server journal.
+- Docs: KNOWN-ISSUES §6 marked FIXED; investigation doc
+  `mongoose-websocket-frame-corruption-investigation.md` updated with the
+  fix and verification results; TODO item closed.
+
 ## [2026-08-13] — root cause identified: /admin websocket frame corruption
 
 Investigation only — no code fix yet. The probabilistic `/admin` websocket

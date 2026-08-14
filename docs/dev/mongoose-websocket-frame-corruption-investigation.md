@@ -1,6 +1,8 @@
 # Mongoose websocket frame corruption (lost send-path locking) — investigation
 
-**Status**: ROOT CAUSE IDENTIFIED — fix pending (see "Fix directions").
+**Status**: FIXED — `0151-kiwi-send-msg-via-s2c-nbuf-queue.patch`
+(direction 1 below), built as web888-websdr 2026.730-7, deployed to
+hardware 2026-08-14 and verified (see "Verification" below).
 **Date**: 2026-08-13
 **Scope**: probabilistic `/admin` websocket disconnects on web888-websdr
 2026.807-1 (mongoose 7.14 web layer, first deployed to hardware with the
@@ -176,18 +178,39 @@ corruption itself.
 - User symptoms date from after that upgrade. The running server
   self-reports `version_maj=2026 version_min=812` in the post-auth banner.
 
-## Fix directions (NOT implemented — this task was investigation only)
+## Fix directions
 
-1. **Route all websocket sends through the `s2c` nbuf queue** — make
-   `send_msg*()` enqueue instead of calling `mg_ws_send()` directly, and
-   let only the web_server task touch `c->send`. This is the architecture
-   the queue was built for and the smallest semantic change; admin stats
-   pushes are preserved (flushed on the next poll tick).
+1. **Route all websocket sends through the `s2c` nbuf queue** — IMPLEMENTED
+   as `0151-kiwi-send-msg-via-s2c-nbuf-queue.patch`: the three
+   `mg_ws_send()` leaves in `support/misc.cpp` (`send_msg_buf()`,
+   `send_msg_mc()`, `snd_send_msg_encoded()`) now `nbuf_allocq(&c->s2c, s,
+   slen)`, so only the web_server task's MG_EV_POLL flush touches
+   `c->send`. One local asymmetry accepted and documented: the CLOSE frame
+   (`web.cpp`) is still sent directly, but only while `c->is_closing`
+   excludes the poll flush, and the send task already closes connections
+   without any CLOSE on the EPOLLERR path (0148).
 2. **Reintroduce locking** around `mg_ws_send()`/`mg_ws_wrap()` vs the
    poll write+consume path. 7.14 has no lock hook, so this would be a
    local divergence from the upstream amalgam.
 3. **Upstream-style single-threaded dispatch** (`mg_wakeup`-based
    cross-thread posts) — the cleanest layering, but the largest change.
+
+## Verification (0151, 2026-08-14, hardware)
+
+- Build: `scripts/build-websdr-deb.sh` → `web888-websdr_2026.730-7_armhf.deb`
+  (0151 applied with `-F 0`, exact line numbers; host `g++ -fsyntax-only`
+  on the patched `support/misc.cpp` clean).
+- Frame validator: `scripts/test-websocket-frames.py` 4 × 60 s runs
+  (3 long-lived admin connections + connect-churn each) — **zero frame
+  violations** (pre-fix baseline: 2 of 6 runs corrupted within 5–6 s).
+- Browser soak: two concurrent `/admin` tabs, tab switching including the
+  Log and Console tabs, several minutes — **zero websocket console errors**
+  (pre-fix: `Received unexpected continuation frame` + `admin_close` flood
+  on the same actions).
+- Server journal since the fixed build: **zero `mg_error` lines**; the only
+  `ADMIN connection closed` entries correspond to the validator script's
+  own connections (it sends no Kiwi keepalives, so the server closes them
+  — same behaviour pre-fix).
 
 ## Evidence index
 

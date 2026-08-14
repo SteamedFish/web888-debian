@@ -44,13 +44,11 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 - [x] FAX recording rework — cherry-picked as 0147 (upstream f98b3779,
       post-v1.902): fixed-filename server-side recording (info leak)
       replaced by a browser-side Save button (canvas JPEG download)
-- [ ] **Fix /admin websocket frame corruption** — 0144 dropped mongoose's
-      `mongoose_lock`; `send_msg*()` from non-webserver threads races the
-      poll flush and emits malformed frames (KNOWN-ISSUES §6,
-      `mongoose-websocket-frame-corruption-investigation.md`). Planned:
-      route all sends through the s2c nbuf queue. Verify with
-      `scripts/test-websocket-frames.py` (must stay clean over repeated
-      runs) plus browser admin-page soak.
+- [x] **Fix /admin websocket frame corruption** — done as
+      `0151-kiwi-send-msg-via-s2c-nbuf-queue.patch` (built 2026.730-7,
+      deployed, verified: `scripts/test-websocket-frames.py` 4×60 s clean
+      + dual-tab browser soak with zero console errors; see KNOWN-ISSUES
+      §6 and `mongoose-websocket-frame-corruption-investigation.md`)
 - [ ] Optional, if their value case materialises: ipset blacklist,
       kiwi_output_chars console rework
 - Cherry-pick surface otherwise exhausted as of KiwiSDR v1.902 — see

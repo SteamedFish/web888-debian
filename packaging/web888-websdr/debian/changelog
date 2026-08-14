@@ -1,3 +1,18 @@
+web888-websdr (2026.730-7) UNRELEASED; urgency=medium
+
+  * Patch 0151: fix probabilistic /admin websocket disconnects. The 0144
+    mongoose 7.14 upgrade removed the old global mongoose_lock, and this
+    port runs every kiwi task as a real pthread (support/coroutines.cpp),
+    so send_msg*() from task threads raced the web server task's poll-side
+    socket write on mc->send and put malformed frames on the wire
+    (browser: "Received unexpected continuation frame" / "Invalid frame
+    header"; server: "ADMIN connection closed" ~0.5 s after allow).
+    send_msg_buf()/send_msg_mc() now queue onto the locked s2c nbuf and
+    only the mongoose poll thread issues mg_ws_send().
+    Analysis: docs/dev/mongoose-websocket-frame-corruption-investigation.md
+
+ -- SteamedFish <steamedfish@hotmail.com>  Fri, 14 Aug 2026 10:20:00 +0800
+
 web888-websdr (2026.730-6) UNRELEASED; urgency=medium
 
   * Patch 0150: re-measure SNR when the antenna selection changes.

@@ -109,3 +109,13 @@
 # /root/wifi/hotspot.sh with test -x so the button prints a clear message
 # instead of "not found" on Debian.
 0019-admin-console-buttons-debian.patch
+
+# Websocket frame corruption fix (0151): the 0144 mongoose 7.14 upgrade
+# dropped the old global mongoose_lock, and this port runs every kiwi task as
+# a real pthread (support/coroutines.cpp) — send_msg*() from task threads
+# raced the web server task's poll-side socket write on mc->send, producing
+# malformed frames (zeroed/misaligned headers) and probabilistic /admin
+# disconnects. Routes send_msg_buf()/send_msg_mc() through the locked s2c
+# nbuf queue so only the poll thread calls mg_ws_send().
+# Verified with -F 0 against the full post-0019 series tree.
+0151-websocket-send-via-s2c-queue.patch
