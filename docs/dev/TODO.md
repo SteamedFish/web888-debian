@@ -80,6 +80,15 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
         init, EEPROM MAC read, `refclock=` override) + `patches/fsbl.patch`
       - Packaging: existing bootgen flow (`scripts/build-bootbin.sh`) — only
         the `[bootloader]` input file changes.
+
+      **Plan (2026-08-14): `docs/dev/fsbl-source-build-plan.md`** — refines the
+      sub-items below based on completed research: vendor the embeddedsw
+      `xilinx_v2023.1` subset and build "from git" with host
+      `arm-none-eabi-gcc` (no Vitis/xsct needed at all); ps7_init via
+      stock-binary extraction as the primary path (zero approvals, values are
+      hardware-proven), with the HSI/XSA route demoted to an optional
+      provenance pass (Task 5, still tied to the U3 install approval).
+
   - [ ] One-time: generate `ps7_init.c/h` + BSP tree with Vivado 2023.1 HSI
         (`scripts/project.tcl` → `scripts/hwdef.tcl` — XSA export only, **no
         bitstream synthesis** — then `xsct scripts/fsbl.tcl`); shares the

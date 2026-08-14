@@ -9,6 +9,25 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-14] — FSBL source-build plan (F1 research complete)
+
+### Added
+- `docs/dev/fsbl-source-build-plan.md` — full implementation plan for TODO
+  F1 (build the FSBL from source instead of reusing the stock binary),
+  compiled from three research passes (local repo/binary analysis, embeddedsw
+  toolchain, ps7_init acquisition paths). Key outcomes that refine the
+  original F1 assumptions:
+  - No Vitis/xsct needed at all: vendor the embeddedsw `xilinx_v2023.1`
+    subset (MIT) and use the official from-git build
+    (`make BOARD=web888 CC=arm-none-eabi-gcc`); host gcc 16.1.0 is usable.
+  - ps7_init acquisition: primary path is signature-based extraction of the
+    15 data arrays from `work/stock/fsbl.bin` (hardware-proven ground truth,
+    zero approvals); the one-time Vivado 2023.1 pre-synthesis XSA export is
+    demoted to an optional provenance pass that must match the extraction.
+  - Deliberate behavior delta identified: the stock FSBL predates the hooks'
+    GPIO commits, so a source-built FSBL will newly drive MIO49/MIO10 and
+    honor the EEPROM `refclock=` override — to be documented when it lands.
+
 ## [2026-08-14] — fix /admin websocket frame corruption (0151)
 
 ### Fixed
