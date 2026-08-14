@@ -327,6 +327,23 @@ them inside **our own trixie armhf chroot** produces `Depends:` lines that
 match the libraries the image actually ships. (Our Debian image replaces
 the stock system entirely, so the stock APT source is simply not used.)
 
+- **No existing APT source to reuse** (verified 2026-08-15): there is no
+  Debian/Ubuntu channel for these tools, so self-maintaining is required,
+  not optional.
+  - [Repology](https://repology.org/project/dumphfdl/versions) shows
+    `dumphfdl` only in AUR, Nix, and the openSUSE `hardware:sdr` project
+    (RPM only — no armhf deb); it is absent from Debian and Ubuntu, no
+    Launchpad PPA ships it, and it is not in
+    [deb-get](https://github.com/wimpysworld/deb-get).
+  - Its mandatory dependency `libacars >= 2.1.0` is likewise absent from
+    Debian ([Repology](https://repology.org/project/libacars/versions):
+    Fedora carries only the too-old 1.3.1; current builds exist only as
+    AUR/openSUSE-RPM/Nix), so it must be packaged alongside dumphfdl.
+  - Upstream `szpajder/dumphfdl` is source-only (no `debian/` directory,
+    no release debs; `make install` targets `/usr/local`).
+  - Remaining deps (`libliquid-dev`, glib2, libconfig++, fftw3, libzmq,
+    sqlite3, librdkafka) are already in the Debian archive; optional
+    `statsd-c-client` would also need our own build.
 - **Build in CI**: same pattern as our own debs — fetch the pinned upstream
   source (e.g. `szpajder/dumphfdl` at a fixed tag/commit), build in the
   trixie armhf chroot under QEMU, emit a deb artifact. Fold into the

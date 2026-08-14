@@ -9,6 +9,16 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — dumphfdl existing-repo check (research supplement)
+
+### Added
+
+- `docs/dev/github-ci-apt-repo-research.md` §2.7: verified that no
+  existing Debian/Ubuntu APT source (official archive, PPA, deb-get)
+  ships `dumphfdl` or `libacars >= 2.1.0` — Repology shows only
+  AUR/Nix/openSUSE-RPM channels — so we must build and publish both
+  ourselves (openSUSE `hardware:sdr` is RPM-only, no armhf deb).
+
 ## [2026-08-15] — third-party debs in the GitHub-hosted APT repo (research supplement)
 
 ### Added
