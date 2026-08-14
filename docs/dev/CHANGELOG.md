@@ -9,6 +9,38 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — GitHub CI + APT repository feasibility research
+
+### Added
+- `docs/dev/github-ci-apt-repo-research.md` — research-only document
+  (no implementation) answering two questions with official docs,
+  changelog entries, and production reference repos:
+  - **GitHub Actions image build + tag-triggered releases: feasible.**
+    Everything in `build-all.sh` runs on `ubuntu-24.04` hosted runners
+    (4 CPU/16 GB/14 GB SSD, public repos free): cross toolchain via apt,
+    armhf debootstrap under qemu-user-static/binfmt (proven by
+    Eugeny/tabby), losetup image assembly (proven by DietPi, systemd,
+    RROrg/rr). Cold build ≈ 2–4 h fits the 6 h job cap with ccache +
+    rootfs caching and a 4–5 job split. Images must ship xz-compressed
+    (release assets strictly < 2 GiB). Main risk flagged: redistribution
+    of the closed FPGA/bitstream stack in public release artifacts needs
+    review before enabling public releases.
+  - **Fully GitHub-hosted APT repository: feasible.** Recommended design:
+    flat repo on the `gh-pages` branch (`dpkg-scanpackages --multiversion`
+    + `apt-ftparchive release` + GPG InRelease, deployed via
+    peaceiris/actions-gh-pages) — recipe proven by davidboulay/Clippy and
+    K0IN/apt-github-pages. Pool-layout alternative via reprepro/aptly
+    (production: atsign-foundation/noports-apt). Releases-hosted flat repo
+    documented as fallback (production: mieweb/opensource-server,
+    NeverWrite, OpenList). Pages limits (1 GB site, 100 GB/mo soft
+    bandwidth) do not bite at our package scale. The three actions cited
+    in older blog posts (burneracct/deb-action, sarusso/tinydeb,
+    drom92/debian-repo) are all deleted — tooling list updated to
+    currently maintained options.
+  - Open decisions recorded: FPGA-stack redistribution review, dedicated
+    ed25519 signing key custody, tag naming/push propagation, apt layout
+    choice, CI Debian mirror, QEMU gate placement.
+
 ## [2026-08-14] — web888-websdr 2026.730-8 (0152: /admin extensions lost on queue overflow)
 
 ### Fixed

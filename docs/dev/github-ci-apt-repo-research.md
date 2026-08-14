@@ -1,0 +1,386 @@
+# GitHub CI/CD + GitHub-hosted APT repository — feasibility research
+
+**Status: research only — no implementation yet** (user request 2026-08-15).
+
+Two questions investigated:
+
+1. Can the image build (`scripts/build-all.sh`) be moved into a GitHub
+   Actions workflow, with git tags driving versioned GitHub Releases?
+2. Can we host a real APT repository **entirely on GitHub infrastructure**
+   (no external server, no PPA, no self-hosted runner), so that users run
+   `apt update && apt upgrade` on their devices?
+
+Both answers are **yes**. No hard blockers were found at this project's
+scale. The details, limits, evidence, and recommended designs follow.
+
+---
+
+## Part 1 — Image build & release on GitHub Actions
+
+### 1.1 Runner capabilities (official numbers)
+
+[Choosing the runner for a job — GitHub Docs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job)
+
+| Runner | Public repos | Private repos | Arch |
+|---|---|---|---|
+| `ubuntu-latest` (= `ubuntu-24.04`) | **4 CPU / 16 GB RAM / 14 GB SSD** | 2 CPU / 8 GB / 14 GB | x64 |
+| `ubuntu-24.04-arm` | 4 CPU / 16 GB RAM / 14 GB SSD | 2 CPU / 8 GB / 14 GB | **arm64 only** |
+| `ubuntu-slim` | 1 CPU / 5 GB / 14 GB | — | x64 |
+
+Key facts:
+
+- The public GitHub mirror gets **free minutes and free artifact storage**
+  ([billing docs](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)).
+  The private forgejo repo is unaffected by any of this.
+- `ubuntu-24.04-arm` is **aarch64 only** — there is no armhf (32-bit ARM)
+  runner anywhere. GA for public repos 2025-08-07
+  ([changelog](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/)).
+  It adds nothing for this project: everything we do is cross-compile or
+  QEMU user-mode, which works identically on x64. **Use x64.**
+- **14 GB free SSD is the binding resource constraint**: kernel source
+  (~2 GB) + armhf rootfs (~1–2 GB) + 2 GiB image + ccache + staging must
+  coexist. It fits, with cleanup steps and job splitting (§1.4).
+- Runner image (20260810.271.1) preinstalls: Docker 28.0.4, `gh` CLI 2.97.0,
+  `xz-utils`, `zstd`, `dpkg-dev`, `fakeroot`, gcc 12/13/14, `rsync`, `jq`.
+  **NOT preinstalled** (must `apt install`): `qemu-user-static`,
+  `qemu-system-arm`, `crossbuild-essential-armhf`, `parted`, `dosfstools`,
+  `kpartx`.
+
+### 1.2 Hard limits
+
+[Actions limits — GitHub Docs](https://docs.github.com/en/actions/reference/limits)
+
+- **Job execution time: 6 hours (GitHub-hosted) — cannot be increased.**
+  Workflow run: 35 days.
+- Docker Hub rate limits **do not apply** to hosted runners pulling public
+  images (relevant if we ever use `arm32v7/debian:trixie` containers).
+- Artifact storage quota applies to private repos only (Free 500 MB /
+  Pro 1 GB / Team 2 GB); public repos are free. Cache: 10 GB/repo default,
+  7-day retention (can exceed with pay-as-you-go since Nov 2025).
+- No per-artifact size cap in current official docs (older third-party
+  guides claim 2 GB/artifact); multi-GB artifacts are widely reported
+  working. **Verify empirically on first run** — fallback: attach the image
+  directly to the release instead of passing it via artifacts.
+
+[About releases — GitHub Docs](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
+
+- Up to 1,000 assets per release, **each file strictly < 2 GiB**, no total
+  size limit, **no bandwidth limit**, no retention expiry.
+- Consequence: the raw 2 GiB image cannot be attached uncompressed — ship
+  `web888-debian-<mode>.img.xz` (a zero-padded 2 GiB image compresses to
+  roughly ~1 GiB with `xz -9e`; measure on first run).
+
+### 1.3 Mapping our pipeline to CI
+
+Everything `scripts/build-all.sh` does locally is reproducible on
+`ubuntu-24.04`:
+
+**Toolchain install** (maps our Arch prereqs to Ubuntu):
+
+```bash
+sudo apt-get update && sudo apt-get install -y \
+  debootstrap qemu-user-static binfmt-support qemu-system-arm \
+  crossbuild-essential-armhf device-tree-compiler u-boot-tools \
+  dosfstools parted e2fsprogs kpartx cpio rsync ccache
+```
+
+**QEMU user-mode / binfmt** for the armhf chroots (`mk-websdr-chroot.sh`,
+debootstrap): either `qemu-user-static + binfmt-support` via apt, or
+[`docker/setup-qemu-action@v4`](https://github.com/docker/setup-qemu-action).
+Proven in production CI by
+[Eugeny/tabby](https://github.com/Eugeny/tabby/blob/14e2d60b9b6dee84a53c37f05eefeb803787de04/.github/workflows/build.yml)
+(exactly `debootstrap qemu-user-static binfmt-support` + `qemu-debootstrap
+--arch arm`), also SimonKagstrom/kcov, potassco/clingo (pbuilder),
+ElementsProject/lightning. Note: `setup-qemu-action` provides **user-mode
+only** — the QEMU boot gate (`scripts/test-qemu.sh uboot`) needs
+`qemu-system-arm` from apt regardless. TCG (no KVM) on hosted runners; the
+boot test is slow but works.
+
+**Loop-device image assembly** (`build-image.sh` already uses
+`sudo -n losetup --find --show --partscan`, `mkfs.vfat`, `mkfs.ext4`):
+hosted runners have passwordless sudo and loop devices work — verified by
+production projects:
+
+- [DietPi](https://github.com/MichaIng/DietPi/blob/bf553e37c186f0dba740a3cc12c1f156c65e0208/.github/workflows/dietpi-software.bash)
+  (full SBC image builds: `losetup -f`, `losetup -P`, sfdisk)
+- [systemd/systemd mkosi.yml](https://github.com/systemd/systemd/blob/e3a224a46dea61b861d3f6ea79ad4abb0fab4b3a/.github/workflows/mkosi.yml)
+  (`sudo losetup --find --show` + mount on `ubuntu-latest`)
+- [RROrg/rr](https://github.com/RROrg/rr/blob/14543b952d00a5dc06029196065203268120c788/.github/workflows/data.yml)
+  (SDR-adjacent project shipping `.img.zip` releases)
+- kpartx also works: [google/security-research kernelctf](https://github.com/google/security-research/blob/40a83b44cb4ad2766521316b311e0fe5da3307fb/.github/workflows/kernelctf-vuln-verify.yaml)
+
+⚠️ Caveat: **losetup inside a Docker container needs `--privileged`**
+([monero build.yml](https://github.com/monero-project/monero/blob/3646f648db57f60cca86430e25a635d19fa9b92a/.github/workflows/build.yml)).
+Run image assembly as runner steps, never inside a container.
+
+**Kernel cross-build**: `crossbuild-essential-armhf` + `make bindeb-pkg`
+matches our current flow; official how-to:
+[wiki.debian.org/HowToCrossBuildAnOfficialDebianKernelPackage](https://wiki.debian.org/HowToCrossBuildAnOfficialDebianKernelPackage).
+
+### 1.4 Build time, caching, job topology
+
+Cold-build estimate on a 4-core runner: kernel 6.12 armhf cross ~30–60 min;
+debootstrap trixie armhf under QEMU ~15–40 min; websdr + redpitaya chroot
+builds under QEMU ~1–2 h combined; image assembly + xz ~15 min.
+**Total ≈ 2–4 h — inside the 6 h cap, but caching is mandatory, not
+optional.**
+
+- Kernel: [`hendrikmuhs/ccache-action@v1.2`](https://github.com/hendrikmuhs/ccache-action)
+  (works with `CROSS_COMPILE`; kernel rebuilds drop to minutes).
+- Rootfs: `actions/cache` on the debootstrap stage / `work/rootfs` saves the
+  QEMU debootstrap on every run.
+- Job split (each job stays well under the 14 GB disk):
+
+  1. `kernel` — cross-build + `bindeb-pkg` + ccache → artifact `kernel-debs`
+  2. `debs` — websdr + redpitaya chroot builds → artifact `app-debs`
+  3. `image` — `needs: [kernel, debs]`; download artifacts, debootstrap,
+     rootfs config, `build-image.sh`, `xz` → artifact + `SHA256SUMS`
+  4. `release` — `needs: image`; publish release assets
+  5. optionally `qemu-gate` — `test-qemu.sh uboot` before the release job
+
+- Set `timeout-minutes: 330` on long jobs so overruns surface as timeouts.
+
+### 1.5 Tag-triggered releases
+
+Canonical pattern (proven by
+[linux-surface](https://github.com/linux-surface/linux-surface/blob/bf1921fc63f33d03a007fb38c4f88ff7e7bc1a55/.github/workflows/debian.yml),
+[rizinorg/cutter](https://github.com/rizinorg/cutter/blob/96be4f060be1d420c5cf870e428f790e26e2c542/.github/workflows/ci.yml)):
+
+```yaml
+on:
+  push:
+    tags: ['v*']
+# ...
+permissions:
+  contents: write
+```
+
+Publishing: [softprops/action-gh-release@v3](https://github.com/softprops/action-gh-release)
+(most popular; `files:` globs, `generate_release_notes: true`,
+`prerelease`, `draft`) or plain `gh release create "$TAG" output/*.img.xz
+output/*.deb SHA256SUMS --generate-notes`. Generate `SHA256SUMS` over all
+assets in the step before publishing.
+
+⚠️ `GITHUB_TOKEN` cannot trigger `on: release` workflows — keep build and
+release in **one** tag-triggered workflow (as proposed), or use a PAT.
+
+### 1.6 Versioning from tags
+
+`GITHUB_REF_NAME=v1.2.3` → `VERSION=${GITHUB_REF_NAME#v}` → Debian version
+`1.2.3-1`. Set it into `packaging/*/debian/changelog` in CI with
+`dch -v "1.2.3-1" --distribution trixie` (devscripts) or `gbp dch --auto`
+(git-buildpackage, [Debian GitPackaging wiki](https://wiki.debian.org/GitPackaging)).
+Since we ship binary debs only, a single generated changelog entry suffices.
+
+### 1.7 Part-1 blockers & considerations
+
+1. **⚠️ Closed-source FPGA stack redistribution** — the image contains
+   factory bitstreams (`websdr_{hf,vhf}.bit`) and the closed driver/FPGA
+   stack. Publishing releases from the **public** GitHub mirror makes these
+   permanently, publicly downloadable. Review redistribution rights before
+   enabling public releases. Alternatives: releases on a private repo (then
+   2-core/8 GB runners + storage quotas apply), or publish only open
+   components.
+2. 14 GB disk — mitigated by job split + cleanup.
+3. `DEBIAN_MIRROR` default (`mirrors.tuna.tsinghua.edu.cn`) — from
+   Azure-hosted runners `deb.debian.org` is typically faster; make it a
+   workflow input.
+4. Tag propagation — the workflow fires on tags pushed **to GitHub**; the
+   mirror publish process must push tags along with cleaned `master`.
+5. Per-artifact size limit unverified in official docs (§1.2).
+
+---
+
+## Part 2 — APT repository hosted entirely on GitHub
+
+**Verdict: fully feasible, no hard blockers at our scale** (armhf only, a
+handful of packages, kernel deb ~10–30 MB). Three viable architectures, all
+with production users:
+
+| | A. Flat repo on gh-pages | B. Pool repo on gh-pages | C. Flat repo on Releases |
+|---|---|---|---|
+| Layout | `Packages(.gz)`, `Release`, `InRelease` + debs at repo root | `dists/stable/main/binary-armhf/` + `pool/` | same as A, as release assets |
+| sources.list | `deb [signed-by=...] https://<user>.github.io/web888-debian/ ./` | `deb [signed-by=...] https://<user>.github.io/web888-debian/ stable main` | `deb [signed-by=...] https://github.com/<user>/web888-debian/releases/latest/download/ ./` |
+| Tooling | `dpkg-scanpackages` + `apt-ftparchive release` + gpg | reprepro / aptly / apt-ftparchive pool mode | `gh release upload --clobber` |
+| Version history | `--multiversion` keeps old versions in index | natural, prune to N | only what the latest release carries |
+| Limits | Pages: 1 GB site, 100 GB/mo soft bandwidth | same | Releases: 2 GiB/file, **no bandwidth limit** |
+| Production users | [davidboulay/Clippy](https://github.com/davidboulay/Clippy), [K0IN/apt-github-pages](https://github.com/K0IN/apt-github-pages) | **NoPorts** ([atsign-foundation/noports-apt](https://github.com/atsign-foundation/noports-apt)), [artifactx-rs/artifactx](https://github.com/artifactx-rs/artifactx) | [mieweb/opensource-server](https://github.com/mieweb/opensource-server), [jsgrrchg/NeverWrite](https://github.com/jsgrrchg/NeverWrite), [OpenListTeam/OpenList-APT](https://github.com/OpenListTeam/OpenList-APT) |
+
+### 2.1 GitHub Pages limits (official)
+
+[GitHub Pages limits — GitHub Docs](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits)
+
+- Published site **≤ 1 GB**; source repo recommended ≤ 1 GB.
+- Deployment timeout **10 minutes** (only matters near the 1 GB scale).
+- Soft bandwidth **100 GB/month**; soft 10 builds/hour (**not** applicable
+  to Actions-driven deploys).
+- Git file limits: >50 MiB warning, **>100 MiB blocked**
+  ([About large files](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github))
+  — kernel deb is fine.
+- ToS: Pages is not for commercial SaaS/e-commerce hosting — footnote only.
+
+At our package sizes, dozens of kernel versions fit in the 1 GB budget.
+
+### 2.2 HTTP behavior (empirically verified 2026-08-15)
+
+Probed live repos with `curl -I`:
+
+- **Pages** serves `.deb` / `Release` / `InRelease` as
+  `application/octet-stream`, `Packages.gz` as `application/gzip`. apt does
+  not validate Content-Type (magic bytes) — all fine. Pages also sends
+  `ETag`, `Last-Modified`, `accept-ranges: bytes`, `cache-control:
+  max-age=600`, so apt's `If-Modified-Since` incremental updates work.
+- **Releases CDN**: `/releases/latest/download/X` → 302 →
+  `release-assets.githubusercontent.com` with `Content-Disposition:
+  attachment` — apt ignores this; three production repos prove it works.
+
+### 2.3 GPG signing
+
+- Store the armored **private key in an Actions secret**
+  (`GPG_PRIVATE_KEY`), plus passphrase/key-id secrets as needed; import via
+  `gpg --batch --import` or
+  [crazy-max/ghaction-import-gpg](https://github.com/crazy-max/ghaction-import-gpg).
+- Sign: `gpg --detach-sign --armor -o Release.gpg Release` +
+  `gpg --clearsign -o InRelease Release`.
+- Publish the **public key** at the repo root; users install it with
+  `curl ... | gpg --dearmor -o /usr/share/keyrings/web888.gpg`.
+- Use a **dedicated ed25519 signing key** (with expiry), never a personal
+  key. NeverWrite uses exactly this pattern (secrets
+  `APT_REPO_GPG_PRIVATE_KEY` / `..._PASSPHRASE` / `..._KEY_ID`).
+
+### 2.4 Tooling landscape (checked 2026-08-15)
+
+The three actions commonly cited in older blog posts are **all deleted**:
+
+- `burneracct/deb-action` — 404
+- `sarusso/tinydeb` — 404
+- `drom92/debian-repo` — 404
+- `malaupa/composite-apt-repo-action`, `radxa-repo/apt-repo-action` — archived
+
+Maintained options:
+
+- [morph027/apt-repo-action](https://github.com/morph027/apt-repo-action) —
+  reprepro-based, deployable to gh-pages; last commit **2026-08-05**
+- [Vr00mm/deb-publish](https://github.com/Vr00mm/deb-publish) — build +
+  publish .deb to a Pages APT repo, multi-arch incl. armhf; 2026-04-25
+- [jrandiny/apt-repo-action](https://github.com/jrandiny/apt-repo-action) —
+  Python; 2026-01-08
+- [aptly-dev/aptly](https://github.com/aptly-dev/aptly) — alive, v1.6.3
+  (2026-06-25); reprepro is the classic stable alternative
+- Deploy helpers: [peaceiris/actions-gh-pages@v4](https://github.com/peaceiris/actions-gh-pages)
+  or official `actions/configure-pages` + `upload-pages-artifact` +
+  `deploy-pages`
+
+### 2.5 Reference implementations worth copying
+
+- **NoPorts** (strongest production reference): `apt.noports.com` is GitHub
+  Pages behind a CNAME (verified `server: GitHub.com`). Workflow
+  [update-repo.yaml](https://github.com/atsign-foundation/noports-apt/blob/trunk/.github/workflows/update-repo.yaml):
+  `gh release download *.deb` → `apt-ftparchive packages` per arch
+  (**amd64 armhf arm64 riscv64 i386**) → `apt-ftparchive release` →
+  `gpg --clearsign`/`gpg -abs` → push; prunes to 4 newest versions.
+  Writeup: [Chris Swan, 2026-02-27](https://blog.thestateofme.com/2026/02/27/publishing-apt-and-yum-dnf-repos-on-github-pages/).
+- **Clippy**
+  [packaging/apt/build-repo.sh](https://github.com/davidboulay/Clippy/blob/main/packaging/apt/build-repo.sh) —
+  complete copyable **flat-repo** recipe: `dpkg-scanpackages
+  --multiversion . /dev/null > Packages` → gzip → `apt-ftparchive release`
+  → Release.gpg + InRelease → pubkey export → `.nojekyll` → push gh-pages.
+- Blog recipes: [linsomniac.com, 2025-03-18](https://linsomniac.com) (reprepro +
+  peaceiris), [blog.woojiahao.com, 2026-01-01](https://blog.woojiahao.com/posts/2026-01-01-hosting-an-apt-repository-on-github-pages/)
+  (multi-arch reprepro).
+
+### 2.6 Recommended design for web888-debian
+
+**Option A — flat repo on the `gh-pages` branch** (simplest; Clippy-proven;
+no pool tooling). Publish from the same tag-triggered workflow as Part 1
+(or a follow-up job): collect the release's debs, build the index, sign,
+deploy with `peaceiris/actions-gh-pages@v4` (`publish_dir`, `publish_branch:
+gh-pages`), Pages source = "Deploy from a branch → gh-pages → /".
+
+User-side (Debian trixie, armhf):
+
+```sh
+curl -fsSL https://steamedfish.github.io/web888-debian/pubkey.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/web888.gpg
+echo "deb [arch=armhf signed-by=/usr/share/keyrings/web888.gpg] https://steamedfish.github.io/web888-debian/ ./" \
+  | sudo tee /etc/apt/sources.list.d/web888.list
+sudo apt update && sudo apt install web888-websdr
+```
+
+**Fallback — Option C (Releases flat repo)**: zero Pages setup and no
+1 GB / 100 GB limits, but the index must be rebuilt and all referenced debs
+re-uploaded on **every** release (assets are flat — no subdirectories, the
+reason CrossPaste eventually moved to a CDN), and only the latest release
+acts as the repo. Good escape hatch if Pages ever becomes a problem.
+
+Switch to Option B (pool layout, reprepro) only if we ever need multiple
+suites/components or per-arch indices.
+
+### 2.7 Alternatives considered (for comparison only)
+
+- **packagecloud** free tier: 2 GB storage, 10 GB bandwidth
+  ([pricing](https://packagecloud.io/pricing/)).
+- **Cloudsmith** Core free: 500 MB storage / 1 GB delivery (hard limits);
+  OSS plan 50 GB / 200 GB ([pricing](https://cloudsmith.com/pricing)).
+- Self-hosted: full control but requires a server — what this project wants
+  to avoid.
+
+GitHub-native hosting wins: no third-party dependency, no quotas that bite
+at our scale, same trust/domain story as the releases themselves.
+
+---
+
+## Open decisions before implementation
+
+1. **Redistribution review** of the closed FPGA/driver stack in public
+   release artifacts (Part 1, §1.7.1) — this gates everything public-facing.
+2. GPG signing key: generate a dedicated ed25519 repo key, decide custody
+   (Actions secret + offline backup) and rotation/expiry policy.
+3. Tag naming convention (`v*` vs `debian-*` style) and ensuring tags are
+   pushed to the GitHub mirror.
+4. APT layout: Option A (flat/gh-pages, recommended) vs C (releases).
+5. CI mirror override (`deb.debian.org` from Azure runners).
+6. Whether the QEMU boot gate runs in CI on every tag (recommended: yes,
+   as the final job before release).
+
+## Sources
+
+GitHub official docs:
+[Pages limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits) ·
+[Actions limits](https://docs.github.com/en/actions/reference/limits) ·
+[Runner choice](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job) ·
+[About releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases) ·
+[About large files](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github) ·
+[Actions billing](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)
+
+Changelogs:
+[arm64 runners GA 2025-08-07](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/) ·
+[arm64 free preview 2025-01-16](https://github.blog/changelog/2025-01-16-linux-arm64-hosted-runners-now-available-for-free-in-public-repositories-public-preview/) ·
+[cache >10 GB 2025-11-20](https://github.blog/changelog/2025-11-20-github-actions-cache-size-can-now-exceed-10-gb-per-repository/)
+
+Tools/actions:
+[softprops/action-gh-release](https://github.com/softprops/action-gh-release) ·
+[peaceiris/actions-gh-pages](https://github.com/peaceiris/actions-gh-pages) ·
+[docker/setup-qemu-action](https://github.com/docker/setup-qemu-action) ·
+[hendrikmuhs/ccache-action](https://github.com/hendrikmuhs/ccache-action) ·
+[crazy-max/ghaction-import-gpg](https://github.com/crazy-max/ghaction-import-gpg) ·
+[morph027/apt-repo-action](https://github.com/morph027/apt-repo-action) ·
+[Vr00mm/deb-publish](https://github.com/Vr00mm/deb-publish) ·
+[aptly-dev/aptly](https://github.com/aptly-dev/aptly)
+
+Production references (APT on GitHub):
+[atsign-foundation/noports-apt](https://github.com/atsign-foundation/noports-apt) ·
+[davidboulay/Clippy](https://github.com/davidboulay/Clippy) ·
+[K0IN/apt-github-pages](https://github.com/K0IN/apt-github-pages) ·
+[artifactx-rs/artifactx](https://github.com/artifactx-rs/artifactx) ·
+[mieweb/opensource-server](https://github.com/mieweb/opensource-server) ·
+[jsgrrchg/NeverWrite](https://github.com/jsgrrchg/NeverWrite) ·
+[OpenListTeam/OpenList-APT](https://github.com/OpenListTeam/OpenList-APT)
+
+Production references (image builds in CI):
+[DietPi](https://github.com/MichaIng/DietPi) ·
+[systemd mkosi.yml](https://github.com/systemd/systemd/blob/e3a224a46dea61b861d3f6ea79ad4abb0fab4b3a/.github/workflows/mkosi.yml) ·
+[RROrg/rr](https://github.com/RROrg/rr) ·
+[Eugeny/tabby](https://github.com/Eugeny/tabby/blob/14e2d60b9b6dee84a53c37f05eefeb803787de04/.github/workflows/build.yml) ·
+[linux-surface](https://github.com/linux-surface/linux-surface) ·
+[rizinorg/cutter](https://github.com/rizinorg/cutter)

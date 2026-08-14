@@ -23,3 +23,4 @@ documentation lives in `../user/`; reverse-engineering facts live in
 | [redpitaya-websdr-coexistence.md](redpitaya-websdr-coexistence.md) | Runtime coexistence research (mode switching, FPGA/clock sharing) |
 | [web888-kiwisdr-cherry-pick-plan.md](web888-kiwisdr-cherry-pick-plan.md) | KiwiSDR → Web-888 cherry-pick plan and status |
 | [armbian-optimizations.md](armbian-optimizations.md) | External research: Armbian's small-memory / flash-protection mechanisms — rationale for the tuning shipped in `configure-rootfs.sh` |
+| [github-ci-apt-repo-research.md](github-ci-apt-repo-research.md) | Feasibility research: GitHub Actions image build + tag releases, and a fully GitHub-hosted APT repository (research only, not implemented) |
