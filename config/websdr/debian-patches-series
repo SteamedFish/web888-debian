@@ -142,3 +142,8 @@
 # freezing the browser tab at 100% CPU. Track a `removed` flag and force
 # double_fail when nothing was removed.
 0021-decodeURIComponent-infinite-loop.patch
+
+# console_c2w text is decoded once by kiwi_output_chars(); admin.console did not
+# set no_decode, so kiwi_output_msg() decodeURIComponent()d it again and failed on
+# shell output containing % (df "43%", ping "0%"). Set no_decode: true.
+0022-console-no-double-decode.patch

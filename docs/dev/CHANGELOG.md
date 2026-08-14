@@ -86,10 +86,23 @@ this is a hard project rule).
   (`web/kiwi/kiwi_util.js`) and force `double_fail` when the cleanup pass
   removed nothing — malformed encodings can no longer spin the loop even
   if some other producer leaks a bad payload.
-- Verified on hardware with the user's browser (firefox-mc): Connect →
-  prompt, real "ping DNS"/"ping rx-888"/"disk free"/"htop"/"enable
-  hotspot" buttons all work, `0% packet loss` renders cleanly, 1000-char
-  `%` injection no longer freezes, htop altbuf enters/exits cleanly.
+- `config/websdr/patches/0022-console-no-double-decode.patch`
+  (`web/kiwi/admin.js`): console output is decoded **twice** on the
+  client — `console_c2w` text passes through `kiwi_output_chars()` (decode
+  #1) and then `kiwi_output_msg()` (decode #2), so any shell output
+  containing `%` (df `43%`, ping `0%`) failed decode #2 even after the
+  server-side `%25` fix. Set `no_decode: true` on `admin.console` (the
+  same pattern FT8/digi_modes already use) so `kiwi_output_msg()` renders
+  the already-decoded text as-is.
+- Caveat discovered during rollout: the first revision of 0020 expanded
+  *every* `%`, including the `%XX` sequences `mg_url_encode()` emits for
+  bytes ≥ 0x80 — double-encoding them and overflowing the `slen*3+1`
+  buffer, which crashed `websdr.bin` in a `free(): corrupted unsorted
+  chunks` restart loop on device. The shipped 0020 only expands a bare
+  `%` (not followed by two hex digits).
+- Verified on hardware (chrome-devtools MCP): Connect → prompt, `ls` /
+  `pwd` / `df -H` render cleanly including `Use%`/`43%` columns, no
+  console freeze, no server crash.
   Deployed as `web888-websdr_2026.730-8_armhf.deb` (same build also
   carries 0151+0152).
 

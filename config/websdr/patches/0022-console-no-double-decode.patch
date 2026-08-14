@@ -1,0 +1,15 @@
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -3414,7 +3414,11 @@
+       rows: 10, cols: 140,
+       show_cursor: true,
+       is_char_oriented: false,
+-      paste_state: 0
++      paste_state: 0,
++      // web888: console_c2w text arrives already decoded by kiwi_output_chars();
++      // without no_decode kiwi_output_msg() would decodeURIComponent() it a second
++      // time and fail on shell output containing '%' (e.g. df "43%", ping "0%").
++      no_decode: true
+    };
+    
+    // reminder: use "&m" to simulate mobile on desktop
