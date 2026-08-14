@@ -128,3 +128,17 @@
 # data keeps the original drop behaviour.
 # Verified with -F 0 against the full post-0151 series tree.
 0152-websocket-control-msgs-no-drop.patch
+
+# 0020: kiwi_str_encode (support/str.cpp) — mongoose mg_url_encode() does
+# NOT percent-encode '%' itself, so console output containing '%' (e.g.
+# ping's "0% packet loss") went onto the websocket with a raw '%' and broke
+# the client's decodeURIComponent. Expand '%' -> '%25' after mg_url_encode.
+0020-encode-percent-in-kiwi-str-encode.patch
+
+# 0021: kiwi_decodeURIComponent (web/kiwi/kiwi_util.js) — the recovery loop
+# that strips invalid %xx sequences only set double_fail when it actually
+# removed something; a payload whose only flaw was a bare '%' (from the
+# 0020 bug) removed nothing and the while(obj==null) loop spun forever,
+# freezing the browser tab at 100% CPU. Track a `removed` flag and force
+# double_fail when nothing was removed.
+0021-decodeURIComponent-infinite-loop.patch

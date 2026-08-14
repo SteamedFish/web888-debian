@@ -1,0 +1,46 @@
+--- a/web/kiwi/kiwi_util.js
++++ b/web/kiwi/kiwi_util.js
+@@ -1044,8 +1044,8 @@
+          // and this code will not be triggered. That way corrections made to broken fields will persist in the cfg.
+          // This is why bulk removal of >= %80 sequences cannot be done in _cfg_load_json() on the server side.
+          // Doing that would always eliminate *any* UTF-8 sequence. Even valid ones.
+-         var i, j, k;
+-         for (i = 0; i < uri.length - 2; i++) {
++          var i, j, k, removed = false;
++          for (i = 0; i < uri.length - 2; i++) {
+             var c1 = uri.charAt(i+1);
+             var c2 = uri.charAt(i+2);
+             if (uri.charAt(i) == '%' && isHexDigit(c1) && isHexDigit(c2)) {
+@@ -1055,17 +1055,25 @@
+                   //x0 = x0.charCodeAt(0);
+                   j = Math.max(i-5, 0); k = Math.min(i+6, uri.length);
+                   console.log('BAD @'+ i +' '+ uri.slice(j,k));
+-                  uri = uri.substr(0,i) + uri.substr(i+3);
+-                  i = 0;
+-                  //console.log('FIX <'+ uri +'>');
+-                  double_fail = true;
++                   uri = uri.substr(0,i) + uri.substr(i+3);
++                   i = 0;
++                   //console.log('FIX <'+ uri +'>');
++                   double_fail = true;
++                   removed = true;
+                }
+             }
+          }
+-         //console.log(s);
+-         console.log('FINAL FIX <'+ uri +'>');
++          //console.log(s);
++          console.log('FINAL FIX <'+ uri +'>');
+ 
+-         obj = null;
++          // web888: nothing was removed (e.g. a bare '%' not followed by two hex
++          // digits, which the recovery above does not handle), so the retry would
++          // fail identically forever -- the while loop never terminates and the
++          // browser tab freezes. Give up instead of spinning.
++          if (!removed)
++             double_fail = true;
++
++          obj = null;
+       }
+    }
+    

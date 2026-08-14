@@ -1,0 +1,34 @@
+--- a/support/str.cpp
++++ b/support/str.cpp
+@@ -572,6 +572,31 @@
+         kiwi_fewer_encode(src, dst, dlen);
+     else
+         mg_url_encode(src, slen, dst, dlen);
++
++    // web888: mongoose mg_url_encode() does not encode '%' -- it is passed through raw.
++    // decodeURIComponent() on the client then fails (e.g. "0% packet loss" from ping),
++    // which sent kiwi_decodeURIComponent() into an infinite loop freezing the admin tab.
++    // Fix at the source: encode every *bare* '%' as "%25" ourselves. Only expand a '%'
++    // that is NOT followed by two hex digits: '%' emitted by mg_url_encode as part of a
++    // "%XX" sequence (for bytes >= 0x80 etc.) must be left alone -- rewriting those both
++    // double-encodes them and overflows dst, which is sized slen*3+1 (each raw input '%'
++    // becomes exactly 3 output bytes, so the bound holds).
++    {
++        size_t elen = strlen(dst);
++        char* pct = dst;
++        while ((pct = strchr(pct, '%')) != NULL) {
++            if (isxdigit((unsigned char)pct[1]) && isxdigit((unsigned char)pct[2])) {
++                pct++; // legitimate "%XX" sequence produced by mg_url_encode
++                continue;
++            }
++            size_t prefix = (size_t)(pct - dst);
++            memmove(dst + prefix + 3, dst + prefix + 1, elen - prefix);
++            dst[prefix + 1] = '2';
++            dst[prefix + 2] = '5';
++            elen += 2;
++            pct = dst + prefix + 3;
++        }
++    }
+     return dst; // NB: caller must kiwi_ifree(dst)
+ }
+ 
