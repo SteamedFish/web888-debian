@@ -9,6 +9,30 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-14] — web888-websdr 2026.730-8 (0152: /admin extensions lost on queue overflow)
+
+### Fixed
+- **/admin Extensions tab showed only Antenna Switch** (regression
+  introduced by 0151 in 2026.730-7, first observed 2026-08-14): routing
+  all `send_msg*()` sends through the s2c nbuf queue gave control
+  messages the stream-data backpressure policy — `nbuf_allocq()` drops
+  silently past `ND_HIWAT=64` and latches `ovfl` until the queue drains
+  below `ND_LOWAT=32`. The /admin startup burst (~200 queue entries:
+  cfg frames + ~170 `log_msg` + 25 `ext_call` config calls) overflowed
+  it and the `ext_call` extension-config batch was silently dropped, so
+  only `ant_switch` (Web-888's own extension, which registers its admin
+  config independently of the burst) rendered. Nondeterministic per
+  page load depending on poll-thread drain rate.
+- `config/websdr/cherry-picks/0152-websocket-control-msgs-no-drop.patch`:
+  adds `nbuf_allocq_critical()` to `net/nbuf.{h,cpp}` — bypasses the
+  `ovfl` latch, drops only past a pathological 1024-entry cap and logs
+  loudly (`nbuf: CRIT HIWAT ... exceeded`) — used by
+  `send_msg_buf()`/`send_msg_mc()` in `support/misc.cpp`. Audio/WF
+  stream data keeps the original drop-under-backpressure behaviour.
+- Verified on hardware: 7/7 /admin reloads render all extension config
+  navs (was intermittent before), RX main page waterfall/audio
+  streaming unaffected.
+
 ## [2026-08-14] — FSBL source-build plan (F1 research complete)
 
 ### Added

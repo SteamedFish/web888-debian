@@ -1,3 +1,20 @@
+web888-websdr (2026.730-8) UNRELEASED; urgency=medium
+
+  * Patch 0152: never drop websocket control messages on s2c queue
+    overflow. 0151 routed send_msg*() through the s2c nbuf queue whose
+    stream-data watermarks (ND_HIWAT=64, ovfl latch until < 32) silently
+    dropped control messages: the /admin startup burst (~200 queue
+    entries: cfg frames + ~170 log_msg + 25 ext_call) overflowed it and
+    the ext_call extension-config batch was lost, so the admin Extensions
+    tab rendered no extensions except ant_switch (which registers its
+    config independently). Nondeterministic per page load (drain-rate
+    race). Adds nbuf_allocq_critical() (bypasses the ovfl latch, drops
+    only past a pathological 1024-entry cap, loudly) used by
+    send_msg_buf()/send_msg_mc(); audio/WF stream data keeps the original
+    drop-under-backpressure behaviour.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Fri, 14 Aug 2026 20:10:00 +0800
+
 web888-websdr (2026.730-7) UNRELEASED; urgency=medium
 
   * Patch 0151: fix probabilistic /admin websocket disconnects. The 0144

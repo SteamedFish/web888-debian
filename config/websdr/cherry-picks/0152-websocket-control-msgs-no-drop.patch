@@ -1,0 +1,158 @@
+From: Web-888 Debian port
+Subject: [0152] never drop websocket control messages on s2c queue overflow
+
+0151 routed send_msg_buf()/send_msg_mc() through the locked s2c nbuf queue
+to fix the mongoose 7.14 cross-thread frame corruption. That queue's
+stream-data watermarks (ND_HIWAT=64, ovfl latch until < ND_LOWAT=32) were
+designed for audio/waterfall data where dropping under backpressure is
+correct -- but they silently dropped *control messages* too.
+
+The /admin page startup burst (load_cfg/load_dxcfg/load_dxcomm_cfg/load_adm
++ ~170 log_msg frames + 25 ext_call extension-config messages, one queue
+entry each) exceeds 64 outstanding entries whenever the mongoose poll
+thread drains slower than the task threads produce. nbuf_enqueue() then
+latches nd->ovfl and nbuf_allocq() frees the message -- the client never
+receives its ext_call burst and the admin Extensions tab renders nothing
+(except ant_switch, which registers its admin config independently).
+Whether the burst is lost is a drain-rate race, hence the per-page-load
+nondeterminism observed live.
+
+Fix: give control messages a no-drop enqueue path. nbuf_allocq() stays as
+-is for stream data (audio/WF backpressure behaviour unchanged). New
+nbuf_allocq_critical() bypasses the ovfl latch and only drops past a
+pathological ND_CRIT_HIWAT=1024 cap, loudly (lprintf), which would signal
+a wedged connection rather than normal load. send_msg_buf()/send_msg_mc()
+use the critical variant.
+
+Reproduced live on device (2026.730-7): one /admin load received all 25
+"ADM ext_call=..." frames, the next load received zero (plus zero
+extint_list_json) while ~170 log_msg frames on the same connection still
+flowed; hooked w3_call saw only ant_switch_config_html invoked.
+--- a/net/nbuf.cpp
++++ b/net/nbuf.cpp
+@@ -34,6 +34,10 @@
+ 
+ #define ND_HIWAT 64
+ #define ND_LOWAT 32
++// Control (websocket message) payloads must survive the admin-page startup
++// burst (~200 queue entries), so they get their own much higher hard cap that
++// only trips on a pathologically never-drained queue. See 0152.
++#define ND_CRIT_HIWAT 1024
+ 
+ #define NB_MAGIC 0xbabecafe
+ 
+@@ -123,7 +127,7 @@
+     if (nd->dbug) printf("] ");
+ }
+ 
+-static bool nbuf_enqueue(ndesc_t* nd, nbuf_t* nb) {
++static bool nbuf_enqueue(ndesc_t* nd, nbuf_t* nb, bool critical) {
+     check_ndesc(nd);
+     nbuf_t **q = &nd->q, **q_head = &nd->q_head;
+     nbuf_t* dp;
+@@ -162,16 +166,30 @@
+     }
+ 
+     check_nbuf(nb);
+-    if (nd->ovfl && (nd->cnt < ND_LOWAT)) {
+-        nd->ovfl = FALSE;
++    if (critical) {
++        // Control messages (websocket mg_ws_send payloads) bypass the stream-
++        // data watermarks: silently dropping them here lost the admin page's
++        // ext_call extension-config batch (0151 regression, 0152 fix). Only
++        // the pathological critical cap still drops, loudly.
++        if (nd->cnt > ND_CRIT_HIWAT) {
++            lprintf("nbuf: CRIT HIWAT %d exceeded (%d pending) -- dropping control msg\n",
++                    ND_CRIT_HIWAT, nd->cnt);
++            ovfl = TRUE;
++        }
+     }
++    else {
++        if (nd->ovfl && (nd->cnt < ND_LOWAT)) {
++            nd->ovfl = FALSE;
++        }
+ 
+-    if (nd->ovfl || (nd->cnt > ND_HIWAT)) {
+-        // if (!nd->ovfl && (nd->cnt > ND_HIWAT)) printf("HIWAT\n");
+-        nd->ovfl = TRUE;
+-        ovfl = TRUE;
++        if (nd->ovfl || (nd->cnt > ND_HIWAT)) {
++            // if (!nd->ovfl && (nd->cnt > ND_HIWAT)) printf("HIWAT\n");
++            nd->ovfl = TRUE;
++            ovfl = TRUE;
++        }
+     }
+-    else {
++
++    if (!ovfl) {
+         nd->cnt++;
+         check_nbuf(nb);
+         if (*q) (*q)->prev = nb;
+@@ -184,7 +202,7 @@
+     return ovfl;
+ }
+ 
+-void nbuf_allocq(ndesc_t* nd, char* s, int sl) {
++static void nbuf_allocq_common(ndesc_t* nd, char* s, int sl, bool critical) {
+     lock_holder holder(nd->lock);
+ 
+     check_ndesc(nd);
+@@ -206,7 +224,7 @@
+     nb->dequeued = FALSE;
+     nb->ttl = nd->ttl;
+     if (nd->dbug) nb->id = id++;
+-    ovfl = nbuf_enqueue(nd, nb);
++    ovfl = nbuf_enqueue(nd, nb, critical);
+     if (nd->dbug) printf("A%d ", nb->id);
+     if (nd->dbug) nbuf_dumpq(nd);
+ 
+@@ -217,6 +235,17 @@
+     }
+ }
+ 
++void nbuf_allocq(ndesc_t* nd, char* s, int sl) {
++    nbuf_allocq_common(nd, s, sl, FALSE);
++}
++
++// Variant for websocket control messages: never subject to the stream-data
++// watermarks (ND_HIWAT/ovfl latch) that silently dropped the admin page's
++// ext_call config burst.
++void nbuf_allocq_critical(ndesc_t* nd, char* s, int sl) {
++    nbuf_allocq_common(nd, s, sl, TRUE);
++}
++
+ nbuf_t* nbuf_dequeue(ndesc_t* nd) {
+     lock_holder holder(nd->lock);
+ 
+--- a/net/nbuf.h
++++ b/net/nbuf.h
+@@ -63,6 +63,7 @@
+ void nbuf_init();
+ void nbuf_stat();
+ void nbuf_allocq(ndesc_t* nd, char* s, int sl);
++void nbuf_allocq_critical(ndesc_t* nd, char* s, int sl);
+ nbuf_t* nbuf_dequeue(ndesc_t* nd);
+ int nbuf_queued(ndesc_t* nd);
+ void nbuf_cleanup(ndesc_t* nd);
+--- a/support/misc.cpp
++++ b/support/misc.cpp
+@@ -135,7 +135,9 @@
+         // malformed frames on the wire (zeroed/misaligned frame headers).
+         // Queue to the locked s2c nbuf instead; iterate_callback() in
+         // web_server.cpp issues the actual mg_ws_send() from the poll thread.
+-        nbuf_allocq(&c->s2c, s, slen);
++        // nbuf_allocq_critical: control messages must not be dropped by the
++        // stream-data watermarks (admin startup burst overflow, 0152).
++        nbuf_allocq_critical(&c->s2c, s, slen);
+     }
+ }
+ 
+@@ -200,7 +202,7 @@
+     // s2c nbuf queue so the web server task's poll loop performs the send.
+     conn_t* c = rx_server_websocket(WS_MODE_LOOKUP, mc);
+     if (c != NULL) {
+-        nbuf_allocq(&c->s2c, s, slen);
++        nbuf_allocq_critical(&c->s2c, s, slen);
+     }
+     kiwi_asfree(s, "send_msg_mc");
+ }

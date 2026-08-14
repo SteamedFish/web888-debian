@@ -82,3 +82,16 @@ error; the server then logged `socket error 2` (EPOLLERR) and
 `ADMIN connection closed` ~0.5 s after auth. Corruption reproduced under
 concurrent admin connections at the trailing boundary of the 47 KB
 `load_dxcfg` frame. Validator: `scripts/test-websocket-frames.py`.
+
+**Regression in the 0151 fix, FIXED (0152)** — routing control messages
+through the s2c queue also gave them the stream-data drop policy:
+`nbuf_allocq()` silently frees buffers once the queue exceeds
+`ND_HIWAT=64` (latching `ovfl` until it drains below `ND_LOWAT=32`).
+The /admin startup burst (~200 entries) could overflow it and lose the
+entire `ext_call` extension-config batch → /admin Extensions tab
+rendered only Antenna Switch, intermittently per page load
+(2026.730-7 only). 0152 sends control messages via a new
+`nbuf_allocq_critical()` that bypasses the latch (hard cap 1024, loud
+log if ever hit); stream data keeps the original drop behaviour. Built
+as web888-websdr 2026.730-8, deployed and verified 2026-08-14 (7/7
+/admin reloads show all extensions).

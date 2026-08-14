@@ -119,3 +119,12 @@
 # nbuf queue so only the poll thread calls mg_ws_send().
 # Verified with -F 0 against the full post-0019 series tree.
 0151-websocket-send-via-s2c-queue.patch
+# Websocket control messages must not be dropped (0152): 0151 routed
+# send_msg*() through the s2c nbuf queue whose stream-data watermarks
+# (ND_HIWAT=64 ovfl latch) silently dropped the /admin startup burst's
+# ext_call extension-config messages -> Extensions tab lost all extensions
+# except ant_switch. Adds nbuf_allocq_critical() (bypasses ovfl, pathological
+# 1024-entry cap only) used by send_msg_buf()/send_msg_mc(); stream audio/WF
+# data keeps the original drop behaviour.
+# Verified with -F 0 against the full post-0151 series tree.
+0152-websocket-control-msgs-no-drop.patch
