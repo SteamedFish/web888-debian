@@ -13,6 +13,7 @@ load-bearing claims against binaries before relying on them.
 | [hardware-reference.md](hardware-reference.md) | Hardware reference: board layout, pinout, GPSDO, connectors |
 | [bootbin-repack-spec.md](bootbin-repack-spec.md) | boot.bin partition layout and repack specification (bootgen-verified) |
 | [stock-kernel-analysis.md](stock-kernel-analysis.md) | Stock kernel analysis: provenance, config, boot chain, firmware evolution, GPL compliance |
+| [ps7-init-stock-analysis.md](ps7-init-stock-analysis.md) | Stock FSBL ps7_init tables: encoding, 21-array inventory, clocks, MIO/DDRC cross-checks, MT41J-vs-MT41K evidence, round-trip verification |
 | [firmware-analysis.md](firmware-analysis.md) | Stock firmware (Alpine) analysis: update package vs live on-device layout |
 
 ## Stock software architecture

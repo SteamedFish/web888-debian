@@ -9,6 +9,32 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — ps7_init tables extracted from stock FSBL binary (FSBL source build, task 2)
+
+### Added
+
+- `scripts/extract-ps7-init.py` — extracts, validates, decodes and
+  re-emits the `ps7_init_*` register-init tables embedded in the stock
+  FSBL (`work/stock/fsbl.bin`). Finds all 21 arrays (5 groups × 3
+  silicon versions + post_config/debug; the `ddr` groups are not
+  SLCR-anchored and are located via their DDRC start sequence),
+  verifies "exactly 15 SLCR-anchored arrays" per the extraction spec,
+  and emits (into gitignored `.tmp/ps7-init/`) `ps7_init_data.c` in the
+  exact embeddedsw `EMIT_*` macro format, `arrays.bin`, `manifest.h`,
+  and a fully decoded `decode.txt` with UG585 register/field names.
+  Cross-checks: MIO mux-selects vs `work/redpitaya-src/cfg/red_pitaya.xml`
+  (all pass; USB0 pullup delta recorded) and RMW-folded DDRC/DDRP/DDRIOB
+  diff vs u-boot `zynq-zybo-z7/ps7_init_gpl.c` (56 identical / 34
+  differ — 16-bit bus, timing, DDRIOB and Vref differences analysed).
+  Host-gcc round-trip harness byte-compares every emitted array against
+  the binary: 21/21 byte-identical.
+- `docs/research/ps7-init-stock-analysis.md` — full analysis: opcode
+  encoding found in the stock binary (deviation from the initially
+  assumed triplet format), array inventory with offsets, clock
+  configuration (CPU 667 MHz, DDR3 533 MHz, 16-bit bus), MIO/DDRC
+  cross-check results, MT41J-vs-MT41K voltage evidence (recorded, not
+  decided), round-trip method and result, and Task 3 usage notes.
+
 ## [2026-08-15] — Vendored Xilinx embeddedsw zynq_fsbl subset (FSBL source build, task 1)
 
 ### Added
