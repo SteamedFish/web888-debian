@@ -18,12 +18,13 @@
 #   7. debootstrap             work/rootfs (trixie armhf, qemu binfmt)
 #   8. configure-rootfs.sh     hostname/password/network/openssh-server
 #  8b. install-modules.sh      kernel modules into rootfs
-#  8c. build-websdr-deb.sh     web888-websdr deb (auto-creates armhf chroot via
-#                              mk-websdr-chroot.sh; rebuilds if any patch is
-#                              newer than the cached deb)
+#  8c. build-websdr-deb.sh     web888-websdr deb (fetch-upstream-src.sh clones
+#                              the pinned RaspSDR/server tree on first run;
+#                              auto-creates armhf chroot via mk-websdr-chroot.sh;
+#                              rebuilds if any patch is newer than the cached deb)
 #  8d. install-websdr.sh       install the deb into rootfs
-#  8e. build-redpitaya-deb.sh  web888-redpitaya deb (step 4; same chroot +
-#                              stale-deb sentinel pattern as 8c)
+#  8e. build-redpitaya-deb.sh  web888-redpitaya deb (step 4; same upstream fetch,
+#                              chroot + stale-deb sentinel pattern as 8c)
 #  8f. install-redpitaya.sh    install the deb into rootfs (units disabled)
 #  8g. build-uboot.sh          work/u-boot + output/u-boot.bin (CHAIN=uboot only)
 #  8h. build-fsbl.sh           output/fsbl/fsbl.bin — FSBL built from vendored
@@ -171,6 +172,7 @@ else
 fi
 
 echo "== 8c/10 build web888-websdr deb =="
+bash scripts/fetch-upstream-src.sh websdr
 # The armhf build chroot is a prerequisite for build-websdr-deb.sh. Create it
 # on demand (idempotent — mk-websdr-chroot.sh skips if already present).
 bash scripts/mk-websdr-chroot.sh
@@ -195,6 +197,7 @@ echo "== 8d/10 install web888-websdr into rootfs =="
 bash scripts/install-websdr.sh
 
 echo "== 8e/10 build web888-redpitaya deb =="
+bash scripts/fetch-upstream-src.sh redpitaya
 # 8e.1 binaries: rebuild if missing or the pinned source clone is newer
 if [[ ! -d work/redpitaya-build/bin || -n $(find work/redpitaya-src/projects scripts/hw-test/si5351 -newer work/redpitaya-build/bin 2>/dev/null) ]]; then
     bash scripts/build-redpitaya.sh

@@ -119,6 +119,9 @@ scripts/build-initramfs.sh       #  6. test-mode initramfs
 #  7. debootstrap   → work/rootfs (trixie armhf)
 scripts/configure-rootfs.sh      #  8. hostname/password/network/ssh/services
 scripts/install-modules.sh       # 8b. kernel modules into rootfs
+#       fetch-upstream-src.sh websdr|redpitaya — auto-run by build-all.sh before
+#       8c/8e: clones the pinned upstream tree (config/<name>/upstream.pin) into
+#       work/<name>-src on first run; no-op when already at the pinned commit
 scripts/build-websdr-deb.sh      # 8c. web888-websdr deb (armhf chroot)
 scripts/install-websdr.sh        # 8d. install deb into rootfs
 scripts/build-redpitaya-deb.sh   # 8e. web888-redpitaya deb

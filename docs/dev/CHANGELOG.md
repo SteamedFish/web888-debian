@@ -9,6 +9,34 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — build-all.sh auto-clones the pinned websdr/redpitaya upstream trees
+
+### Added
+
+- **`scripts/fetch-upstream-src.sh`** — new helper, `fetch-upstream-src.sh
+  <websdr|redpitaya>`: reads `config/<name>/upstream.pin` and, when
+  `work/<name>-src` is missing, clones the pinned upstream with a shallow
+  fetch-by-SHA (GitHub allows fetching any reachable commit; same shallow
+  pattern as the bootgen/linux-xlnx clones in `build-all.sh`), checks out
+  the pinned commit, then initialises and verifies the pinned websdr
+  submodules (`externals/dumphfdl`, `pkgs/jsmn`, `pkgs/utf8`). Idempotent:
+  a tree already at the pinned commit is left untouched; a tree at a
+  DIFFERENT commit errors out instead of being silently rewritten.
+
+### Fixed
+
+- **`scripts/build-all.sh` from-scratch reproduction gap** — steps 8c/8e
+  hard-failed on a fresh checkout with `error: work/websdr-src missing (run
+  upstream clone first)`: the orchestrator auto-fetched the kernel and
+  bootgen but never the two pinned application source trees, and the manual
+  clone step was documented nowhere (the build only ever worked on machines
+  where `work/websdr-src` / `work/redpitaya-src` had been cloned by hand).
+  `build-all.sh` now runs `fetch-upstream-src.sh websdr|redpitaya` at the
+  start of steps 8c and 8e; `docs/user/building.md` documents the helper in
+  the manual per-step listing. Verified: fresh clones land exactly on the
+  pinned commits (submodule SHAs included), re-runs are a no-op, and the
+  pin gates in `build-websdr-deb.sh` / `build-redpitaya.sh` pass.
+
 ## [2026-08-15] — Fix build-all.sh abort: comment apostrophe truncated the rootfs chroot script
 
 ### Fixed
