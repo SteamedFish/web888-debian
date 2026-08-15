@@ -9,6 +9,21 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — install scripts now install the NEWEST built deb (were silently picking a stale one)
+
+### Fixed
+
+- **`scripts/install-websdr.sh` / `scripts/install-redpitaya.sh` deb
+  selection** — the websdr installer picked `$ls | head -1` (lexical
+  order → the OLDEST deb once `output/websdr/` accumulates builds: with
+  `2026.730-2,-5,-6,-7,-8` present it selected the Aug 6 `-2` build), and
+  the redpitaya installer used `find | head -1` (arbitrary directory
+  order). Both now `find … | sort --version-sort | tail --lines=1`. The
+  md5 fsys-tarfile guard cannot catch this — it compares the rootfs
+  against the *same wrongly-selected deb*. Verified against the real
+  output dirs plus a simulated `-2/-5/-8/-10` dir; exercised end-to-end
+  by the 2026-08-15 full `build-all.sh` run (steps 8d/8f).
+
 ## [2026-08-15] — build-all.sh auto-clones the pinned websdr/redpitaya upstream trees
 
 ### Added

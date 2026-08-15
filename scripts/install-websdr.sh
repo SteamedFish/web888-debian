@@ -9,7 +9,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ROOTFS=work/rootfs
-DEB=$(ls output/websdr/web888-websdr_*_armhf.deb 2>/dev/null | head -1)
+# output/websdr/ accumulates every built deb; plain `ls | head -1` sorts
+# lexically and picks the OLDEST one (`-2` before `-5`…), silently installing
+# a stale websdr. Version-sort and take the newest instead.
+DEB=$(find output/websdr -maxdepth 1 -name 'web888-websdr_*_armhf.deb' 2>/dev/null | sort --version-sort | tail --lines=1)
 
 [[ -n $DEB ]] || { echo "error: no output/websdr/web888-websdr_*_armhf.deb (run build-websdr-deb.sh first)"; exit 1; }
 [[ -d $ROOTFS/usr/bin ]] || { echo "error: $ROOTFS missing (run debootstrap steps first)"; exit 1; }

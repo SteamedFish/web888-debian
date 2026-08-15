@@ -10,7 +10,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 ROOTFS=work/rootfs
-DEB=$(find output/redpitaya -maxdepth 1 -name 'web888-redpitaya_*_armhf.deb' 2>/dev/null | head -1)
+# Multiple built debs accumulate here; `find | head -1` returns directory
+# order (arbitrary) and can pick a stale deb — version-sort, take the newest.
+DEB=$(find output/redpitaya -maxdepth 1 -name 'web888-redpitaya_*_armhf.deb' 2>/dev/null | sort --version-sort | tail --lines=1)
 
 [[ -n $DEB ]] || { echo "error: no output/redpitaya/web888-redpitaya_*_armhf.deb (run build-redpitaya-deb.sh first)"; exit 1; }
 [[ -d $ROOTFS/usr/bin ]] || { echo "error: $ROOTFS missing (run debootstrap steps first)"; exit 1; }
