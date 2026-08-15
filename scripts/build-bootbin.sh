@@ -8,10 +8,18 @@
 #   uboot — step 6: stock FSBL + mainline U-Boot (u-boot-dtb.bin) as the
 #           SSBL partition; kernel/dtb/bootargs move to the FAT partition
 #           (boot.scr/uEnv.txt). Stub modes stay as the rollback.
+#
+# FSBL=stock (default) packs the FSBL extracted from the stock boot.bin.
+# FSBL=source packs the source-built output/fsbl/fsbl.bin from
+# scripts/build-fsbl.sh instead — opt-in pending hardware verification
+# (QEMU's test-qemu.sh uboot gate skips the FSBL entirely, so it cannot
+# vet it). Only the [bootloader] partition and the header-patch length
+# change; everything else is identical.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 MODE="${1:-test}"
+FSBL="${FSBL:-stock}"
 # Extracted from resources/stock/web888-boot.bin by build-all.sh step 4.
 STOCK=work/stock
 BIF=work/bootgen-${MODE}.bif
@@ -19,21 +27,32 @@ DTB=output/web888.dtb
 [[ $MODE == test ]] && DTB=output/web888-test.dtb
 
 [[ $MODE == test || $MODE == final || $MODE == uboot ]] || { echo "usage: $0 [test|final|uboot]" >&2; exit 1; }
+case "$FSBL" in
+    stock)  FSBL_BIN="$STOCK/fsbl.bin" ;;
+    source) FSBL_BIN=output/fsbl/fsbl.bin ;;
+    *)      echo "Error: FSBL must be 'stock' or 'source' (got '$FSBL')" >&2; exit 1 ;;
+esac
+[[ -f $FSBL_BIN ]] || {
+    echo "Error: missing $FSBL_BIN$([[ $FSBL == source ]] && echo ' (run scripts/build-fsbl.sh)')" >&2
+    exit 1
+}
+FSBL_LEN=$(stat --format=%s "$FSBL_BIN")
+echo "FSBL: $FSBL — $FSBL_BIN ($FSBL_LEN bytes)"
 
 if [[ $MODE == uboot ]]; then
-    for f in "$STOCK/fsbl.bin" output/u-boot.bin work/tools/bootgen; do
+    for f in output/u-boot.bin work/tools/bootgen; do
         [[ -f $f ]] || { echo "Error: missing $f (run build-uboot.sh)" >&2; exit 1; }
     done
     {
         echo 'the_ROM_image:'
         echo '{'
-        echo "    [bootloader] $STOCK/fsbl.bin"
+        echo "    [bootloader] $FSBL_BIN"
         echo "    [load = 0x04000000, startup = 0x04000000] output/u-boot.bin"
         echo '}'
     } > "$BIF"
     ./work/tools/bootgen -image "$BIF" -arch zynq -o "output/boot-${MODE}.bin" -w
     # Same bootgen header-word patch as the stub chain (see below).
-    python3 - "output/boot-${MODE}.bin" "$(stat --format=%s "$STOCK/fsbl.bin")" <<'PY'
+    python3 - "output/boot-${MODE}.bin" "$FSBL_LEN" <<'PY'
 import struct, sys
 path, fsbl_len = sys.argv[1], int(sys.argv[2])
 with open(path, 'r+b') as f:
@@ -46,7 +65,7 @@ PY
     exit 0
 fi
 
-for f in "$STOCK/fsbl.bin" "$STOCK/ssbl.bin" output/zImage work/tools/bootgen; do
+for f in "$STOCK/ssbl.bin" output/zImage work/tools/bootgen; do
     [[ -f $f ]] || { echo "Error: missing $f" >&2; exit 1; }
 done
 
@@ -80,7 +99,7 @@ fi
 {
     echo 'the_ROM_image:'
     echo '{'
-    echo "    [bootloader] $STOCK/fsbl.bin"
+    echo "    [bootloader] $FSBL_BIN"
     echo "    [load = 0x00100000, startup = 0x00100000] $STOCK/ssbl.bin"
     echo "    [load = 0x02000000] $DTB"
     echo "    [load = 0x02008000] output/zImage"
@@ -95,7 +114,7 @@ fi
 # The Zynq-7000 BootROM uses these to copy the FSBL into OCM — length 0 means
 # nothing is loaded and the card never boots. Patch to match stock, then fix
 # the header checksum at 0x48 (one's complement of words 0x20..0x44).
-python3 - "output/boot-${MODE}.bin" "$(stat --format=%s "$STOCK/fsbl.bin")" <<'PY'
+python3 - "output/boot-${MODE}.bin" "$FSBL_LEN" <<'PY'
 import struct, sys
 path, fsbl_len = sys.argv[1], int(sys.argv[2])
 with open(path, 'r+b') as f:

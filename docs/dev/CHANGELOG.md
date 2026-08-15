@@ -9,6 +9,36 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Opt-in FSBL=source switch for boot.bin packing (FSBL source build, task 4)
+
+### Changed
+
+- `scripts/build-bootbin.sh` — new `FSBL=stock|source` env switch
+  (**default stays `stock`** pending hardware verification): selects the
+  `[bootloader]` partition between `work/stock/fsbl.bin` and the
+  source-built `output/fsbl/fsbl.bin` (error hints at
+  `scripts/build-fsbl.sh` when missing), and feeds the matching byte
+  length to the boot-header patch (words 0x34/0x40 + header checksum).
+  Verified: a default-path rebuild's bootloader region (header + stock
+  FSBL) is byte-identical to the previously built stock `boot-uboot.bin`;
+  `FSBL=source` builds (both `uboot` and stub modes) pack the source
+  FSBL with header words 0x34/0x40 = 131092 and a valid checksum;
+  invalid `FSBL` values are rejected with an error.
+- `scripts/env-setup.sh` — added `arm-none-eabi-gcc` and
+  `arm-none-eabi-objcopy` to the toolchain check (both required by
+  `scripts/build-fsbl.sh`); host detection confirmed OK
+  (gcc 16.1.0, objcopy 2.47).
+- QEMU gate result (task 4, step 2): `scripts/test-qemu.sh uboot` with
+  the source-FSBL `boot.bin` injected into the image FAT — **pass**
+  (login prompt reached). Caveat: the gate direct-boots U-Boot via
+  `-device loader`, skipping BootROM+FSBL, so it structurally cannot vet
+  the FSBL; it covers the U-Boot→kernel handoff only. A separate
+  no-loader boot-from-SD attempt (BootROM → FSBL in QEMU) produced zero
+  serial output within 60 s for BOTH the source and the stock FSBL
+  (control) — QEMU does not model the Zynq DDR controller, so FSBL
+  execution cannot be validated in QEMU at all. **The hardware flash
+  test is the real gate for the source FSBL** (task 4, step 4).
+
 ## [2026-08-15] — Source-built FSBL for web888 with RedPitaya hooks (FSBL source build, task 3)
 
 ### Added

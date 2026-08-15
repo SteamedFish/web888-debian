@@ -41,6 +41,8 @@ need_cmd() {
 echo "== System packages =="
 need_cmd debootstrap              debootstrap
 need_cmd arm-linux-gnueabihf-gcc  arm-linux-gnueabihf-gcc
+need_cmd arm-none-eabi-gcc        arm-none-eabi-gcc
+need_cmd arm-none-eabi-objcopy    arm-none-eabi-binutils
 need_cmd dtc                      dtc
 need_cmd mkimage                  uboot-tools
 need_cmd qemu-system-arm          qemu-system-arm
