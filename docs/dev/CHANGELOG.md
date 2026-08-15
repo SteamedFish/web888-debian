@@ -9,6 +9,28 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Fix build-all.sh abort: comment apostrophe truncated the rootfs chroot script
+
+### Fixed
+
+- **`scripts/configure-rootfs.sh`** — an apostrophe in the admin-console
+  comment added with the console-tooling install (`the websdr admin
+  page's console tab`, plus a second one in `console's bash`) terminated
+  the single-quoted `sh -c '...'` chroot block at line 88 halfway
+  through: the chroot ran only the truncated head (through the first apt
+  install), while the second install (`htop tmux curl rsync
+  bash-completion`, line 121) ran as *outer bash on the Arch build host*
+  — where `apt-get` does not exist — aborting `build-all.sh` with
+  `configure-rootfs.sh: line 121: apt-get: command not found`. The
+  failure was invisible to `bash -n` (the script remained syntactically
+  valid bash). Comments reworded without apostrophes and an NB warning
+  added; the other seven `sh -c`/`bash -c` blocks in `scripts/` audited
+  clean. Verified: the pre-fix script reproduces the exact error under a
+  fake-sudo harness while the fixed one executes entirely inside the
+  chroot, and a real re-run of `configure-rootfs.sh` now completes (all
+  package groups + service enables; htop/tmux/curl/rsync/
+  bash-completion/firmware/wifi all `install ok installed`).
+
 ## [2026-08-15] — build-all.sh FSBL knob (source-built FSBL by default, end to end)
 
 ### Added

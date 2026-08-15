@@ -114,10 +114,12 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     iptables miniupnpc netcat-openbsd sudo \
     zram-tools log2ram cloud-guest-utils \
     avahi-daemon libnss-mdns
-# Admin-console tooling: the websdr admin page's console tab has htop/tmux
+# Admin-console tooling: the websdr admin console tab has htop/tmux
 # shortcut buttons and is generally more useful with curl/rsync around
-# (update pulls, log captures). bash-completion gives the console's bash
-# --login shell tab completion.
+# (update pulls, log captures). bash-completion gives the console bash
+# --login shell tab completion. NB: no apostrophes anywhere inside this
+# single-quoted sh -c block — one here once terminated the string early,
+# ran the apt-get below on the HOST and aborted the build.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     htop tmux curl rsync bash-completion
 # Step 6: firmware for the USB WiFi adapters websdr images support
