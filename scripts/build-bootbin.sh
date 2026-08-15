@@ -9,17 +9,18 @@
 #           SSBL partition; kernel/dtb/bootargs move to the FAT partition
 #           (boot.scr/uEnv.txt). Stub modes stay as the rollback.
 #
-# FSBL=stock (default) packs the FSBL extracted from the stock boot.bin.
-# FSBL=source packs the source-built output/fsbl/fsbl.bin from
-# scripts/build-fsbl.sh instead — opt-in pending hardware verification
-# (QEMU's test-qemu.sh uboot gate skips the FSBL entirely, so it cannot
-# vet it). Only the [bootloader] partition and the header-patch length
-# change; everything else is identical.
+# FSBL=source (default, hardware-verified) packs the source-built
+# output/fsbl/fsbl.bin from scripts/build-fsbl.sh. FSBL=stock is the escape
+# hatch: packs the FSBL extracted from the stock boot.bin. (QEMU's
+# test-qemu.sh uboot gate skips the FSBL entirely, so it cannot vet it;
+# hardware verification is documented in docs/dev/CHANGELOG.md.) Only the
+# [bootloader] partition and the header-patch length change; everything else
+# is identical.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 MODE="${1:-test}"
-FSBL="${FSBL:-stock}"
+FSBL="${FSBL:-source}"
 # Extracted from resources/stock/web888-boot.bin by build-all.sh step 4.
 STOCK=work/stock
 BIF=work/bootgen-${MODE}.bif

@@ -9,6 +9,33 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Source-built FSBL becomes the default (FSBL source build, tasks 4 step 5 + 6)
+
+### Changed
+
+- **`FSBL=source` is now the default** in `scripts/build-bootbin.sh`:
+  every boot.bin built from now on carries the source-built FSBL
+  (Xilinx embeddedsw `zynq_fsbl` @ `xilinx_v2023.1` `86f54b77` + RaspSDR
+  Red Pitaya hooks @ `da1a7e3a`, ps7_init arrays extracted from the stock
+  FSBL binary and byte-verified). `FSBL=stock` stays as the escape hatch.
+- **Hardware-verified 2026-08-15** on the live device with an
+  `FSBL=source` image (full battery, stock card untouched as rollback):
+  booted to Debian; MAC `ce:cf:3f:f6:d5:1b` == EEPROM @0x10; MIO49 driven
+  HIGH + MIO10 driven LOW matching the hooks; WebSDR live and streaming
+  (proves Si5351 CLK0 122.88 MHz config via the hooks);
+  `memtester 350M 1` — all 16 sub-tests passed, zero failures, no OOM;
+  dmesg clean (zero error/fail/warn).
+- **Deliberate behavior deltas vs the stock FSBL** (documented in
+  `docs/research/hardware-facts.md` and `docs/user/usage.md`):
+  - MIO49 (CLK_REF) is driven HIGH at boot = internal TCXO select;
+    MIO10 (HF_VHF) driven LOW. The stock FSBL predates the hooks' GPIO
+    commits and left these lines floating.
+  - The EEPROM `refclock=` env is now consumed by the hooks to override
+    the Si5351 reference frequency (default 24,576,000 Hz). The stock
+    FSBL ignored it.
+  - MAC is still read from the EEPROM (0x10) — same end result as stock
+    via U-Boot, now also set by the FSBL hooks themselves.
+
 ## [2026-08-15] — Opt-in FSBL=source switch for boot.bin packing (FSBL source build, task 4)
 
 ### Changed
@@ -57,7 +84,7 @@ this is a hard project rule).
   `ps7_init.c` assembled from the Task 2 extracted data arrays (all 21
   arrays verbatim, DDRIOB 0x800 quirk preserved) + zed skeleton,
   plus `ps7_init.h`, `bspconfig.h`, `inbyte.c`, `outbyte.c`,
-  `drivers.txt` (14 drivers). Build verified: all 15
+  `drivers.txt` (15 drivers). Build verified: all 15
   `ps7_*_init_data_*` symbols in the elf; all 21 arrays byte-identical
   to the stock blob (`.data` section compare, 21/21); RedPitaya hook
   strings present ("GPIO LookupConfig Failed", "User RedPitaya
