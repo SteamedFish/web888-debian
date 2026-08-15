@@ -56,7 +56,12 @@ These constrain what the pre-flash gate can cover:
   cover the fail-closed paths).
 - FSBL → U-Boot handoff is not emulatable → full-U-Boot SSBL chain is
   verified in QEMU only from U-Boot onward; the FSBL handoff is a
-  hardware gate.
+  hardware gate. The QEMU gate never executes the FSBL at all
+  (`scripts/test-qemu.sh` direct-boots `output/u-boot.bin` via
+  `-device loader`; the DDR controller is unmodeled), so the source-built
+  FSBL (default since 2026-08-15) — ps7_init/DDR init, Si5351/MAC/GPIO
+  hooks, and the boot.bin handoff — is verified by the hardware battery
+  only (passed 2026-08-15, see the FSBL=source CHANGELOG entry).
 - QEMU masks blank-PL AXI hangs (its Zynq model returns 0 for unmapped GP
   reads) — hardware does not; see `zynqsdr-port-notes.md` §11 for the
   load-bearing probe-must-not-touch-PL rule.

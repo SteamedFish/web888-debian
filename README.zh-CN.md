@@ -32,15 +32,17 @@ English documentation: [README.md](README.md).
 - **Debian 源码 6.12 内核**（主机侧构建的固定版本 deb，`6.12.100-web888`，
   Debian armmp 基线 + Web-888 驱动），功能完整（ext4、网络、FPGA devcfg 等）；
   linux-xlnx 6.6 链路保留为回滚方案
-- **完整 U-Boot v2026.07** 作为 SSBL（原厂 FSBL 之后）——内核/DTB 通过
-  boot.scr/uEnv.txt 从 FAT 分区加载
+- **完整 U-Boot v2026.07** 作为 SSBL（位于**源码构建的 FSBL** 之后，
+  该 FSBL 由 vendored Xilinx embeddedsw zynq_fsbl + RaspSDR hooks 构建，
+  ps7_init 提取自原厂二进制并逐字节验证；`FSBL=stock` 保留为回退开关）
+  ——内核/DTB 通过 boot.scr/uEnv.txt 从 FAT 分区加载
 - **Debian trixie 根文件系统**（debootstrap 构建），放在 ext4 分区
 - 每次刷硬件前必须先过 QEMU 启动测试（没有串口可用）
 
 ## 目前已实现的功能
 
 - **从 TF 卡启动 Debian trixie** —— debootstrap 构建的 ext4 根文件系统、
-  重打包 boot.bin（原厂 FSBL + bootgen）、busybox initramfs switch_root、
+  重打包 boot.bin（源码构建的 FSBL + bootgen）、busybox initramfs switch_root、
   DHCP + mDNS（`web888.local`）、OpenSSH、首次启动自动扩容
 - **小内存 / 闪存友好调优** —— zram swap（lzo-rle）、log2ram + journald 限额、
   TF 卡 IO 调度器 `none`、可调 ondemand cpufreq

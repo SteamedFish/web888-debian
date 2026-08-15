@@ -1,9 +1,13 @@
 # Web-888 FSBL Source Build Plan (de-blob the boot chain)
 
-> **Status:** plan only — NOT yet implemented (compiled 2026-08-14 from three
+> **Status:** IMPLEMENTED 2026-08-15 — Tasks 1-4 + 6 done (Task 5 skipped:
+> no Vivado/HSI approval; the extraction path shipped instead).
+> `FSBL=source` is the default in `scripts/build-bootbin.sh`;
+> hardware-verified 2026-08-15 (full battery: MAC/EEPROM, MIO49/MIO10
+> levels, live WebSDR, memtester 350M clean, dmesg clean).
+> Compiled 2026-08-14 from three
 > research passes: local repo/binary analysis, embeddedsw toolchain research,
-> ps7_init acquisition-path research). Implements TODO **F1**.
-> Execution starts only after explicit operator approval.
+> ps7_init acquisition-path research. Implements TODO **F1** (checked off).
 
 **Goal:** Build the Web-888 FSBL from source — Xilinx embeddedsw `zynq_fsbl` @
 `xilinx_v2023.1` + RaspSDR Red Pitaya hooks — replacing the extracted stock blob

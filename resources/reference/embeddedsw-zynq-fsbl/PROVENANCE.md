@@ -13,7 +13,11 @@ Trimmed paths (relative to the embeddedsw repo root, layout preserved):
 - `lib/sw_apps/zynq_fsbl`               — the FSBL application (incl. `src/Makefile`, honors `BOARD=<name>` and `CC`)
 - `lib/bsp/standalone/src`              — standalone BSP (xil_types, xil_printf, xparameters glue, …)
 - `lib/sw_services/xilffs/src`          — FatFs service (SD boot image loading)
-- `lib/sw_services/xilrsa/src`          — RSA authentication service (referenced by FSBL image auth path)
+- `lib/sw_services/xilrsa/src`          — RSA authentication service (referenced by FSBL image auth path).
+  Note: upstream ships this as PREBUILT static libraries (`librsa.a`,
+  `librsa_armcc.a`) + headers — there are no C sources. Vendored as-is;
+  it is only linked into the FSBL if RSA authentication support is
+  enabled (the Web-888 FSBL build does not enable it).
 - `XilinxProcessorIPLib/drivers/{cpu_cortexa9,devcfg,dmaps,emacps,gpiops,iicps,qspips,scugic,scutimer,scuwdt,sdps,ttcps,uartps,usbps,xadcps}/src`
   — PS peripheral drivers the FSBL links against
 - `license.txt`                         — upstream license file

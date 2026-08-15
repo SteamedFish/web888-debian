@@ -27,13 +27,28 @@ when they conflict.
 ## Boot chain (verified against stock boot.bin binary)
 
 - boot.bin 9,056,768 B, Xilinx boot image (sync 0xAA995566, XNLX header):
-  - FSBL @0x0–0x1C008 (Red Pitaya–derived, configures Si5351 clock chip, does NOT load FPGA)
+  - FSBL @0x0–0x1C008 (Red Pitaya–derived, configures Si5351 clock chip, does NOT load FPGA).
+    **Our images since 2026-08-15 build the FSBL from source by default**
+    (`scripts/build-fsbl.sh`: vendored Xilinx embeddedsw zynq_fsbl @
+    `xilinx_v2023.1` `86f54b77` + RaspSDR Red Pitaya hooks @ `da1a7e3a`,
+    ps7_init arrays extracted from this stock binary and byte-verified —
+    21/21 arrays identical; `FSBL=stock` repacks the stock blob).
+    Hardware-verified 2026-08-15: clean boot, MAC == EEPROM, Si5351 CLK0
+    live (WebSDR streaming), `memtester 350M 1` all-pass, dmesg clean.
+    Deliberate deltas vs the stock blob: the hooks **drive MIO49 HIGH
+    (internal TCXO select) and MIO10 LOW** (stock FSBL left them floating —
+    it predates the hooks' GPIO commits), and **honor the EEPROM
+    `refclock=` env** as the Si5351 reference-frequency override (stock
+    ignored it). MAC @0x10 is read by the hooks too (same end result as
+    the stock path via U-Boot).
   - SSBL @0x1C008–0x1D780 (~2936 B, Pavel-Demin-style minimal loader)
   - DTB @0x1D780 (12,455 B)
   - gzip kernel @0x278A8 (4,700,435 B → 11,740,160 B)
   - gzip initramfs @0x4A3200 (3,894,120 B → 6,503,936 B)
 - Kernel cmdline (from DTB `chosen`): `console=ttyPS0,115200 earlycon earlyprintk initrd=0x3000000,4M modloop=modloop`
 - U-Boot env stored in I2C EEPROM 24c64 @0x50, offset 0x1800, size 0x400 (fw_printenv works on stock).
+  The source-built FSBL hooks scan this env and consume `refclock=` (Si5351
+  reference override); the stock FSBL ignored the whole region.
 - FPGA bitstream NOT in boot.bin — loaded at runtime by websdr.bin via `/dev/xdevcfg`.
 
 ## Console / LEDs / recovery

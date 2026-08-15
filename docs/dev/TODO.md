@@ -65,7 +65,15 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 ## Source-built FSBL (de-blob the boot chain)
 
-- [ ] **F1: build the FSBL from source instead of reusing the stock binary.**
+- [x] **F1: build the FSBL from source instead of reusing the stock binary.**
+      **DONE 2026-08-15** via the extraction path in
+      `docs/dev/fsbl-source-build-plan.md` (Tasks 1-4+6; Task 5 provenance
+      pass skipped — no Vivado). `scripts/build-fsbl.sh` builds the FSBL from
+      the vendored embeddedsw @ `xilinx_v2023.1` subset + RaspSDR hooks;
+      `FSBL=source` is the default in `scripts/build-bootbin.sh`
+      (`FSBL=stock` = escape hatch). Hardware-verified 2026-08-15 (MAC ==
+      EEPROM, MIO49/MIO10 driven per hooks, WebSDR streaming, memtester
+      350M clean, dmesg clean). Original feasibility notes below:
       Feasibility confirmed 2026-08-08 against the pinned RaspSDR fork
       (`work/redpitaya-src`): the stock FSBL is fully reconstructible from
       open sources —
@@ -92,17 +100,22 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
   - [ ] One-time: generate `ps7_init.c/h` + BSP tree with Vivado 2023.1 HSI
         (`scripts/project.tcl` → `scripts/hwdef.tcl` — XSA export only, **no
         bitstream synthesis** — then `xsct scripts/fsbl.tcl`); shares the
-        system-level Vivado install with U3 (needs operator approval)
+        system-level Vivado install with U3 (needs operator approval).
+        **Optional provenance pass only** (plan Task 5) — the extraction
+        path already shipped and is hardware-verified.
   - [ ] Vendor the generated `ps7_init` + BSP sources; rebuild the FSBL
         per-release with `arm-none-eabi-gcc` (env-setup addition — system
         package, ask operator). No Xilinx tools needed after the one-time
-        generation.
+        generation. **Superseded** — ps7_init came from stock-binary
+        extraction; the from-git build needs no Xilinx tools at all.
   - [ ] Verification: byte-diff against `work/stock/fsbl.bin` (same Vivado
         2023.1 toolchain → near-identical expected, timestamps/toolchain
         build IDs aside); QEMU gate covers U-Boot onward only (FSBL handoff
         not emulatable — KNOWN-ISSUES); blind HW flash with the stock card
         as rollback. Benefit: removes the last closed binary in the boot
         chain and gives boot-time control of Si5351/MAC handling.
+        **Done differently 2026-08-15** — verified by 21/21 ps7_init array
+        byte-compare + the full hardware battery (not a whole-binary diff).
 
 ## Distribution
 

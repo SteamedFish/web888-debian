@@ -347,7 +347,7 @@
 /* Definitions for peripheral PS7_SCUWDT_0 */
 #define XPAR_PS7_SCUWDT_0_DEVICE_ID 0
 #define XPAR_PS7_SCUWDT_0_BASEADDR 0xF8F00620
-#define XPAR_PS7_SCUWDT_0_HIGHADDR 0xF80070FFU
+#define XPAR_PS7_SCUWDT_0_HIGHADDR 0xF8F006FF
 
 
 /******************************************************************/

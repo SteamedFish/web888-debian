@@ -9,6 +9,49 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Documentation sync for the source-built FSBL (FSBL source build, task 6)
+
+### Changed
+
+- **Docs synced to the `FSBL=source` default** (plan
+  `docs/dev/fsbl-source-build-plan.md` now marked IMPLEMENTED 2026-08-15,
+  Tasks 1-4+6 done, Task 5 skipped — no Vivado):
+  - `docs/research/bootbin-repack-spec.md` — FSBL provenance in the boot
+    flow, repack-contract table, and BIF template now point at
+    `output/fsbl/fsbl.bin` (source-built default); new paragraph
+    documenting the source-FSBL deltas for the EEPROM env @0x1800
+    (`refclock=` now consumed).
+  - `docs/research/hardware-facts.md` — boot-chain FSBL bullet now
+    documents the source-built FSBL (provenance, 21/21 ps7_init array
+    byte-match, hardware-verified 2026-08-15) and its deliberate deltas
+    (MIO49 HIGH / MIO10 LOW, `refclock=` honored); env bullet notes the
+    hooks consume `refclock=`.
+  - `docs/dev/KNOWN-ISSUES.md` §5 — QEMU-gate bullet extended: QEMU never
+    executes the FSBL (`-device loader` direct-boots U-Boot, DDR
+    unmodeled), so the source FSBL is verified by the hardware battery
+    only.
+  - `docs/dev/TODO.md` — **F1 checked off** (done 2026-08-15 via the
+    extraction path); legacy HSI sub-items annotated as
+    superseded/optional provenance pass.
+  - `docs/user/usage.md` — new section "Reference clock override (EEPROM
+    `refclock=`)": user-visible behavior change — the boot-time hooks now
+    honor `refclock=` and drive MIO49/MIO10 (fulfills the documentation
+    promise in the Task 3 entry below).
+  - `README.md` / `README.zh-CN.md` — "stock FSBL" mentions updated to
+    the source-built FSBL (both languages kept in sync).
+
+### Fixed
+
+- **`xparameters.h` (web888 FSBL BSP) SCUWDT HIGHADDR typo** —
+  `XPAR_PS7_SCUWDT_0_HIGHADDR` was `0xF80070FFU`, now `0xF8F006FF`
+  consistent with the zc702 BSP in the same tree (SCUWDT is unused by the
+  FSBL build; correctness hygiene only).
+- **`embeddedsw-zynq-fsbl/PROVENANCE.md`** — notes that
+  `lib/sw_services/xilrsa/src` ships as an upstream PREBUILT
+  `librsa.a`/`librsa_armcc.a` plus headers (no C sources), vendored
+  as-is and only linked if RSA authentication is enabled (the web888
+  build does not enable it).
+
 ## [2026-08-15] — Source-built FSBL becomes the default (FSBL source build, tasks 4 step 5 + 6)
 
 ### Changed

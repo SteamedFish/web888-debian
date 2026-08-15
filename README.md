@@ -37,7 +37,10 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
 - **Debian-source 6.12 kernel** (host-built pinned deb, `6.12.100-web888`,
   Debian armmp base + Web-888 drivers), fully featured (ext4, networking,
   FPGA devcfg, …); the linux-xlnx 6.6 chain stays buildable as rollback
-- **Full U-Boot v2026.07** as SSBL behind the stock FSBL — kernel/dtb load
+- **Full U-Boot v2026.07** as SSBL behind a **source-built FSBL**
+  (vendored Xilinx embeddedsw zynq_fsbl + RaspSDR hooks, ps7_init
+  extracted from the stock binary and byte-verified; `FSBL=stock`
+  remains as escape hatch) — kernel/dtb load
   from the FAT partition via boot.scr/uEnv.txt
 - **Debian trixie rootfs** on an ext4 partition, built with debootstrap
 - QEMU boot test gates every hardware flash (no serial console available)
@@ -45,7 +48,7 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
 ## What works today
 
 - **Debian trixie boot from the TF card** — debootstrap rootfs on ext4,
-  repacked boot.bin (stock FSBL + bootgen), busybox initramfs switch_root,
+  repacked boot.bin (source-built FSBL + bootgen), busybox initramfs switch_root,
   DHCP + mDNS (`web888.local`), OpenSSH, first-boot growfs
 - **Small-memory / flash-friendly tuning** — zram swap (lzo-rle), log2ram +
   journald cap, IO scheduler `none` for the TF card, tunable ondemand

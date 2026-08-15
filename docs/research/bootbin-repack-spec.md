@@ -10,7 +10,11 @@ This supersedes all AI-generated guesses about "hardcoded offsets" in
 
 ```
 BootROM
-  └─ FSBL (reused stock binary, does ps7_init + Si5351 I2C setup)
+  └─ FSBL (does ps7_init + Si5351 I2C setup + Red Pitaya hooks; since
+     2026-08-15 built from source by default — vendored Xilinx embeddedsw
+     zynq_fsbl @ xilinx_v2023.1 (`86f54b77`) + RaspSDR hooks @ `da1a7e3a`,
+     ps7_init extracted from the stock binary; `FSBL=stock` repacks the
+     extracted stock blob `work/stock/fsbl.bin` instead)
        │  reads boot.bin partition table, copies each partition to its load addr
        ├─ SSBL  → 0x00100000   (52-byte stub)
        ├─ DTB   → 0x02000000
@@ -60,7 +64,7 @@ bx   r3
 
 | component | source | requirement |
 |-----------|--------|-------------|
-| FSBL      | `work/stock/fsbl.bin` verbatim, `[bootloader]` | must run first (does ps7_init + Si5351) |
+| FSBL      | `output/fsbl/fsbl.bin` (source-built default since 2026-08-15) or `work/stock/fsbl.bin` verbatim with `FSBL=stock`, `[bootloader]` | must run first (does ps7_init + Si5351) |
 | SSBL      | `work/stock/ssbl.bin` verbatim | load=exec `0x00100000` |
 | DTB       | built in M4 from modified stock dts | load `0x02000000` (hardcoded in SSBL r2) |
 | zImage    | built in M3 (linux-xlnx 6.6) | load `0x02008000` (hardcoded in SSBL literal) |
@@ -76,7 +80,7 @@ Debian bootargs (M4): `console=ttyPS0,115200 root=/dev/mmcblk0p2 rootfstype=ext4
 ```bif
 the_ROM_image:
 {
-  [bootloader] work/stock/fsbl.bin
+  [bootloader] output/fsbl/fsbl.bin   # source-built default; FSBL=stock → work/stock/fsbl.bin
   [load=0x00100000, startup=0x00100000] work/stock/ssbl.bin
   [load=0x02000000] output/web888-debian.dtb
   [load=0x02008000] output/zImage
@@ -102,9 +106,15 @@ node pair**; M3 kernel config needs `CONFIG_NVMEM`, `CONFIG_NVMEM_LAYOUTS`
 (+ fixed-layout parser) and the default OF EEPROM provider.
 
 The U-Boot env at 0x1800 is a leftover from an older U-Boot-based chain and is
-**not consumed** by the current FSBL→stub→kernel chain. It documents factory
+**not consumed** by the stock FSBL→stub→kernel chain. It documents factory
 metadata: `hw_rev=Web-888.1`, `serial=241000080`, `refclock=24576000`
 (Si5351 reference, matches the FSBL I2C setup), `prod_date=04/08/24`,
 `hostname=web-888`. Env `ethaddr=02:00:11:22:33:44` is NOT the live MAC.
+
+**Delta with the source-built FSBL (default since 2026-08-15):** the Red
+Pitaya hooks now scan this env region and honor `refclock=` as the Si5351
+reference-frequency override (default 24,576,000 Hz) — the stock FSBL ignored
+it. The hooks also read the MAC @0x10 themselves and drive MIO49 HIGH
+(internal TCXO select) / MIO10 LOW. See `docs/research/hardware-facts.md`.
 
 Full dump archived: `.tmp/stock/eeprom-24c64.bin` (8192 bytes).

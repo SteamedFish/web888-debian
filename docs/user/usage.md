@@ -114,6 +114,21 @@ scp -P 22 -r root@<device-ip>:/etc/web888 ./backup-etc-web888
 For a full system backup, image the whole TF card on a PC (`dd` /
 `ddrescue`). The stock card remains the factory-firmware rollback.
 
+## Reference clock override (EEPROM `refclock=`)
+
+The board EEPROM (24c64 @0x50, offset 0x1800) holds a U-Boot-style env
+with factory metadata (`hw_rev`, `serial`, `prod_date`, …) including
+`refclock=24576000` — the Si5351 reference (TCXO) frequency in Hz.
+
+Images since 2026-08-15 boot a **source-built FSBL** whose Red Pitaya
+hooks read this env at boot and honor `refclock=` as the Si5351
+reference-frequency override (the stock FSBL ignored it). This only
+matters for boards retrofitted with a non-24.576 MHz TCXO — with the
+factory clock no action is needed. The hooks also drive MIO49 HIGH
+(internal TCXO select) and MIO10 LOW at boot; on the stock firmware
+those lines were left floating. Details:
+`docs/research/hardware-facts.md`.
+
 ## GPS
 
 Use a 3.3 V active antenna (see `quick-reference.md`). After a cold start
