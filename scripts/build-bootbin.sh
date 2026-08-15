@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# build-bootbin.sh — repack boot.bin from the stock FSBL+SSBL plus our
-# DTB and zImage, per docs/research/bootbin-repack-spec.md.
+# build-bootbin.sh — repack boot.bin from the source-built FSBL (default) or
+# stock FSBL+SSBL, plus our DTB and zImage, per docs/research/bootbin-repack-spec.md.
 #
 # usage: build-bootbin.sh [test|final|uboot]
 #   test  — dtb with initrd= bootargs + initramfs @ 0x03000000 (first-boot gate)
 #   final — dtb with root=/dev/mmcblk0p2 bootargs, no initramfs (direct ext4 boot)
-#   uboot — step 6: stock FSBL + mainline U-Boot (u-boot-dtb.bin) as the
+#   uboot — step 6: FSBL + mainline U-Boot (u-boot-dtb.bin) as the
 #           SSBL partition; kernel/dtb/bootargs move to the FAT partition
 #           (boot.scr/uEnv.txt). Stub modes stay as the rollback.
 #

@@ -9,6 +9,24 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Doc sync for final-review minors M1-M3 (FSBL provenance, bootbin header comments, plan as-built notes)
+
+### Changed
+
+- **`resources/README.md`** — stock boot.bin "Why it is required" rewritten:
+  the FSBL is now built from source by default (`FSBL=source` — vendored
+  embeddedsw @ `xilinx_v2023.1` + RaspSDR hooks); the stock binary is still
+  needed as the SSBL-stub extraction source, the ps7_init-array extraction
+  source, and the `FSBL=stock` escape hatch.
+- **`scripts/build-bootbin.sh`** — stale header comments updated: line 2 now
+  says "source-built FSBL (default) or stock FSBL+SSBL"; the `uboot` mode
+  line drops the "stock" qualifier (comments only, no code change).
+- **`docs/dev/fsbl-source-build-plan.md`** — as-built annotations on the
+  historical plan: 21 ps7_init arrays (incl. post_config/debug, vs the
+  planned 15) and `patch -p0` (vs `git apply`, no `a/`/`b/` prefixes);
+  Task 1-4 + 6 checkboxes marked complete (Task 5 stays unchecked — no
+  Vivado).
+
 ## [2026-08-15] — Documentation sync for the source-built FSBL (FSBL source build, task 6)
 
 ### Changed

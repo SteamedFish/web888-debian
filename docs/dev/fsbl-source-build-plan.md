@@ -108,7 +108,7 @@ bootgen repack (existing `scripts/build-bootbin.sh`).
 - Produces: vendored tree with `lib/sw_apps/zynq_fsbl/src/Makefile` honoring
   `BOARD=<name>` and `CC`; used by Tasks 3–4.
 
-- [ ] **Step 1: Fetch trimmed subset into scratch**
+- [x] **Step 1: Fetch trimmed subset into scratch**
 ```bash
 mkdir -p .tmp/embeddedsw && cd .tmp/embeddedsw
 git clone --filter=blob:none --no-checkout https://github.com/Xilinx/embeddedsw.git
@@ -124,19 +124,19 @@ cd embeddedsw && git sparse-checkout set \
   XilinxProcessorIPLib/drivers/xadcps/src license.txt
 git checkout xilinx_v2023.1   # 86f54b77641f325042a1101fead96b2714e6d3ef
 ```
-- [ ] **Step 2: Copy into `resources/reference/embeddedsw-zynq-fsbl/`
+- [x] **Step 2: Copy into `resources/reference/embeddedsw-zynq-fsbl/`
   preserving relative layout**; write `PROVENANCE.md` (upstream URL,
   tag/commit, retrieval date, MIT license, trimmed-path list, rationale).
-- [ ] **Step 3: Smoke test with known-good board:** `cd
+- [x] **Step 3: Smoke test with known-good board:** `cd
   resources/reference/embeddedsw-zynq-fsbl/lib/sw_apps/zynq_fsbl/src && make
   BOARD=zc702 CC=arm-none-eabi-gcc` → expect `fsbl.elf`. Record any gcc-16.1.0
   errors verbatim; if warnings-as-errors appear, demote via
   `CC_FLAGS="-Wno-error=<x>"` (same pattern as the bootgen workaround). `make
   clean` afterwards.
-- [ ] **Step 4: Verify** — `arm-none-eabi-size` on the zc702 `fsbl.elf`
+- [x] **Step 4: Verify** — `arm-none-eabi-size` on the zc702 `fsbl.elf`
   (sanity: total < 200 KB) before clean; tree diff vs upstream sparse checkout
   is empty.
-- [ ] **Step 5: Commit** (`resources: vendor embeddedsw zynq_fsbl
+- [x] **Step 5: Commit** (`resources: vendor embeddedsw zynq_fsbl
   xilinx_v2023.1 subset`) + CHANGELOG entry.
 
 ## Task 2: Extract ps7_init data arrays from the stock FSBL binary
@@ -151,32 +151,34 @@ git checkout xilinx_v2023.1   # 86f54b77641f325042a1101fead96b2714e6d3ef
 - Produces: `ps7_init_data.c` (the 15 data arrays in embeddedsw emit-macro
   format) consumed by Task 3; decode report used to verify Task 5.
 
-- [ ] **Step 1: Write `scripts/extract-ps7-init.py`.** Logic: scan for LE
+- [x] **Step 1: Write `scripts/extract-ps7-init.py`.** Logic: scan for LE
   signature `0xF800000B` immediately followed by `0x0000DF0D`; from each hit,
   walk (addr_word, mask, value) triplets until terminator `0x00000000`;
   validate `addr_word & 3` ∈ {0,1,2,3} and address ranges (SLCR
   `0xF8000000-0x02FF`, MIO `0xF8000700-0x0AFF`, DDRC/DDRP
   `0xF8006000-0x6FFF`, peripheral bases); classify each array into
   mio/pll/clock/ddr/peripherals by dominant address range. Expect exactly 15
-  arrays (3 silicon variants × 5); abort with diagnostics otherwise.
-- [ ] **Step 2: Decode + cross-check.** Decode each triplet against a TRM
+  arrays (3 silicon variants × 5); abort with diagnostics otherwise. *(As
+  built: 21 arrays incl. post_config/debug — see
+  ps7-init-stock-analysis.md §1.)*
+- [x] **Step 2: Decode + cross-check.** Decode each triplet against a TRM
   register-name map (SLCR/DDRC/DDRP ranges, ~80 registers) into `decode.txt`.
   Assert: MIO mux writes match `work/redpitaya-src/cfg/red_pitaya.xml` pin
   list; DDR controller regs `0xF8006000-60B8` equal U-Boot
   `board/xilinx/zynq/zynq-zybo-z7/ps7_init_gpl.c` values (fetch into `.tmp/`
   for the diff); record J-vs-K DDR voltage evidence; keep PHY training values
   (`0xF800612C-6188`) as-is.
-- [ ] **Step 3: Emit `ps7_init_data.c`** in embeddedsw emit-macro format
+- [x] **Step 3: Emit `ps7_init_data.c`** in embeddedsw emit-macro format
   (`EMIT_MASKWRITE(0xF8000008, 0x0000FFFFU, 0xDF0DU)` style), one array per
   found blob, names `ps7_<group>_init_data_<ver>`.
-- [ ] **Step 4: Round-trip unit check (host gcc):** tiny harness compiling the
+- [x] **Step 4: Round-trip unit check (host gcc):** tiny harness compiling the
   emitted arrays and byte-comparing against the extracted blob → MUST be
   byte-identical.
-- [ ] **Step 5: Write `docs/research/ps7-init-stock-analysis.md`** (silicon
+- [x] **Step 5: Write `docs/research/ps7-init-stock-analysis.md`** (silicon
   variants found, array sizes, key decoded values: DDR clock, MIO table
   summary, PLL config) — this is reverse-engineering knowledge per repo
   convention.
-- [ ] **Step 6: Commit** (`scripts: extract ps7_init tables from stock FSBL
+- [x] **Step 6: Commit** (`scripts: extract ps7_init tables from stock FSBL
   binary`) + CHANGELOG.
 
 ## Task 3: `web888` board dir + first source-built FSBL
@@ -195,7 +197,7 @@ git checkout xilinx_v2023.1   # 86f54b77641f325042a1101fead96b2714e6d3ef
 - Produces: `scripts/build-fsbl.sh` (no args; idempotent; used by Task 4);
   `output/fsbl/fsbl.bin` consumed by Task 4's BIF.
 
-- [ ] **Step 1: Create board dir.** `drivers.txt`: `cpu_cortexa9 devcfg dmaps
+- [x] **Step 1: Create board dir.** `drivers.txt`: `cpu_cortexa9 devcfg dmaps
   emacps gpiops iicps qspips scugic scutimer scuwdt sdps ttcps uartps usbps
   xadcps`. `inbyte.c/outbyte.c`: copy from `misc/zc702/`. `bspconfig.h`: copy
   zc702, keep stdin/stdout on `XPAR_PS7_UART_0_BASEADDR`. `xparameters.h`:
@@ -205,27 +207,28 @@ git checkout xilinx_v2023.1   # 86f54b77641f325042a1101fead96b2714e6d3ef
   decoded SLCR values; compile catches any missing `XPAR_*` referenced by
   FSBL/hooks sources — iterate until clean (each fix is a concrete
   missing-macro error, not guesswork).
-- [ ] **Step 2: Assemble `ps7_init.c/h`.** Function bodies + headers from
+- [x] **Step 2: Assemble `ps7_init.c/h`.** Function bodies + headers from
   `misc/zed/ps7_init.{c,h}` (board-independent skeleton); data arrays from
   Task 2's `ps7_init_data.c`.
-- [ ] **Step 3: Vendor hooks** into `resources/reference/redpitaya-fsbl-hooks/`
+- [x] **Step 3: Vendor hooks** into `resources/reference/redpitaya-fsbl-hooks/`
   with `PROVENANCE.md` (RaspSDR/red-pitaya-notes, pinned commit, license).
-- [ ] **Step 4: Write `scripts/build-fsbl.sh`:** `rsync -a --delete` the
+- [x] **Step 4: Write `scripts/build-fsbl.sh`:** `rsync -a --delete` the
   vendored zynq_fsbl tree to `work/fsbl/`; `cp
   resources/reference/redpitaya-fsbl-hooks/red_pitaya_fsbl_hooks.c
   work/fsbl/src/`; `git apply` the 2-hunk `fsbl.patch` onto
-  `work/fsbl/src/fsbl_hooks.c`; `make -C work/fsbl/src BOARD=web888
+  `work/fsbl/src/fsbl_hooks.c` *(as built: `patch -p0` — the patch has no
+  `a/`/`b/` prefixes; see `scripts/build-fsbl.sh:70`)*; `make -C work/fsbl/src BOARD=web888
   CC=arm-none-eabi-gcc`; `arm-none-eabi-objcopy -O binary
   work/fsbl/src/fsbl.elf output/fsbl/fsbl.bin`; copy `fsbl.elf` alongside.
   Fail loudly if `fsbl.bin` > 192 KiB (OCM budget).
-- [ ] **Step 5: Build + verify:** (a) build exits 0; (b) `arm-none-eabi-nm
+- [x] **Step 5: Build + verify:** (a) build exits 0; (b) `arm-none-eabi-nm
   fsbl.elf` shows all 15 `ps7_*_init_data_*` symbols; (c) extract `.rodata`
   array bytes via symbol addresses and byte-compare vs Task 2 blob → MUST be
   identical; (d) `strings fsbl.elf` contains hook strings incl. `GPIO
   LookupConfig Failed` (the deliberate delta vs stock) and lacks the `Xilinx
   First Stage Boot Loader` banner (no `FSBL_DEBUG_INFO`, matching stock's
   silent boot); (e) size ≤ OCM budget.
-- [ ] **Step 6: Commit** (`fsbl: web888 board dir + source build script`) +
+- [x] **Step 6: Commit** (`fsbl: web888 board dir + source build script`) +
   CHANGELOG.
 
 ## Task 4: boot.bin integration (opt-in) + hardware verification
@@ -239,25 +242,25 @@ git checkout xilinx_v2023.1   # 86f54b77641f325042a1101fead96b2714e6d3ef
 - Produces: `FSBL=stock|source` env var (default `stock` until Step 4 passes);
   boot.bin with source FSBL.
 
-- [ ] **Step 1: BIF switch.** `FSBL="${FSBL:-stock}"`; when `source`, BIF uses
+- [x] **Step 1: BIF switch.** `FSBL="${FSBL:-stock}"`; when `source`, BIF uses
   `output/fsbl/fsbl.bin`. Header patch logic untouched (already size-agnostic).
-- [ ] **Step 2: QEMU gate:** `FSBL=source scripts/build-bootbin.sh &&
+- [x] **Step 2: QEMU gate:** `FSBL=source scripts/build-bootbin.sh &&
   scripts/test-qemu.sh uboot` → must pass as before. If QEMU hangs inside the
   real FSBL (DDR controller unmodeled), document that the QEMU gate covers
   U-Boot only and hardware flash is the gate — check `scripts/test-qemu.sh`
   semantics first.
-- [ ] **Step 3: env-setup.sh:** add `arm-none-eabi-gcc` to the toolchain check
+- [x] **Step 3: env-setup.sh:** add `arm-none-eabi-gcc` to the toolchain check
   (host already has 16.1.0).
-- [ ] **Step 4: Blind hardware flash (operator-assisted):** flash scratch card
+- [x] **Step 4: Blind hardware flash (operator-assisted):** flash scratch card
   with `FSBL=source` image; verify: boots to Debian (ssh `web888.local`); MAC
   address equals EEPROM value (`ip link` vs EEPROM offset 0x10); SDR stack
   streams (websdr/redpitaya smoke per `docs/user/usage.md` — proves Si5351
   CLK0 122.88 MHz); MIO49/MIO10 levels via `gpiod`; `memtester 350M 1` clean;
   stock card still boots (rollback intact).
-- [ ] **Step 5: Flip default** `FSBL=source` only after Step 4 passes; document
+- [x] **Step 5: Flip default** `FSBL=source` only after Step 4 passes; document
   the deliberate deltas (MIO49/MIO10 now driven, `refclock=` now consumed) in
   CHANGELOG + `KNOWN-ISSUES.md` + `hardware-facts.md`.
-- [ ] **Step 6: Commit(s)** (integration, then default-flip separately) +
+- [x] **Step 6: Commit(s)** (integration, then default-flip separately) +
   CHANGELOG.
 
 ## Task 5 (optional, operator-approved): Vivado XSA provenance pass
@@ -282,17 +285,17 @@ git checkout xilinx_v2023.1   # 86f54b77641f325042a1101fead96b2714e6d3ef
 
 ## Task 6: Documentation sync (final)
 
-- [ ] `docs/research/bootbin-repack-spec.md`: update FSBL provenance lines
+- [x] `docs/research/bootbin-repack-spec.md`: update FSBL provenance lines
   (13/24/32/63/79/105-107 — incl. the now-obsolete "EEPROM env not consumed"
   note).
-- [ ] `docs/research/hardware-facts.md`: source-built FSBL note + GPIO/refclock
+- [x] `docs/research/hardware-facts.md`: source-built FSBL note + GPIO/refclock
   delta.
-- [ ] `docs/dev/KNOWN-ISSUES.md`: QEMU-cannot-test-FSBL-handoff entry (if
+- [x] `docs/dev/KNOWN-ISSUES.md`: QEMU-cannot-test-FSBL-handoff entry (if
   absent).
-- [ ] `docs/dev/TODO.md`: check off F1 sub-items; link this plan.
-- [ ] `docs/user/usage.md` + `README.md`/`README.zh-CN.md`: only if
+- [x] `docs/dev/TODO.md`: check off F1 sub-items; link this plan.
+- [x] `docs/user/usage.md` + `README.md`/`README.zh-CN.md`: only if
   user-visible behavior changes (`refclock=` override honored).
-- [ ] Final commit + CHANGELOG.
+- [x] Final commit + CHANGELOG.
 
 ## Risks & open questions
 

@@ -11,12 +11,15 @@ Verify integrity: `sha256sum -c SHA256SUMS`
 The stock boot.bin, dd-copied from partition 1 of the original Web-888 TF card
 (stock card itself kept untouched in storage as the rollback).
 
-Why it is required: the build reuses the stock FSBL (does MIO/PS init, DDR
-training) and the 52-byte stock SSBL stub — we do not ship our own FSBL or
-U-Boot. `scripts/build-all.sh` step 4 extracts them to `work/stock/fsbl.bin`
-(114,696 B @ 0x1700) and `work/stock/ssbl.bin` (52 B @ 0x1D740); offsets per
-docs/research/bootbin-repack-spec.md. This file is the only build input that cannot be
-obtained from the network at all.
+Why it is required: the FSBL is now built from source by default
+(`FSBL=source` — vendored embeddedsw @ `xilinx_v2023.1` + RaspSDR hooks,
+ps7_init arrays extracted from this binary; see
+`docs/dev/fsbl-source-build-plan.md`). The stock boot.bin is still needed as
+the SSBL-stub extraction source, the ps7_init-array extraction source, and
+the `FSBL=stock` escape hatch. `scripts/build-all.sh` step 4 extracts them to
+`work/stock/fsbl.bin` (114,696 B @ 0x1700) and `work/stock/ssbl.bin`
+(52 B @ 0x1D740); offsets per docs/research/bootbin-repack-spec.md. This file
+is the only build input that cannot be obtained from the network at all.
 
 Contains proprietary Xilinx FSBL — repo is local-only, do not push anywhere.
 
