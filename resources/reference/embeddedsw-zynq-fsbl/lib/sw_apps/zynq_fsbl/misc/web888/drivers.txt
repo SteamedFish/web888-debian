@@ -1,0 +1,15 @@
+cpu_cortexa9
+devcfg
+dmaps
+emacps
+gpiops
+iicps
+qspips
+scugic
+scutimer
+scuwdt
+sdps
+ttcps
+uartps
+usbps
+xadcps

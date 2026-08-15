@@ -9,6 +9,34 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Source-built FSBL for web888 with RedPitaya hooks (FSBL source build, task 3)
+
+### Added
+
+- `scripts/build-fsbl.sh` — reproducible FSBL build: rsyncs the vendored
+  embeddedsw zynq_fsbl tree to `work/fsbl/`, overlays the RedPitaya hooks
+  (`red_pitaya_fsbl_hooks.c` into `src/`, `fsbl.patch` applied with
+  patch(1)), builds with `make BOARD=web888` against the project-local
+  newlib sysroot (`.tmp/newlib/`), and emits `output/fsbl/fsbl.bin`
+  (131092 bytes) + `fsbl.elf`, failing if the binary exceeds 192 KiB.
+  Idempotent; forces `-j1` (Xilinx makefiles race under parallel make).
+- `resources/reference/embeddedsw-zynq-fsbl/lib/sw_apps/zynq_fsbl/misc/web888/`
+  — web888 board BSP dir: `xparameters.h` (adapted from zc702 for the
+  stock clock/clocking decode: CPU 667 MHz, UART0 stdin/stdout @100 MHz,
+  UART1, SDIO0 @100 MHz, ENET0 125 MHz RGMII, I2C0, QSPIPS, XADCPS),
+  `ps7_init.c` assembled from the Task 2 extracted data arrays (all 21
+  arrays verbatim, DDRIOB 0x800 quirk preserved) + zed skeleton,
+  plus `ps7_init.h`, `bspconfig.h`, `inbyte.c`, `outbyte.c`,
+  `drivers.txt` (14 drivers). Build verified: all 15
+  `ps7_*_init_data_*` symbols in the elf; all 21 arrays byte-identical
+  to the stock blob (`.data` section compare, 21/21); RedPitaya hook
+  strings present ("GPIO LookupConfig Failed", "User RedPitaya
+  Bootloader start", ...), Xilinx FSBL banner absent.
+- `resources/reference/redpitaya-fsbl-hooks/` — vendored
+  `red_pitaya_fsbl_hooks.c` + `fsbl.patch` from
+  RaspSDR/red-pitaya-notes @ da1a7e3a (Si5351 clock init + MAC-from-
+  EEPROM hooks replacing the Xilinx banner), with `PROVENANCE.md`.
+
 ## [2026-08-15] — ps7_init tables extracted from stock FSBL binary (FSBL source build, task 2)
 
 ### Added
