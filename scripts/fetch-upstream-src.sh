@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # fetch-upstream-src.sh — clone the pinned upstream source tree for the
-# websdr (step 3) / redpitaya (step 4) component into work/<name>-src when
-# it is missing.
+# websdr (step 3) / redpitaya (step 4) / u-boot (step 6) component into
+# work/ when it is missing (default dir work/<name>-src; a `dir:` field in
+# the pin file overrides it — u-boot builds in work/u-boot).
 #
 # build-websdr-deb.sh / build-redpitaya.sh require a git checkout of the
 # pinned upstream tree and refuse to run without it; they verify HEAD against
@@ -17,13 +18,13 @@
 # build input. websdr additionally gets its pinned submodules (recorded as
 # `submodule: <path> <sha>` lines in the pin file) initialised and verified.
 #
-# Usage: fetch-upstream-src.sh websdr|redpitaya
+# Usage: fetch-upstream-src.sh websdr|redpitaya|u-boot
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 case "${1:-}" in
-    websdr|redpitaya) NAME=$1 ;;
-    *) echo "usage: $0 websdr|redpitaya" >&2; exit 2 ;;
+    websdr|redpitaya|u-boot) NAME=$1 ;;
+    *) echo "usage: $0 websdr|redpitaya|u-boot" >&2; exit 2 ;;
 esac
 
 PIN=config/$NAME/upstream.pin
@@ -32,6 +33,8 @@ SRC=work/$NAME-src
 URL=$(awk '/^url: /{print $2; exit}' "$PIN")
 COMMIT=$(awk '/^commit: /{print $2; exit}' "$PIN")
 [[ -n $URL && -n $COMMIT ]] || { echo "error: $PIN lacks url:/commit:" >&2; exit 1; }
+DIR=$(awk '/^dir: /{print $2; exit}' "$PIN")
+SRC=${DIR:-$SRC}
 
 if [[ -d $SRC/.git ]]; then
     cur=$(git -C "$SRC" rev-parse HEAD)

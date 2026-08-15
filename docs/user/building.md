@@ -119,14 +119,14 @@ scripts/build-initramfs.sh       #  6. test-mode initramfs
 #  7. debootstrap   → work/rootfs (trixie armhf)
 scripts/configure-rootfs.sh      #  8. hostname/password/network/ssh/services
 scripts/install-modules.sh       # 8b. kernel modules into rootfs
-#       fetch-upstream-src.sh websdr|redpitaya — auto-run by build-all.sh before
+#       fetch-upstream-src.sh websdr|redpitaya|u-boot — auto-run by build-all.sh before
 #       8c/8e: clones the pinned upstream tree (config/<name>/upstream.pin) into
 #       work/<name>-src on first run; no-op when already at the pinned commit
 scripts/build-websdr-deb.sh      # 8c. web888-websdr deb (armhf chroot)
 scripts/install-websdr.sh        # 8d. install deb into rootfs
 scripts/build-redpitaya-deb.sh   # 8e. web888-redpitaya deb
 scripts/install-redpitaya.sh     # 8f. install deb (units disabled by default)
-scripts/build-uboot.sh           # 8g. U-Boot v2026.07 (CHAIN=uboot only)
+scripts/build-uboot.sh           # 8g. U-Boot v2026.07 (CHAIN=uboot only; auto-clones work/u-boot)
 scripts/build-fsbl.sh            # 8h. source-built FSBL (FSBL=source only)
 scripts/build-bootbin.sh uboot   #  9. boot.bin assembly (+ dtb)
 scripts/build-image.sh uboot     # 10. final card image

@@ -9,6 +9,23 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — build-all.sh auto-clones pinned U-Boot too (last from-scratch gap)
+
+### Fixed
+
+- **step 8g U-Boot** — same from-scratch gap family as websdr/redpitaya:
+  `build-uboot.sh` assumed `work/u-boot` was pre-cloned by hand
+  ("clone u-boot v2026.07 first", "pinned in P0"), so a fresh checkout died
+  at 8g/10. Added `config/u-boot/upstream.pin` (mainline v2026.07, pinned
+  to commit `ece349ade2973e220f524ce59e59711cc919263f` — the annotated
+  tag object `5b7003b7dd0f…` dereferenced; new `dir: work/u-boot` field
+  overrides the default `work/<name>-src` layout), taught
+  `scripts/fetch-upstream-src.sh` the `dir:` field and the `u-boot`
+  argument, wired the fetch into `build-all.sh` 8g, and pointed
+  `build-uboot.sh`'s header + error message at the pin/fetcher.
+  Verified: fresh `work/u-boot` clone checks out the pinned commit with
+  `arch/arm/mach-zynq` present; exercised by the 2026-08-15 full run.
+
 ## [2026-08-15] — install scripts now install the NEWEST built deb (were silently picking a stale one)
 
 ### Fixed

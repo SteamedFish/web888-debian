@@ -26,7 +26,9 @@
 #  8e. build-redpitaya-deb.sh  web888-redpitaya deb (step 4; same upstream fetch,
 #                              chroot + stale-deb sentinel pattern as 8c)
 #  8f. install-redpitaya.sh    install the deb into rootfs (units disabled)
-#  8g. build-uboot.sh          work/u-boot + output/u-boot.bin (CHAIN=uboot only)
+#  8g. build-uboot.sh          work/u-boot (fetch-upstream-src.sh clones the
+#                              pinned tree on first run) + output/u-boot.bin
+#                              (CHAIN=uboot only)
 #  8h. build-fsbl.sh           output/fsbl/fsbl.bin — FSBL built from vendored
 #                              embeddedsw source (FSBL=source only; hardware-
 #                              verified, see docs/dev/fsbl-source-build-plan.md)
@@ -221,6 +223,7 @@ bash scripts/install-redpitaya.sh
 
 if [[ $CHAIN == uboot ]]; then
     echo "== 8g/10 U-Boot =="
+    bash scripts/fetch-upstream-src.sh u-boot
     bash scripts/build-uboot.sh
 fi
 

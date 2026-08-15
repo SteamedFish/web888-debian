@@ -111,7 +111,7 @@ All knobs (`KERNEL`, `CHAIN`, mirrors) are documented in
 All non-generated build inputs are vendored in `resources/` (stock boot.bin,
 busybox-static .deb — see `resources/README.md`), so a fresh clone builds
 without any manual copy step; only network access for the kernel source,
-bootgen, debootstrap, and the pinned websdr/redpitaya upstream trees
+bootgen, debootstrap, and the pinned websdr/redpitaya/u-boot upstream trees
 (auto-cloned by `scripts/fetch-upstream-src.sh`) is required.
 
 Then follow [`docs/user/flashing.md`](docs/user/flashing.md) for the flash,

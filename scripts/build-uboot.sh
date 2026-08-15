@@ -4,7 +4,8 @@
 # partition of boot.bin; kernel/dtb come from the FAT partition via
 # boot.scr/uEnv.txt, replacing the 52-byte stub chain.
 #
-# Tree: work/u-boot (mainline v2026.07, pinned in P0). Tracked sources in
+# Tree: work/u-boot (mainline v2026.07, pinned in config/u-boot/upstream.pin;
+# fetch-upstream-src.sh u-boot clones it on first run). Tracked sources in
 # config/u-boot/ are materialized into the gitignored tree — same pattern
 # as build-kernel.sh; use patch(1), not git apply (host anomaly).
 set -euo pipefail
@@ -15,7 +16,7 @@ CROSS=arm-linux-gnueabihf-
 JOBS="$(nproc)"
 
 [[ -d $UBDIR/arch/arm/mach-zynq ]] || {
-    echo "Error: $UBDIR missing (clone u-boot v2026.07 first)" >&2
+    echo "Error: $UBDIR missing (run scripts/fetch-upstream-src.sh u-boot first)" >&2
     exit 1
 }
 
