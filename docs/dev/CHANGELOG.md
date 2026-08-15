@@ -9,6 +9,28 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Research doc restructured: APT repo first, image build as its consumer
+
+### Changed
+
+- `docs/dev/github-ci-apt-repo-research.md`: swapped Part 1/Part 2 — the
+  GitHub-hosted APT repository is now presented as the foundation (Part 1),
+  and the GitHub Actions image build as its consumer (Part 2). Once kernel /
+  websdr / redpitaya / third-party debs are in our own repo, the image build
+  degenerates to debootstrap + `apt install` + assembly (new §2.7).
+- Added §2.8 (U-Boot/boot.bin as a deb): feasible and simpler than on most
+  boards — in the `uboot` chain `boot.bin` is only FSBL+U-Boot and the FAT
+  partition is mounted at `/boot` in the live system
+  (`configure-rootfs.sh` fstab), so a deb install is a plain file copy
+  (Raspberry Pi `raspberrypi-bootloader` model). Caveats recorded: brick
+  risk (QEMU gate must precede deb publishing), stock-FSBL redistribution
+  (same review as the FPGA stack), stub chain excluded (kernel embedded in
+  boot.bin). Fallback: keep U-Boot build inside the image job.
+- Job topology (§2.4) updated: `debs` job publishes, `image` job consumes,
+  `apt-repo` job updates the repo from release assets (NoPorts pattern).
+- Open decisions list gained the web888-boot deb question; redistribution
+  review now explicitly covers the stock FSBL inside `boot.bin`.
+
 ## [2026-08-15] — dumphfdl existing-repo check (research supplement)
 
 ### Added
