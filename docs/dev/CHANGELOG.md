@@ -9,6 +9,28 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — Vendored Xilinx embeddedsw zynq_fsbl subset (FSBL source build, task 1)
+
+### Added
+
+- `resources/reference/embeddedsw-zynq-fsbl/` — trimmed vendored copy of
+  Xilinx `embeddedsw` @ tag `xilinx_v2023.1` (commit
+  `86f54b77641f325042a1101fead96b2714e6d3ef`, MIT license): the
+  `lib/sw_apps/zynq_fsbl` application, `lib/bsp/standalone/src`,
+  `lib/sw_services/{xilffs,xilrsa}/src`, and the 15
+  `XilinxProcessorIPLib` PS drivers the zynq_fsbl BSP build pulls in.
+  First step toward replacing the stock binary FSBL inside
+  `resources/stock/web888-boot.bin` with a source-built one. Upstream,
+  license, trimmed-path list, and build-environment caveats (Arch
+  split-package newlib injection via `CPATH` + `--sysroot` LINKER
+  override, serial-make requirement) are documented in the tree's
+  `PROVENANCE.md`.
+- Smoke test (`BOARD=zc702`, host `arm-none-eabi-gcc` 16.1.0):
+  `fsbl.elf` builds with zero source changes and no warning demotions —
+  text 94,961 / data 12,540 / bss 76,604 bytes (total 184,105, under the
+  200 KB sanity bound); tree diff vs upstream sparse checkout stays empty
+  after `make clean`.
+
 ## [2026-08-15] — Research doc restructured: APT repo first, image build as its consumer
 
 ### Changed
