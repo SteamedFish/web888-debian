@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-image.sh — assemble the card image.
-# GPT: p1 = 128 MiB FAT32 boot (boot.bin + zImage + web888.dtb),
-#      p2 = ext4 rootfs (contents of work/rootfs/).
+# Layout: p1 = 128 MiB FAT32 boot (boot.bin + zImage + web888.dtb),
+#         p2 = ext4 rootfs (contents of work/rootfs/).
 # Partition table is plain MBR (msdos), NOT GPT: the Zynq-7000 BootROM finds
 # BOOT.BIN by parsing the MBR partition table and does NOT understand GPT —
 # a GPT image (single 0xEE protective entry) gives it no FAT partition to
@@ -25,9 +25,16 @@ SIZE_MB=2048
 DTB=output/web888.dtb
 [[ $MODE == test ]] && DTB=output/web888-test.dtb
 
-for f in "output/boot-${MODE}.bin" output/zImage "$DTB"; do
+for f in "output/boot-${MODE}.bin" output/zImage; do
     [[ -f $f ]] || { echo "Error: missing $f (run build-bootbin.sh $MODE)" >&2; exit 1; }
 done
+# test/final embed the bootargs-carrying dtb (built by build-bootbin.sh) in
+# boot.bin, so it must exist beforehand. uboot regenerates the dtb itself
+# below via write-dtb.sh (no-bootargs variant — bootargs live in boot.scr),
+# so requiring it here would demand a stub-chain leftover.
+if [[ $MODE != uboot ]]; then
+    [[ -f $DTB ]] || { echo "Error: missing $DTB (run build-bootbin.sh $MODE)" >&2; exit 1; }
+fi
 # The stub chain (test/final) boots kernel+dtb from partitions EMBEDDED in
 # boot.bin — the FAT copies are vestigial. A stale boot.bin silently boots
 # old kernel/dtb while QEMU (-kernel/-dtb) validates the new ones: refuse
@@ -59,6 +66,17 @@ parted --script "$IMG" \
 LOOP=$(sudo -n losetup --find --show --partscan "$IMG")
 MNT=$(mktemp -d)
 trap 'sudo -n umount -q "$MNT" 2>/dev/null; sudo -n losetup -d "$LOOP" 2>/dev/null || true' EXIT
+
+# --partscan is asynchronous: the ${LOOP}p1/p2 nodes appear only once the
+# kernel (and udev, where /dev is udev-managed) has re-read the table, so
+# mkfs can race node creation and fail with "No such file or directory".
+# Poll briefly; on failure exit AFTER the trap is armed so the loop device
+# is detached. Bounded at ~5 s — a missing node never resolves later.
+for _ in {1..50}; do
+    [[ -b ${LOOP}p1 && -b ${LOOP}p2 ]] && break
+    sleep 0.1
+done
+[[ -b ${LOOP}p1 && -b ${LOOP}p2 ]] || { echo "Error: ${LOOP}p1/p2 partition nodes did not appear" >&2; exit 1; }
 
 sudo -n mkfs.vfat -F 32 -n BOOT "${LOOP}p1"
 sudo -n mkfs.ext4 -q -L rootfs "${LOOP}p2"

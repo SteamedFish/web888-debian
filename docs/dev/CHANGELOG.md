@@ -9,6 +9,21 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-16] — build-image.sh uboot mode no longer requires a stub-chain dtb leftover
+
+### Fixed
+
+- **`scripts/build-image.sh`** — the input-presence check demanded
+  `output/web888.dtb` for every mode with the hint "(run build-bootbin.sh
+  uboot)", but build-bootbin.sh's uboot branch never produces that file (it
+  packs only FSBL + u-boot.bin into boot-uboot.bin and exits), while
+  build-image.sh's own uboot block regenerates the dtb via write-dtb.sh
+  *after* the guard. The check only ever passed thanks to a leftover dtb
+  from a stub-chain (test/final) build; a from-scratch `output/` died at
+  step 10 of build-all.sh. The dtb requirement now applies to test/final
+  only (they embed the bootargs-carrying dtb in boot.bin); uboot mode
+  regenerates it.
+
 ## [2026-08-15] — build-all.sh auto-clones pinned U-Boot too (last from-scratch gap)
 
 ### Fixed
