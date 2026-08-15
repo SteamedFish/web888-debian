@@ -9,6 +9,23 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-15] — build-all.sh FSBL knob (source-built FSBL by default, end to end)
+
+### Added
+
+- **`scripts/build-all.sh`** — new `FSBL=source|stock` knob (default
+  `source`), validated up front and exported to `build-bootbin.sh`. New step
+  8h runs `build-fsbl.sh` when `FSBL=source`, with the same stale-artifact
+  skip pattern as the deb steps (rebuilds when `output/fsbl/fsbl.bin` is
+  missing or any vendored input under `resources/reference/embeddedsw-zynq-fsbl`,
+  `resources/reference/redpitaya-fsbl-hooks`, or `scripts/build-fsbl.sh`
+  itself is newer). The final `DONE` line now reports `fsbl=$FSBL`.
+  Verified: `FSBL=stock build-bootbin.sh uboot` → 953,336 B boot.bin;
+  default source path → 969,720 B; invalid values rejected with exit 1.
+- **`docs/user/building.md`** — boot-chain table, knobs table, DONE example,
+  and the per-step listing updated for the source-built FSBL default and the
+  new step 8h.
+
 ## [2026-08-15] — Doc sync for final-review minors M1-M3 (FSBL provenance, bootbin header comments, plan as-built notes)
 
 ### Changed

@@ -9,11 +9,13 @@ the **Building** section of the top-level `README.md`.
 
 | Chain | Build command | What it is |
 |---|---|---|
-| `uboot` (default, production) | `scripts/build-all.sh` | Stock FSBL → full mainline U-Boot v2026.07 as SSBL → `boot.scr`/`uEnv.txt` on FAT → Debian-source 6.12 kernel |
-| `stub` (rollback) | `CHAIN=stub KERNEL=6.6 scripts/build-all.sh` | Stock FSBL → minimal stub SSBL → legacy linux-xlnx 6.6 kernel |
+| `uboot` (default, production) | `scripts/build-all.sh` | Source-built FSBL → full mainline U-Boot v2026.07 as SSBL → `boot.scr`/`uEnv.txt` on FAT → Debian-source 6.12 kernel |
+| `stub` (rollback) | `CHAIN=stub KERNEL=6.6 scripts/build-all.sh` | Source-built FSBL → minimal stub SSBL → legacy linux-xlnx 6.6 kernel |
 
 The U-Boot chain is what ships. The stub chain stays buildable as the
 known-good rollback (that is the chain the first public release used).
+Both chains pack the source-built FSBL by default; `FSBL=stock` swaps in
+the blob extracted from the stock boot.bin (see the knobs table below).
 
 ## The one-command build
 
@@ -25,7 +27,7 @@ scripts/build-all.sh --clean   # delete work/ and output/ first (from-scratch)
 The script prints each step as it runs and ends with the deliverable:
 
 ```
-== DONE: output/web888-debian-uboot.img (chain=uboot kernel=6.12) ==
+== DONE: output/web888-debian-uboot.img (chain=uboot kernel=6.12 fsbl=source) ==
 ```
 
 `--clean` removes `work/` and `output/` but keeps `.tmp/` (stock-firmware
@@ -41,6 +43,7 @@ All knobs are environment variables; none are required.
 |---|---|---|---|
 | `CHAIN` | `uboot` \| `stub` | `uboot` | Boot chain to assemble (table above). `stub` maps to the legacy bootbin/image mode `final`. |
 | `KERNEL` | `6.12` \| `6.6` | `6.12` | Kernel flow: `6.12` = Debian linux-source, pinned deb `6.12.100-web888`; `6.6` = legacy linux-xlnx tree. |
+| `FSBL` | `source` \| `stock` | `source` | FSBL packed into boot.bin: `source` = built from the vendored embeddedsw zynq_fsbl tree via `build-fsbl.sh` (hardware-verified; needs `arm-none-eabi-gcc`); `stock` = blob extracted from the stock boot.bin (escape hatch). Also honored by `build-bootbin.sh` directly. |
 | `DEBIAN_MIRROR` | URL | `mirrors.tuna.tsinghua.edu.cn/debian` | debootstrap/apt mirror for the rootfs. Also consumed by `env-setup.sh`, `build-initramfs.sh`, `mk-websdr-chroot.sh`. |
 
 ### Rootfs configuration (`configure-rootfs.sh`, runs as a build-all step)
@@ -121,6 +124,7 @@ scripts/install-websdr.sh        # 8d. install deb into rootfs
 scripts/build-redpitaya-deb.sh   # 8e. web888-redpitaya deb
 scripts/install-redpitaya.sh     # 8f. install deb (units disabled by default)
 scripts/build-uboot.sh           # 8g. U-Boot v2026.07 (CHAIN=uboot only)
+scripts/build-fsbl.sh            # 8h. source-built FSBL (FSBL=source only)
 scripts/build-bootbin.sh uboot   #  9. boot.bin assembly (+ dtb)
 scripts/build-image.sh uboot     # 10. final card image
 ```

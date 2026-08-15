@@ -11,7 +11,8 @@
 #   4. stock FSBL/SSBL         extracted from resources/stock/web888-boot.bin → work/stock/
 #                              (= boot.bin from the stock TF card partition 1;
 #                              copy it there yourself once — it is the ONLY
-#                              input that does not come from the network)
+#                              input that does not come from the network;
+#                              the extracted FSBL is only used for FSBL=stock)
 #   5. build-kernel.sh         output/zImage
 #   6. build-initramfs.sh      output/initramfs.cpio.gz (test-mode gate)
 #   7. debootstrap             work/rootfs (trixie armhf, qemu binfmt)
@@ -25,6 +26,9 @@
 #                              stale-deb sentinel pattern as 8c)
 #  8f. install-redpitaya.sh    install the deb into rootfs (units disabled)
 #  8g. build-uboot.sh          work/u-boot + output/u-boot.bin (CHAIN=uboot only)
+#  8h. build-fsbl.sh           output/fsbl/fsbl.bin — FSBL built from vendored
+#                              embeddedsw source (FSBL=source only; hardware-
+#                              verified, see docs/dev/fsbl-source-build-plan.md)
 #   9. build-bootbin.sh $MODE  output/web888.dtb + output/boot-$MODE.bin
 #  10. build-image.sh $MODE    output/web888-debian-$MODE.img  <- deliverable
 #
@@ -34,11 +38,16 @@
 #            kernel git cache)
 #
 # Options (environment variables):
-#   CHAIN=uboot|stub   boot chain; uboot = stock FSBL + full U-Boot as SSBL
+#   CHAIN=uboot|stub   boot chain; uboot = FSBL + full U-Boot as SSBL
 #                      (default, production), stub = stock stub-SSBL chain
 #                      (rollback; maps to bootbin/image mode "final")
 #   KERNEL=6.12|6.6    kernel flow; 6.12 = Debian source + debs (default),
 #                      6.6 = legacy linux-xlnx (rollback variant)
+#   FSBL=source|stock  FSBL packed into boot.bin; source = built from the
+#                      vendored embeddedsw zynq_fsbl tree (default,
+#                      hardware-verified; needs arm-none-eabi-gcc),
+#                      stock = blob extracted from the stock boot.bin
+#                      (escape hatch)
 #   DEBIAN_MIRROR=URL  debootstrap mirror (default: tuna.tsinghua.edu.cn)
 #
 # Steps 7-10 need sudo (debootstrap/chroot/losetup); run `sudo -v` first or
@@ -57,13 +66,23 @@ if [[ $KERNEL == 6.12 ]]; then
     export KERNEL_DTS_TREE=work/linux-debian-6.12
 fi
 
-# Boot-chain switch: uboot (stock FSBL + full U-Boot as SSBL) is the default
+# Boot-chain switch: uboot (FSBL + full U-Boot as SSBL) is the default
 # production chain; stub maps to bootbin/image mode "final" (rollback).
 CHAIN="${CHAIN:-uboot}"
 case "$CHAIN" in
     uboot) IMG_MODE=uboot ;;
     stub)  IMG_MODE=final ;;
     *) echo "Error: CHAIN must be uboot or stub (got '$CHAIN')" >&2; exit 1 ;;
+esac
+
+# FSBL switch: source-built FSBL (from the vendored embeddedsw tree, via
+# build-fsbl.sh) is the default — hardware-verified 2026-08-15. FSBL=stock
+# packs the blob extracted from the stock boot.bin instead (escape hatch).
+# Exported so build-bootbin.sh sees it.
+export FSBL="${FSBL:-source}"
+case "$FSBL" in
+    source|stock) ;;
+    *) echo "Error: FSBL must be source or stock (got '$FSBL')" >&2; exit 1 ;;
 esac
 
 if [[ "${1:-}" == --clean ]]; then
@@ -202,12 +221,25 @@ if [[ $CHAIN == uboot ]]; then
     bash scripts/build-uboot.sh
 fi
 
+if [[ $FSBL == source ]]; then
+    echo "== 8h/10 FSBL from source =="
+    # Same stale-artifact pattern as the deb steps: rebuild if fsbl.bin is
+    # missing or any vendored input (embeddedsw tree, hooks, build script)
+    # is newer. build-fsbl.sh itself rebuilds deterministically from
+    # resources/reference/ into work/fsbl/.
+    if [[ ! -f output/fsbl/fsbl.bin || -n $(find resources/reference/embeddedsw-zynq-fsbl resources/reference/redpitaya-fsbl-hooks scripts/build-fsbl.sh -newer output/fsbl/fsbl.bin 2>/dev/null) ]]; then
+        bash scripts/build-fsbl.sh
+    else
+        echo "   fsbl.bin up to date, skipping: output/fsbl/fsbl.bin"
+    fi
+fi
+
 echo "== 9/10 boot.bin ($IMG_MODE) =="
 bash scripts/build-bootbin.sh "$IMG_MODE"
 
 echo "== 10/10 card image ($IMG_MODE) =="
 bash scripts/build-image.sh "$IMG_MODE"
 
-echo "== DONE: output/web888-debian-${IMG_MODE}.img (chain=$CHAIN kernel=$KERNEL) =="
+echo "== DONE: output/web888-debian-${IMG_MODE}.img (chain=$CHAIN kernel=$KERNEL fsbl=$FSBL) =="
 echo "   QEMU gate: bash scripts/test-qemu.sh $IMG_MODE"
 echo "   Flash:     bash scripts/flash-image.sh /dev/sdX output/web888-debian-${IMG_MODE}.img"
