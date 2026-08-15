@@ -61,7 +61,7 @@ Silicon version of each group is assigned by offset order
 | group (3_0) | offset | ops | bytes | note |
 | --- | --- | --- | --- | --- |
 | ps7_post_config_3_0 | 0x12580 | 4 | 60 | identical across versions |
-| ps7_debug_3_0 | 0x12634 | 4 | 40 | CTI LAR unlocks ×3 |
+| ps7_debug_3_0 | 0x12634 | 3 | 40 | CTI LAR unlocks + EXIT |
 | ps7_pll_init_data_3_0 | 0x126AC | 25 | 384 | |
 | ps7_clock_init_data_3_0 | 0x1282C | 11 | 172 | |
 | ps7_ddr_init_data_3_0 | 0x128D8 | 81 | 1292 | |
@@ -95,24 +95,30 @@ IO PLL ÷8 (125 MHz) with RCLK ÷1 (125 MHz RX) — gigabit ethernet.
 ## 4. MIO mapping vs `work/redpitaya-src/cfg/red_pitaya.xml`
 
 All functional pin assignments in the stock tables match the Red Pitaya
-upstream preset (asserted by the extractor; full listing in
+upstream preset. The extractor parses the pin assignments, bank voltages
+and pullup requests out of the xml itself
+(`PCW::<PERIPH>::<GROUP>::IO`, `PCW::PRESET::BANKn::VOLTAGE`,
+`PCW::MIO::MIO[n]::PULLUP`) and asserts them against the decoded mux
+bits; only the UG585 mux-select encodings are hardcoded (full listing in
 `.tmp/ps7-init/decode.txt`):
 
 | peripheral | stock MIO | xml preset | result |
 | --- | --- | --- | --- |
-| ENET0 + MDIO | 16..27, 52/53 | same | OK |
-| USB0 | 28..39 | same | OK |
-| SDIO0 | 40..45 (+47 WP) | same | OK |
+| ENET0 + MDIO | 16..27, 52/53 | same (`ENET0::ENET0`, `ENET0::GRP_MDIO`) | OK |
+| USB0 | 28..39 | derived: usb0 enabled, pins fixed by the mux once ENET0/SD0 own 16-27/40-45 | OK |
+| SDIO0 | 40..45 (+47 WP) | same (`SD0::SD0`, `SD0::GRP_WP`) | OK |
 | UART1 / UART0 | 8/9, 14/15 | same | OK |
 | I2C0 | 50/51 | same | OK |
-| MIO1 GPIO | 0..7, 46..49 | same | OK |
-| bank1 IO_Type | LVCMOS25 | 2.5 V | OK |
+| MIO1 GPIO | 0..7, 46..49 | same (unclaimed pins stay GPIO) | OK |
+| bank0/bank1 IO_Type | LVCMOS33 / LVCMOS25 | 3.3 V / 2.5 V | OK |
+| xml pullup-disabled pins 0, 16–27 | pullup off | pullup off | OK |
 | `MIO_MST_TRI0` | 0x0038002F (pins 0-3,5,19-21 tristated) | — | recorded |
 
-Observed deltas (recorded, not resolved): USB0 pins 28–39 have pullups
-**enabled** in the stock tables while the xml preset sets pullup=disable
-for MIO 16–39; the xml also leaves SD0 CD unassigned (stock MIO 46 is
-GPIO, used as CD by software).
+Observed deltas (recorded, not resolved): the stock tables keep pullups
+**enabled** on USB0 pins 28–39 — the xml is silent there (it only
+requests pullup=disabled on pins 0 and 16–27, which the stock tables
+honor); the xml also leaves SD0 CD unassigned (stock MIO 46 is GPIO,
+used as CD by software).
 
 ## 5. DDRC/DDRP/DDRIOB vs u-boot zynq-zybo-z7 ps7_init_gpl.c
 
@@ -205,6 +211,13 @@ the board-specific `misc/<board>/` directory of the vendored embeddedsw
 tree at build time, or compiled as an additional translation unit — the
 symbol names already match what `ps7_init.c` expects). Do **not**
 hand-edit the emitted file; regenerate with `scripts/extract-ps7-init.py`.
+
+**Warning — keep the DDRIOB_DATA1/DIFF1 final value `0x800` verbatim.**
+The stock tables end those two registers with a full-mask write of
+`0x800` (`PULLUP_EN` only), which differs from the zybo-z7 reference
+(`0x672`/`0x674`; see §6 item 6 and §9). This is a genuine quirk of the
+shipped image, not an extraction artifact: do not "fix" it to the
+zybo-z7 value when wiring the tables into the source-built FSBL.
 
 ## 9. Limitations
 

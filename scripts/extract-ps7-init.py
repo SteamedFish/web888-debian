@@ -235,6 +235,8 @@ def parse_array(data, off):
         if code not in OP_ARGC or OP_ARGC[code] != argc:
             raise ValueError("bad opcode word %#010x at %#x (array %#x)"
                              % (word, pos - 4, off))
+        if pos + 4 * argc > len(data):
+            raise ValueError("array at %#x runs past end of file" % off)
         args = struct.unpack_from("<%dI" % argc, data, pos)
         pos += 4 * argc
         ops.append(Op(code, args, pos - 4 - 4 * argc))
@@ -527,72 +529,136 @@ def emit_arrays_bin(arrays, data, path):
 
 
 # --------------------------------------------------------------- cross-checks
+# Zynq-7000 MIO mux select codes (UG585, MIO_PIN register) per peripheral:
+# (L3_SEL bit7, L2_SEL[6:4], L1_SEL[3:2], L0_SEL bit1). Hardware fact --
+# everything else about the expected pinout comes from the xml.
+MUX_SEL = {
+    "ENET0": (0, 0, 0, 1),
+    "ENET0_MDIO": (1, 0, 0, 0),
+    "USB0": (0, 0, 1, 0),
+    "SD0": (1, 0, 0, 0),
+    "UART0": (1, 6, 0, 0),
+    "UART1": (1, 6, 0, 0),
+    "I2C0": (0, 4, 0, 0),
+    "GPIO": (0, 0, 0, 0),
+}
+
+# MIO_PIN[11:9] IO_Type per declared bank voltage
+IOTYPE = {"LVCMOS 1.8V": 1, "LVCMOS 2.5V": 2, "LVCMOS 3.3V": 3}
+
+
 def parse_xml_mio(xml_path):
-    """Extract declared peripheral->pin mapping from a Vivado preset XML."""
-    pins = {}  # pin -> set of (peripheral, direction-ish)
+    """Peripheral pin assignment from a Vivado preset XML.
+
+    Returns (io, enabled, bank_voltage, pullup_disabled):
+      io              {(periph, group): [pins]} from
+                      <set param="PCW::<PERIPH>::<GROUP>::IO"
+                           value="MIO N [.. M]" />,
+      enabled         peripherals with PERIPHERAL::ENABLE=1,
+      bank_voltage    {"BANK0": "LVCMOS 3.3V", ...},
+      pullup_disabled pins with MIO[n]::PULLUP=disabled.
+    """
     txt = Path(xml_path).read_text(errors="replace")
-    # preset XML pins look like: <parameter name="MIO_16" .../> with
-    # peripheral context; simpler: capture CONFIG.PCW_* pin assignments
-    for m in re.finditer(r'PCW_(\w+?)_PERIPHERAL_ENABLE[^>]*value="(\d)"', txt):
-        pass  # enable flags handled by caller if needed
     io = {}
-    for m in re.finditer(r'name="PCW_(\w+?)(?:_IO|_GRPB|_GRP)?"[^>]*'
-                         r'value="MIO (\d+)[^"]*"', txt):
-        io.setdefault(m.group(1), []).append(int(m.group(2)))
-    return io
+    for m in re.finditer(
+            r'param="PCW::([A-Za-z0-9_]+)::([A-Za-z0-9_\[\]]+)::IO"\s+'
+            r'value="MIO (\d+)(?:\s*\.\.\s*(\d+))?"', txt):
+        lo, hi = int(m.group(3)), m.group(4)
+        io.setdefault((m.group(1), m.group(2)), []).extend(
+            range(lo, int(hi) + 1) if hi else [lo])
+    enabled = set(re.findall(
+        r'param="PCW::([A-Za-z0-9_]+)::PERIPHERAL::ENABLE"\s+value="1"', txt))
+    bank_voltage = dict(re.findall(
+        r'param="PCW::PRESET::(BANK\d)::VOLTAGE"\s+value="([^"]+)"', txt))
+    pullup_disabled = {int(n) for n in re.findall(
+        r'param="PCW::MIO::MIO\[(\d+)\]::PULLUP"\s+value="disabled"', txt)}
+    return io, enabled, bank_voltage, pullup_disabled
 
 
 def check_mio(arrays, xml_path, log):
     """Compare decoded MIO mux against the red_pitaya.xml peripheral pinout.
 
-    Hard assert on the mux-select bits of the critical interfaces; softer
-    report on tristate/pullup/io-type deltas.
+    Pin assignments, bank voltages and pullup requests are parsed from the
+    xml (parse_xml_mio); only the mux-select encodings above are hardcoded.
+    Hard assert on mux-select bits and xml pullup-disabled pins; the bank
+    IO-type check is report-only. Fails loudly if the xml parse yields
+    nothing (parser/xml format drift must not pass silently).
     """
     mio_arr = next(a for a in arrays
                    if a.group == "mio" and a.version == "3_0")
     pinval = {}
     for op in mio_arr.ops:
         if op.opcode in (2, 3) and 0xF8000700 <= op.addr <= 0xF80007D4:
-            pin = (op.addr - 0xF8000700) // 4
-            pinval[pin] = op.args[-1]
+            pinval[(op.addr - 0xF8000700) // 4] = op.args[-1]
     sel = {p: (((v >> 7) & 1, (v >> 4) & 7, (v >> 2) & 3, (v >> 1) & 1))
            for p, v in pinval.items()}
 
-    # expected mux-select tuples derived from the Zynq MIO mux table for
-    # the interfaces declared in red_pitaya.xml
-    expect = {
-        "ENET0 (16-27)": (list(range(16, 28)), (0, 0, 0, 1)),
-        "USB0 (28-39)": (list(range(28, 40)), (0, 0, 1, 0)),
-        "SDIO0 (40-45)": (list(range(40, 46)), (1, 0, 0, 0)),
-        "UART1 (8-9)": ([8, 9], (1, 6, 0, 0)),
-        "UART0 (14-15)": ([14, 15], (1, 6, 0, 0)),
-        "I2C0 (50-51)": ([50, 51], (0, 4, 0, 0)),
-        "MDIO (52-53)": ([52, 53], (1, 0, 0, 0)),
-        "GPIO USB0 reset/WP (46-49)": ([46, 47, 48, 49], (0, 0, 0, 0)),
-    }
-    ok = True
+    io, enabled, bank_voltage, pullup_disabled = parse_xml_mio(xml_path)
     log.append("")
     log.append("MIO cross-check vs %s" % xml_path)
-    for label, (pins, want) in expect.items():
+    if not io:
+        log.append("  [FAIL] no ::IO pin assignments parsed from xml"
+                   " (parser/xml format mismatch?)")
+        return False
+
+    # turn the xml pin assignments into expected mux selects
+    expect = []  # (label, pins, sel)
+    for (periph, grp), pins in sorted(io.items()):
+        if grp == "GRP_MDIO":
+            expect.append(("%s MDIO" % periph, pins,
+                           MUX_SEL["ENET0_MDIO"]))
+        elif grp.startswith("GRP_") or grp == "RESET":
+            expect.append(("%s %s (GPIO)" % (periph, grp), pins,
+                           MUX_SEL["GPIO"]))
+        elif periph in MUX_SEL:
+            expect.append(("%s %s" % (periph, grp), pins,
+                           MUX_SEL[periph]))
+        else:
+            log.append("  [NOTE] no mux-table entry for xml %s::%s"
+                       " pins %s" % (periph, grp, pins))
+    # USB0 data pins: fixed to MIO 28-39 by the mux table once ENET0 owns
+    # 16-27 and SD0 owns 40-45; the xml only declares USB0 enabled
+    if "USB0" in enabled:
+        expect.append(("USB0 (fixed 28-39)", list(range(28, 40)),
+                       MUX_SEL["USB0"]))
+    # MIO pins unclaimed by any xml ::IO entry stay plain GPIO
+    claimed = {p for pins in io.values() for p in pins}
+    free_gpio = [p for p in range(54) if p not in claimed
+                 and sel.get(p) == MUX_SEL["GPIO"]]
+    if free_gpio:
+        expect.append(("GPIO (unclaimed)", free_gpio, MUX_SEL["GPIO"]))
+
+    ok = True
+    for label, pins, want in expect:
         bad = [p for p in pins if sel.get(p) != want]
-        status = "OK " if not bad else "MISMATCH"
         if bad:
             ok = False
-        log.append("  [%s] %-28s sel=%s%s"
-                   % (status, label, want,
+        log.append("  [%s] %-24s pins=%s sel=%s%s"
+                   % ("OK " if not bad else "MISMATCH", label,
+                      ("%d-%d" % (pins[0], pins[-1])) if len(pins) > 1
+                      else str(pins[0]),
+                      want,
                       (" pins differing: %s" % bad) if bad else ""))
-    # IO type: bank1 pins (16-53) should be LVCMOS25 (io=2) per xml 2.5V
-    bad_io = [p for p in range(16, 54)
-              if p in pinval and ((pinval[p] >> 9) & 7) != 2]
-    log.append("  [%s] bank1 IO_Type=LVCMOS25 (xml: 2.5V)%s"
-               % ("OK " if not bad_io else "NOTE",
-                  (" pins not LVCMOS25: %s" % bad_io) if bad_io else ""))
-    # pullups disabled on 16-39 per xml
-    bad_pu = [p for p in range(16, 40)
+    # bank IO type vs the voltage the xml declares
+    for bank, (lo, hi) in (("BANK0", (0, 15)), ("BANK1", (16, 53))):
+        want_io = IOTYPE.get(bank_voltage.get(bank, ""))
+        if want_io is None:
+            continue
+        bad = [p for p in range(lo, hi + 1)
+               if p in pinval and ((pinval[p] >> 9) & 7) != want_io]
+        log.append("  [%s] %s IO_Type=%s%s"
+                   % ("OK " if not bad else "NOTE", bank,
+                      bank_voltage.get(bank),
+                      (" pins differing: %s" % bad) if bad else ""))
+    # pullups the xml explicitly disables must be off in the stock image
+    bad_pu = [p for p in sorted(pullup_disabled)
               if p in pinval and ((pinval[p] >> 12) & 1)]
-    log.append("  [%s] pullups disabled on MIO 16-39 (xml)%s"
-               % ("OK " if not bad_pu else "NOTE",
-                  (" pins with pullup: %s" % bad_pu) if bad_pu else ""))
+    if bad_pu:
+        ok = False
+    log.append("  [%s] xml pullup-disabled pins %s%s"
+               % ("OK " if not bad_pu else "MISMATCH",
+                  sorted(pullup_disabled),
+                  (" with pullup on: %s" % bad_pu) if bad_pu else ""))
     return ok
 
 

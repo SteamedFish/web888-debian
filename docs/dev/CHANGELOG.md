@@ -23,7 +23,8 @@ this is a hard project rule).
   exact embeddedsw `EMIT_*` macro format, `arrays.bin`, `manifest.h`,
   and a fully decoded `decode.txt` with UG585 register/field names.
   Cross-checks: MIO mux-selects vs `work/redpitaya-src/cfg/red_pitaya.xml`
-  (all pass; USB0 pullup delta recorded) and RMW-folded DDRC/DDRP/DDRIOB
+  (pin assignments/bank voltages/pullups parsed programmatically from the
+  xml; all pass; USB0 pullup delta recorded) and RMW-folded DDRC/DDRP/DDRIOB
   diff vs u-boot `zynq-zybo-z7/ps7_init_gpl.c` (56 identical / 34
   differ — 16-bit bus, timing, DDRIOB and Vref differences analysed).
   Host-gcc round-trip harness byte-compares every emitted array against
