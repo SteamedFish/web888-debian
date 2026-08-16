@@ -113,7 +113,12 @@ jobs:
       group: apt-repo-publish
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      # Publish tooling (scripts/ci/*) intentionally tracks master HEAD, not the
+      # trigger sha: a publish-script fix must not require a full rebuild round.
+      - name: Check out master (publish tooling)
+        uses: actions/checkout@v4
+        with:
+          ref: master
 
       - name: Check out gh-pages into repo/
         run: |

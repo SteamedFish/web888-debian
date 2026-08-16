@@ -105,6 +105,11 @@ this is a hard project rule).
   instead of `-9k` so re-publishing onto an existing gh-pages checkout
   overwrites `Packages.gz` instead of failing on it. Verified locally with
   a 3-round idempotency smoke test (stubbed apt-ftparchive).
+- **All five publish jobs** — the CI-scripts checkout now pins
+  `ref: master` instead of the trigger sha. A fix to publish tooling
+  (like the two above) must not require rebuilding every package just to
+  carry a new `update-apt-repo.sh`; build jobs still check out the
+  trigger sha for reproducibility.
 - **`config/u-boot/web888.fragment`** — disable
   `CONFIG_TOOLS_MKEFICAPSULE`: the EFI capsule host tool needs gnutls
   headers (present on the Arch build host, absent on the ubuntu-24.04
