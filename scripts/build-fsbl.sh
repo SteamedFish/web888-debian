@@ -54,8 +54,15 @@ command -v arm-none-eabi-objcopy &>/dev/null || {
 # program without any sysroot flag? Debian/Ubuntu (gcc-arm-none-eabi +
 # libnewlib-arm-none-eabi) can; Arch's arm-none-eabi-gcc ships no libc and
 # needs the project-local newlib sysroot ($NEWLIB_SYSROOT, env-overridable).
+# The probe must be FREESTANDING (-nostartfiles, own _start): that is how the
+# FSBL itself links (its own boot/start objects + -lc), while a hosted
+# `int main` link would additionally need crt0.o (libgloss), which
+# Debian/Ubuntu's arm-none-eabi newlib does not reliably ship — so a hosted
+# probe wrongly reports "no native newlib" on exactly the toolchains we want
+# to detect.
 PROBE=$(mktemp --suffix=.elf)
-if echo 'int main(void){return 0;}' | arm-none-eabi-gcc -x c - -o "$PROBE" 2>/dev/null; then
+if printf '#include <stdint.h>\nvoid _start(void){ for(;;){} }\n' \
+    | arm-none-eabi-gcc -x c - -nostartfiles -o "$PROBE" 2>/dev/null; then
     NATIVE_NEWLIB=1
 else
     NATIVE_NEWLIB=0

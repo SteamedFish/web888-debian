@@ -107,6 +107,11 @@ this is a hard project rule).
   installs `usr/share/doc/libacars-2/*.md` that no `.install` claims;
   dh_missing errors on unclaimed files at compat 13. Declared
   intentionally-not-installed (license text lives in debian/copyright).
+- **`scripts/build-fsbl.sh`** — the native-newlib probe linked a hosted
+  `int main`, which needs crt0.o (libgloss) that Debian/Ubuntu's
+  arm-none-eabi newlib does not ship; the probe therefore misfired on the
+  CI runner and demanded the Arch-only sysroot. Now probes freestanding
+  (`-nostartfiles`, own `_start`) — the way the FSBL itself links.
 
 ## [2026-08-16] — Bootloader shipped as a deb (web888-boot); build-all is now fully deb-driven
 
