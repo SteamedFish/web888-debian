@@ -9,6 +9,81 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-16] — GitHub Actions CI: cloud-built debs + flat APT repo on GitHub Pages (research Part 1)
+
+### Added
+
+- **`.github/workflows/`** — six workflows. `build-kernel-deb`,
+  `build-websdr-deb`, `build-redpitaya-deb` and `build-boot-deb` trigger
+  on pushes to `master` filtered by per-package path globs (a rebuild
+  only runs when the related code actually changed) plus
+  `workflow_dispatch`; each has a `build` job (ubuntu-24.04, cross for
+  the kernel, armhf qemu chroot for userspace — same scripts as local
+  builds) and a `publish` job that updates the flat APT repo on the
+  `gh-pages` branch. `build-thirdparty-debs` builds libacars / dumphfdl
+  / frpc / noip-duc and is also a reusable workflow (`workflow_call`).
+  `upstream-watch` runs daily and watches TWO kinds of change:
+  upstream releases of dumphfdl/libacars/frp/noip-duc against
+  `packaging/*/upstream.pin`, and trixie armhf refreshes of each
+  package's tracked runtime libs (`scripts/ci/check-deps.sh` against
+  `packaging/deps-snapshot.conf`, state in
+  `packaging/deps-snapshot.txt` — kept at `packaging/` root so it
+  matches no per-package push filter). Lib refreshes bump `pkgrev:` in
+  the third-party pins and rebuild our own debs via `workflow_call`,
+  so all users (fully-upgraded or not) always get installable,
+  correctly-versioned packages. Pin/state bumps are committed and
+  rebuilds invoked via `workflow_call` (GITHUB_TOKEN pushes cannot
+  trigger the path-filtered workflows).
+- **`packaging/deps-snapshot.conf` / `deps-snapshot.txt`** — tracked
+  runtime libs per package (soname-versioned names verified against the
+  real trixie armhf archive, including the t64 renames
+  `libcurl4t64` / `libgps30t64` / `libfdk-aac2t64`) and the recorded
+  current versions.
+- **`scripts/ci/`** — `update-apt-repo.sh` (flat repo maintenance:
+  `dpkg-scanpackages --multiversion`, `apt-ftparchive` Release, GPG
+  `InRelease`/`Release.gpg`, `pubkey.asc`, keep-4 pruning),
+  `stamp-changelog.sh` (`+ci<run>` version suffixes so apt upgrades are
+  monotonic),   `mk-build-chroot.sh` (generic trixie armhf qemu chroot),
+  `build-thirdparty-deb.sh`, `check-upstream.sh`, `check-deps.sh`
+  (current trixie armhf versions of tracked runtime libs from the
+  main/contrib/non-free Packages indices, daily-cached).
+- **`packaging/{libacars,dumphfdl,frpc,noip-duc}/`** — third-party
+  packages with `upstream.pin` + `PROVENANCE.md`: libacars 2.2.1 and
+  dumphfdl 1.7.0 built from pinned upstream tags in the armhf chroot
+  (debian/ adapted from ka9q/libacars and szpajder/dumphfdl@master
+  7b78d5b), frpc 0.71.0 repacked from the official `linux_arm_hf`
+  release tarball (sha256-verified, plus systemd unit and
+  `/etc/frp/frpc.toml` conffile — trixie's Go 1.24 is too old to build
+  frp 0.71 from source), noip-duc 3.3.0 official armhf deb republished
+  verbatim (proprietary — redistribution caveat in its PROVENANCE.md).
+- **`docs/dev/github-ci-apt-repo.md`** — CI architecture, one-time
+  GitHub setup (secrets `APT_REPO_GPG_PRIVATE_KEY` /
+  `APT_REPO_GPG_PASSPHRASE` / `APT_REPO_GPG_KEY_ID`, repo variable
+  `APT_REPO_ENABLED=true`, Pages "deploy from branch: gh-pages"), and
+  the user-side sources.list snippet
+  (`deb [arch=armhf signed-by=...] https://steamedfish.github.io/web888-debian/ ./`).
+
+### Changed
+
+- **`packaging/web888-websdr` 2026.730-9** — new Depends: `dumphfdl`,
+  `noip-duc`, `frpc` (served from our own APT repo).
+- **`scripts/build-fsbl.sh`** (and audit of the other build scripts) —
+  `NEWLIB_SYSROOT` env override + native-newlib link probe so the Ubuntu
+  `gcc-arm-none-eabi` + `libnewlib-arm-none-eabi` toolchain works;
+  the local Arch flow is unchanged.
+- **`scripts/mk-websdr-chroot.sh` + `scripts/ci/mk-build-chroot.sh`** —
+  both chroots now run `apt-get update` + `apt-get full-upgrade` on the
+  create AND the reuse path, so every build compiles against the
+  current trixie archive and `${shlibs:Depends}` `>=` minimums match it
+  (dependency versioning policy in `docs/dev/github-ci-apt-repo.md`).
+
+### Not yet (Part 2+)
+
+- QEMU boot gate in CI before web888-boot publishes; image build
+  consuming the APT repo; on-device `web888-repo` keyring/sources deb.
+  The workflows land on branch `ci/apt-repo` and go live after the
+  one-time GitHub-side setup in `docs/dev/github-ci-apt-repo.md`.
+
 ## [2026-08-16] — Bootloader shipped as a deb (web888-boot); build-all is now fully deb-driven
 
 ### Added

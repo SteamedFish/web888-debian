@@ -134,7 +134,12 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       <https://github.com/SteamedFish/web888-debian>)
 - [ ] GitHub Actions: build/publish flashable images via Releases
 - [ ] GitHub Actions: build Debian packages, maintain an APT repository
-      for updates without reflashing
+      for updates without reflashing — **implemented** on `ci/apt-repo`
+      (workflows + third-party packaging + gh-pages flat repo); goes
+      live after the one-time GitHub setup in
+      `docs/dev/github-ci-apt-repo.md`. Remaining: activate on GitHub,
+      verify first green runs, Part 2 (image build consuming the repo,
+      QEMU gate before web888-boot publish, web888-repo keyring deb)
 
 ---
 

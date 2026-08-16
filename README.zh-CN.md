@@ -60,6 +60,11 @@ English documentation: [README.md](README.md).
   boot.scr/uEnv.txt payload 随镜像预置；设备上升级只需一次 `apt install`
   （postinst 带一次性 `.bak` 备份与 sync-word 校验写入 vfat /boot，不触碰
   uEnv.txt）
+- **CI 构建的 APT 仓库** —— GitHub Actions 在相关源码变更的推送时构建全部
+  deb（内核、WebSDR、Red Pitaya、web888-boot，以及 dumphfdl / noip-duc /
+  frpc），将签名后的扁平仓库发布到 GitHub Pages；每日 cron 检查上游发布并
+  重新构建第三方软件包。配置与 sources.list 见
+  [`docs/dev/github-ci-apt-repo.md`](docs/dev/github-ci-apt-repo.md)
 
 当前工作项：[`docs/dev/TODO.md`](docs/dev/TODO.md) ·
 已知缺陷：[`docs/dev/KNOWN-ISSUES.md`](docs/dev/KNOWN-ISSUES.md) ·

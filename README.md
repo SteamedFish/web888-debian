@@ -68,6 +68,12 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
   uEnv.txt payload staged in the image; on-device upgrades are one
   `apt install` (postinst writes the vfat /boot with a one-shot `.bak`,
   sync-word validation, and leaves uEnv.txt alone)
+- **CI-built APT repository** — GitHub Actions builds every deb (kernel,
+  WebSDR, Red Pitaya, web888-boot, plus dumphfdl / noip-duc / frpc) on
+  pushes that touch the relevant sources, publishes a signed flat repo on
+  GitHub Pages, and a daily cron rebuilds third-party packages when
+  upstream cuts a new release. Setup and sources.list:
+  [`docs/dev/github-ci-apt-repo.md`](docs/dev/github-ci-apt-repo.md)
 
 Current work items: [`docs/dev/TODO.md`](docs/dev/TODO.md) ·
 Known defects: [`docs/dev/KNOWN-ISSUES.md`](docs/dev/KNOWN-ISSUES.md) ·
