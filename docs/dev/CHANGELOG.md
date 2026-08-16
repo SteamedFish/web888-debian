@@ -59,10 +59,13 @@ this is a hard project rule).
 - **`docs/dev/github-ci-apt-repo.md`** — CI architecture, one-time
   GitHub setup (secrets `APT_REPO_GPG_PRIVATE_KEY` /
   `APT_REPO_GPG_PASSPHRASE` / `APT_REPO_GPG_KEY_ID`, repo variable
-  `APT_REPO_ENABLED=true`, Pages "deploy from branch: gh-pages"), and
-  the user-side sources.list snippet
-  (`deb [arch=armhf signed-by=...] https://steamedfish.github.io/web888-debian/ ./`,
-  with an optional custom-domain variant).
+  `APT_REPO_ENABLED=true`, Pages "deploy from branch: gh-pages", custom
+  domain `web888.steamedfish.org`), and the user-side sources.list
+  snippet
+  (`deb [arch=armhf signed-by=...] https://web888.steamedfish.org/apt/ ./`).
+  The repo is confined to the `apt/` subdirectory of gh-pages so the site
+  root stays free for a project homepage; the publisher is incremental
+  and never touches files outside `apt/` (root `.nojekyll` excepted).
 
 ### Changed
 

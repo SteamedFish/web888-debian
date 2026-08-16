@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# update-apt-repo.sh <DEBS_DIR> <REPO_DIR>
+# update-apt-repo.sh <DEBS_DIR> <REPO_DIR> [SUBDIR]
 #
-# Update the flat gh-pages APT repository (Option A layout — debs at the repo
-# root; see docs/dev/github-ci-apt-repo-research.md §1.5/§1.6, Clippy recipe):
+# Update the flat gh-pages APT repository (Option A layout — debs under a
+# subdirectory; see docs/dev/github-ci-apt-repo-research.md §1.5/§1.6,
+# Clippy recipe). All repo files (debs, Packages, Release, InRelease,
+# Release.gpg, pubkey.asc) live in REPO_DIR/SUBDIR (default "apt") so the
+# gh-pages site ROOT stays free for a project homepage; nothing outside
+# SUBDIR is touched except a root-level .nojekyll (needed so Pages serves
+# the site as-is — harmless to the homepage).
 #
-#   1. copy DEBS_DIR/*.deb into REPO_DIR
+#   1. copy DEBS_DIR/*.deb into REPO_DIR/SUBDIR
 #   2. prune per package name to KEEP_VERSIONS newest (dpkg --compare-versions;
 #      package name = field before the first "_" in the filename)
 #   3. regenerate Packages / Packages.gz (dpkg-scanpackages --multiversion)
 #   4. regenerate Release (apt-ftparchive)
 #   5. sign: Release.gpg (detached armor) + InRelease (clearsign)
-#   6. export pubkey.asc if missing; touch .nojekyll
+#   6. export pubkey.asc if missing; touch root .nojekyll
 #
 # No git operations — the calling workflow does add/commit/push.
 #
@@ -24,14 +29,17 @@ set -euo pipefail
 log() { echo "==> $*"; }
 die() { echo "Error: $*" >&2; exit 1; }
 
-[[ $# -eq 2 ]] || die "usage: $0 <DEBS_DIR> <REPO_DIR>"
+[[ $# -ge 2 && $# -le 3 ]] || die "usage: $0 <DEBS_DIR> <REPO_DIR> [SUBDIR]"
 DEBS_DIR=$1
 REPO_DIR=$2
+SUBDIR=${3:-apt}
 KEEP_VERSIONS=${KEEP_VERSIONS:-4}
 
 [[ -n ${APT_GPG_KEY_ID:-} ]] || die "APT_GPG_KEY_ID is not set"
 [[ -d $DEBS_DIR ]] || die "not a directory: $DEBS_DIR"
 [[ -d $REPO_DIR ]] || die "not a directory: $REPO_DIR"
+[[ $SUBDIR != */* && $SUBDIR != .* && -n $SUBDIR ]] \
+    || die "SUBDIR must be a plain directory name (got '$SUBDIR')"
 [[ $KEEP_VERSIONS =~ ^[0-9]+$ && $KEEP_VERSIONS -ge 1 ]] \
     || die "KEEP_VERSIONS must be a positive integer (got '$KEEP_VERSIONS')"
 
@@ -44,17 +52,18 @@ shopt -s nullglob
 new_debs=("$DEBS_DIR"/*.deb)
 ((${#new_debs[@]})) || die "no .deb files in $DEBS_DIR"
 
-log "copying ${#new_debs[@]} deb(s) into $REPO_DIR"
-cp -f "${new_debs[@]}" "$REPO_DIR/"
+mkdir -p "$REPO_DIR/$SUBDIR"
+log "copying ${#new_debs[@]} deb(s) into $REPO_DIR/$SUBDIR"
+cp -f "${new_debs[@]}" "$REPO_DIR/$SUBDIR/"
 
-cd "$REPO_DIR"
+cd "$REPO_DIR/$SUBDIR"
 
 # --- prune to KEEP_VERSIONS newest per package -----------------------------
 # package name = field before the first "_" in the filename; version = field
 # between the first and second "_". Insertion-sorted newest-first with
 # dpkg --compare-versions (sort -V is NOT dpkg semantics).
 all_debs=(*.deb)
-((${#all_debs[@]})) || die "no .deb files in $REPO_DIR after copy"
+((${#all_debs[@]})) || die "no .deb files in $REPO_DIR/$SUBDIR after copy"
 
 declare -A pkg_seen=()
 for f in "${all_debs[@]}"; do
@@ -105,5 +114,5 @@ if [[ ! -f pubkey.asc ]]; then
     gpg --armor --export "$APT_GPG_KEY_ID" > pubkey.asc
 fi
 
-touch .nojekyll
-log "done: $(ls ./*.deb | wc -l) deb(s), $(ls ./*.deb | cut -d_ -f1 | sort -u | wc -l) package(s) in $REPO_DIR"
+touch "$REPO_DIR/.nojekyll"
+log "done: $(ls ./*.deb | wc -l) deb(s), $(ls ./*.deb | cut -d_ -f1 | sort -u | wc -l) package(s) in $REPO_DIR/$SUBDIR"

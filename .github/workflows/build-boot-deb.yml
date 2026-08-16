@@ -141,7 +141,7 @@ jobs:
           passphrase: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
 
       - name: Update the APT repo
-        run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/
+        run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/ apt
 
       - name: Commit and push gh-pages
         run: |

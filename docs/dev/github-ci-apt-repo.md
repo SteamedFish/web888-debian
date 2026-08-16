@@ -2,7 +2,9 @@
 
 The public GitHub mirror (`SteamedFish/web888-debian`) builds every Debian
 package this project ships and publishes them to a flat APT repository on the
-`gh-pages` branch, served at `https://steamedfish.github.io/web888-debian/`.
+`gh-pages` branch under `apt/`, served at
+`https://web888.steamedfish.org/apt/` (fallback:
+`https://steamedfish.github.io/web888-debian/apt/`).
 Design research: `docs/dev/github-ci-apt-repo-research.md` (Option A, flat
 repo on gh-pages). Workflows run on pushes **to GitHub** `master` — the
 forgejo primary remote has no CI.
@@ -21,7 +23,7 @@ forgejo primary remote has no CI.
 Every `publish` job is gated on the repo variable `APT_REPO_ENABLED=true` and
 serialized across workflows via the shared concurrency group
 `apt-repo-publish` (concurrent pushes to gh-pages would race the git push and
-the `Packages`/`Release` index). Each build workflow also has its own
+the `apt/Packages`/`apt/Release` index). Each build workflow also has its own
 concurrency group (`build-<pkg>`) with `cancel-in-progress: false` so a
 half-built deb set is never interrupted mid-publish.
 
@@ -61,37 +63,46 @@ and upload artifacts either way.
 
 ### 2.3 Pages
 
-After the first publish job creates the `gh-pages` branch: Settings → Pages →
-**Deploy from a branch** → branch `gh-pages`, folder `/(root)`. The site
-serves at `https://steamedfish.github.io/web888-debian/`. `.nojekyll` is
-touched by the publish script.
+**Order matters — the `gh-pages` branch must exist before you touch these
+settings** (it is created by the first successful publish job), and the
+**Custom domain** input only appears on Settings → Pages once a publishing
+source is selected:
 
-**Custom domain (optional, purely cosmetic).** To avoid occupying
-`steamedfish.github.io` URLs, any subdomain works:
+1. Merge + push to GitHub `master`; wait for any build workflow's publish
+   job to create `gh-pages`.
+2. Settings → Pages → **Deploy from a branch** → branch `gh-pages`, folder
+   `/(root)`. (Neither "master `/`" — that would serve the source tree —
+   nor "GitHub Actions" mode, which is for artifact-based deployments and
+   does not fit a mutable, accumulating repo.)
+3. **Custom domain**: enter `web888.steamedfish.org`, save, wait for the DNS
+   check, then enable **Enforce HTTPS** (GitHub auto-provisions the
+   certificate). Doing this AFTER step 2 keeps GitHub's auto-committed
+   `CNAME` file on `gh-pages`, not on `master`.
 
-1. DNS: add a `CNAME` record, e.g. `apt.steamedfish.org` →
-   `steamedfish.github.io`.
-2. Repo → Settings → Pages → **Custom domain**: enter the subdomain, save,
-   wait for the DNS check, then enable **Enforce HTTPS** (GitHub
-   auto-provisions the certificate).
-3. GitHub writes a `CNAME` file to the root of `gh-pages`; the publish job
-   only ever adds/updates its own files incrementally, so it never
-   overwrites `CNAME`.
-4. Use `https://<subdomain>/ ./` in the sources.list line below instead.
+The site serves at `https://web888.steamedfish.org/`
+(fallback: `https://steamedfish.github.io/web888-debian/`).
+
+**Homepage coexistence.** The APT repo is fully confined to the `apt/`
+subdirectory (`apt/*.deb`, `apt/Packages{,.gz}`, `apt/Release`,
+`apt/InRelease`, `apt/Release.gpg`, `apt/pubkey.asc`); the site root stays
+free for a project homepage. The publish job is strictly incremental and
+never touches files outside `apt/` — except a root-level `.nojekyll`
+(Pages must serve the site as-is; harmless to the homepage). GitHub's
+auto-committed `CNAME` at the root is likewise preserved.
 
 ## 3. User side (device)
 
 ```sh
-curl -fsSL https://steamedfish.github.io/web888-debian/pubkey.asc \
+curl -fsSL https://web888.steamedfish.org/apt/pubkey.asc \
   | sudo gpg --dearmor -o /usr/share/keyrings/web888.gpg
-echo "deb [arch=armhf signed-by=/usr/share/keyrings/web888.gpg] https://steamedfish.github.io/web888-debian/ ./" \
+echo "deb [arch=armhf signed-by=/usr/share/keyrings/web888.gpg] https://web888.steamedfish.org/apt/ ./" \
   | sudo tee /etc/apt/sources.list.d/web888.list
 sudo apt update
 ```
 
-(Substitute the custom domain for `steamedfish.github.io/web888-debian` if
-one is configured.) The trailing `./` is the flat-repo marker — there is no
-`dists/` tree.
+(If the custom domain is not configured, substitute
+`https://steamedfish.github.io/web888-debian/apt/`.) The trailing `./` is
+the flat-repo marker — there is no `dists/` tree.
 
 ## 4. Package inventory
 
