@@ -88,6 +88,22 @@ this is a hard project rule).
   The workflows land on branch `ci/apt-repo` and go live after the
   one-time GitHub-side setup in `docs/dev/github-ci-apt-repo.md`.
 
+## [2026-08-16] — CI first-live-run fixes (boot/kernel workflows, publish jobs)
+
+### Fixed
+
+- **`build-kernel-deb.yml`** — pinned `hendrikmuhs/ccache-action` to
+  `@v1.2` (the `@v4` tag does not exist; the job failed at "Set up job"
+  before any step ran).
+- **All five publish jobs** — the commit-message deb glob still read
+  `./*.deb`; after the apt/ subdir migration the debs live in `apt/`,
+  which would have failed every publish once enabled.
+- **`config/u-boot/web888.fragment`** — disable
+  `CONFIG_TOOLS_MKEFICAPSULE`: the EFI capsule host tool needs gnutls
+  headers (present on the Arch build host, absent on the ubuntu-24.04
+  runner — `make tools` died 12 s in). Host-only tool; `u-boot.bin`
+  is unchanged. Verified in a fresh-clone host rebuild.
+
 ## [2026-08-16] — Bootloader shipped as a deb (web888-boot); build-all is now fully deb-driven
 
 ### Added

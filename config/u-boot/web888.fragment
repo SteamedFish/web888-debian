@@ -45,3 +45,10 @@ CONFIG_WEB888_EEPROM_MAC=y
 # CONFIG_CMD_UBI is not set
 # CONFIG_CMD_UBIFS is not set
 # CONFIG_SPI_FLASH_MTD is not set
+
+# Host-side tools: mkeficapsule (default y via EFI_LOADER) needs gnutls
+# headers to compile. We never create UEFI capsules on this Zynq-7000
+# target, and ubuntu-24.04 CI runners lack libgnutls28-dev — disable the
+# tool instead of growing the CI dependency set. Host-only tool: the
+# u-boot.bin image is bit-identical either way.
+# CONFIG_TOOLS_MKEFICAPSULE is not set
