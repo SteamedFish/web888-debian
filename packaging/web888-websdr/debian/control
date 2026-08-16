@@ -9,7 +9,7 @@ License: GPL-2.0+
 
 Package: web888-websdr
 Architecture: armhf
-Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo
+Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc
 Description: WebSDR server for Web-888 (RX-888) SDR - Debian build
  From-source build of the official RaspSDR/Web-888 WebSDR server,
  patched for Debian: XDG-state layout, systemd-managed service with

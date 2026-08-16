@@ -1,3 +1,11 @@
+web888-websdr (2026.730-9) UNRELEASED; urgency=medium
+
+  * Depend on dumphfdl, noip-duc and frpc: the Web-888 feature set
+    expects these companion services on the device; they are now
+    published from our own APT repo (GitHub CI, gh-pages flat repo).
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sun, 16 Aug 2026 14:59:40 +0800
+
 web888-websdr (2026.730-8) UNRELEASED; urgency=medium
 
   * Patch 0152: never drop websocket control messages on s2c queue
