@@ -133,7 +133,7 @@ build_src_pkg() { # build_src_pkg <tarball-url> <extra-apt-deps...>
         [ -n "$debs" ] || die "dumphfdl requires libacars2*_armhf.deb in DEP_DEBS_DIR ($depdir) — build libacars first"
         log "installing libacars debs into chroot: $debs"
         mkdir -p "$WORK/dep-debs"
-        find "$depdir" -maxdepth 1 -name 'libacars2*_armhf.deb' -exec cp {} "$WORK/dep-debs/" +
+        find "$depdir" -maxdepth 1 -name 'libacars2*_armhf.deb' -exec cp -t "$WORK/dep-debs/" {} +
         sudo rm -rf "$CHROOT/root/dep-debs"
         sudo cp -a "$WORK/dep-debs" "$CHROOT/root/dep-debs"
         chroot_run 'dpkg -i /root/dep-debs/*.deb || apt-get -f install -y'
