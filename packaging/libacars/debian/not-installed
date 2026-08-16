@@ -1,0 +1,6 @@
+# Upstream CMake installs these into debian/tmp/usr/share/doc/libacars-2/,
+# which no .install file claims. debian/copyright already carries the license
+# text and the API docs are upstream reference material — intentionally not
+# shipped in the binary debs. (dh_missing errors on unclaimed files at
+# compat 13.)
+usr/share/doc/libacars-2/*.md

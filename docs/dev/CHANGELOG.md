@@ -103,6 +103,10 @@ this is a hard project rule).
   headers (present on the Arch build host, absent on the ubuntu-24.04
   runner — `make tools` died 12 s in). Host-only tool; `u-boot.bin`
   is unchanged. Verified in a fresh-clone host rebuild.
+- **`packaging/libacars/debian/not-installed`** (new) — upstream CMake
+  installs `usr/share/doc/libacars-2/*.md` that no `.install` claims;
+  dh_missing errors on unclaimed files at compat 13. Declared
+  intentionally-not-installed (license text lives in debian/copyright).
 
 ## [2026-08-16] — Bootloader shipped as a deb (web888-boot); build-all is now fully deb-driven
 
