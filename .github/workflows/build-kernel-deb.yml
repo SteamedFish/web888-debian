@@ -38,8 +38,8 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
             crossbuild-essential-armhf bc flex bison device-tree-compiler \
             dpkg-dev curl xz-utils patch python3 libssl-dev kmod ccache
 
@@ -102,8 +102,8 @@ jobs:
 
       - name: Install repo tooling
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends dpkg-dev apt-utils
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends dpkg-dev apt-utils
 
       - uses: actions/download-artifact@v4
         with:

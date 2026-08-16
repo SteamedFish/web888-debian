@@ -107,6 +107,14 @@ this is a hard project rule).
   installs `usr/share/doc/libacars-2/*.md` that no `.install` claims;
   dh_missing errors on unclaimed files at compat 13. Declared
   intentionally-not-installed (license text lives in debian/copyright).
+- **apt/debootstrap retries** — deb.debian.org (Fastly) occasionally
+  resets connections mid-fetch ("Connection reset by peer"), failing
+  whole chroot builds. Both chroot scripts now write an
+  `Acquire::Retries "5"` dropin into the chroot (covers every in-chroot
+  apt call, both create and reuse paths) and wrap debootstrap itself in
+  a 3-attempt retry loop whose cleanup refuses to run when unexpected
+  child mounts exist (AGENTS.md scratch-chroot rule); runner-host
+  apt-get calls in all workflows get `-o Acquire::Retries=3`.
 - **`scripts/build-fsbl.sh`** — the native-newlib probe linked a hosted
   `int main`, which needs crt0.o (libgloss) that Debian/Ubuntu's
   arm-none-eabi newlib does not ship; the probe therefore misfired on the
