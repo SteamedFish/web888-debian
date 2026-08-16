@@ -1,0 +1,11 @@
+Package: frpc
+Version: 0.71.0-1web8881
+Architecture: armhf
+Section: net
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Homepage: https://github.com/fatedier/frp
+Description: fast reverse proxy client (frp)
+ frp is a fast reverse proxy that allows exposing local servers behind a
+ NAT or firewall to the internet. This package contains frpc, the frp
+ client, repackaged from the official static linux/arm release binary.

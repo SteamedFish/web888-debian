@@ -1,0 +1,11 @@
+url: https://github.com/szpajder/dumphfdl
+version: v1.7.0
+pkgrev: 1
+
+Source tarball fetched as:
+  https://github.com/szpajder/dumphfdl/archive/refs/tags/<version>.tar.gz
+Debian packaging adapted from upstream master debian/ dir (commit 7b78d5b,
+Phil Karn) with Build-Depends/Depends fixed (see PROVENANCE.md).
+Build requires libacars2 + libacars2-dev debs in DEP_DEBS_DIR (build
+libacars first; build-thirdparty-deb.sh installs them into the chroot).
+Bump `version:` to move upstream; bump `pkgrev:` for packaging-only changes.

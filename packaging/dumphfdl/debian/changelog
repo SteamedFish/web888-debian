@@ -1,0 +1,7 @@
+dumphfdl (1.7.0-1web8881) unstable; urgency=medium
+
+  * Local CI build for the Web-888 armhf APT repo.
+  * Upstream release v1.7.0; packaging adapted from upstream master
+    (commit 7b78d5b) with binary Depends fixed to computed shlibs.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sun, 16 Aug 2026 12:00:00 +0000

@@ -1,0 +1,6 @@
+libacars (2.2.1-1web8881) unstable; urgency=medium
+
+  * Local CI build for the Web-888 armhf APT repo.
+  * Upstream release v2.2.1; packaging adapted from ka9q/libacars.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sun, 16 Aug 2026 12:00:00 +0000

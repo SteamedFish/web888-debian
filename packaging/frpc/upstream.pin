@@ -1,0 +1,9 @@
+url: https://github.com/fatedier/frp
+version: v0.71.0
+pkgrev: 1
+
+Repack of the official static Go binary release (no rebuild):
+  https://github.com/fatedier/frp/releases/download/<version>/frp_<version-no-v>_linux_arm_hf.tar.gz
+sha256 verified at build time against frp_sha256_checksums.txt from the
+same GitHub release. Bump `version:` to move upstream; bump `pkgrev:` for
+packaging-only changes.

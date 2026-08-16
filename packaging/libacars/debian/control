@@ -1,0 +1,43 @@
+Source: libacars
+Section: libs
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Build-Depends: debhelper-compat (= 13), cmake, zlib1g-dev, libxml2-dev, libjansson-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/szpajder/libacars
+License: MIT
+Rules-Requires-Root: no
+
+Package: libacars2
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: decoding library for ACARS, ADS-B and other AV protocols
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the libacars-2 shared library.
+
+Package: libacars2-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends: libacars2 (= ${binary:Version}), ${misc:Depends}
+Description: development files for libacars
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the header files, the pkg-config file
+ (libacars-2.pc) and the linker symlink needed to build programs
+ against libacars-2.
+
+Package: libacars2-tools
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: command-line tools from the libacars project
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the example/utility programs shipped with
+ libacars (e.g. decode_acars_apps, decode_arinc622_apps).

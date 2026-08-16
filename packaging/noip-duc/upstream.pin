@@ -1,0 +1,9 @@
+url: https://dmej8g5cpdyqd.cloudfront.net/downloads/noip-duc_3.3.0.tar.gz
+version: 3.3.0
+pkgrev: 1
+sha256: 7b9d16bf4745e3ff33a7fcf65e9f71e1861621b01c43c53c397a0d004ff50030
+
+Official No-IP source/binary tarball. We extract the official prebuilt
+binaries/noip-duc_<version>_armhf.deb and republish it verbatim (no
+rebuild, no repack). sha256 covers the whole tarball; update it whenever
+`url:`/`version:` change.

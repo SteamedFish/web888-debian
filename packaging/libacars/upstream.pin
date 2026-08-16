@@ -1,0 +1,8 @@
+url: https://github.com/szpajder/libacars
+version: v2.2.1
+pkgrev: 1
+
+Source tarball fetched as:
+  https://github.com/szpajder/libacars/archive/refs/tags/<version>.tar.gz
+Debian packaging adapted from ka9q/libacars (Phil Karn's fork) debian/ dir.
+Bump `version:` to move upstream; bump `pkgrev:` for packaging-only changes.

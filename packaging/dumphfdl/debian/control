@@ -1,0 +1,19 @@
+Source: dumphfdl
+Section: hamradio
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Build-Depends: debhelper-compat (= 13), cmake, pkg-config, libfftw3-dev, libglib2.0-dev, libacars2-dev, libconfig++-dev, libsoapysdr-dev, libzmq3-dev, librdkafka-dev, libliquid-dev, libsqlite3-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/szpajder/dumphfdl
+License: GPL-3.0
+Rules-Requires-Root: no
+
+Package: dumphfdl
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: HFDL (HF Data Link) decoder
+ dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
+ It receives audio from an SDR via SoapySDR (or from files/pipes),
+ demodulates HFDL channels and decodes ACARS and other HFDL payloads
+ using libacars, with output to plain text, SQLite, ZeroMQ, Kafka and
+ other sinks.
