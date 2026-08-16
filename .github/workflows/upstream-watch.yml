@@ -1,0 +1,220 @@
+# upstream-watch.yml — daily watch over two kinds of upstream change:
+#
+#   1. New upstream releases of the third-party packages (libacars, dumphfdl,
+#      frpc, noip-duc): bump `version:` in packaging/<name>/upstream.pin.
+#   2. Trixie library refreshes (scripts/ci/check-deps.sh against the tracked
+#      runtime libs in packaging/deps-snapshot.conf, state in
+#      packaging/deps-snapshot.txt): third-party packages get a `pkgrev:` bump
+#      in their upstream.pin and a rebuild; our own packages
+#      (web888-websdr, web888-redpitaya) get rebuilt via workflow_call (their
+#      version moves via the +ci<run> suffix at build time). This keeps
+#      ${shlibs:Depends} >= minimums satisfiable for both fully-upgraded and
+#      not-yet-upgraded users (docs/dev/github-ci-apt-repo.md §5).
+#
+# The commit lands on the branch this workflow ran on; rebuilds are invoked
+# via workflow_call because commits pushed with the workflow's GITHUB_TOKEN
+# do NOT trigger other workflows (GitHub's recursion guard) — the pin/state
+# commit alone would never start a path-filtered build. secrets: inherit is
+# required on every caller job: the publish job needs the APT_REPO_GPG_*
+# secrets, and called workflows receive no secrets by default.
+#
+# deps-snapshot.txt lives at packaging/ root on purpose: it matches no
+# per-package push path filter (packaging/<name>/**), so watch commits never
+# cause push-trigger rebuild loops.
+
+name: upstream-watch
+
+on:
+  schedule:
+    - cron: '37 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DEBIAN_MIRROR: https://deb.debian.org/debian
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      # third-party packages to rebuild (upstream bump or lib refresh), 'none'
+      packages: ${{ steps.msg.outputs.packages }}
+      # own packages to rebuild (lib refresh), 'none'
+      own: ${{ steps.msg.outputs.own }}
+      # non-empty when there is something to commit
+      commit_msg: ${{ steps.msg.outputs.commit_msg }}
+    env:
+      # check-upstream.sh uses it for GitHub API rate limits (optional there)
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install check dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends curl jq xz-utils
+
+      - name: Check upstream versions and bump pins
+        id: check
+        run: |
+          set -uo pipefail
+          changed=()
+          msgs=()
+          for name in libacars dumphfdl frpc noip-duc; do
+            pin="packaging/$name/upstream.pin"
+            if [[ ! -f $pin ]]; then
+              echo "::warning::$pin missing — skipping $name"
+              continue
+            fi
+            if ! latest=$(bash scripts/ci/check-upstream.sh "$name"); then
+              echo "::warning::check-upstream.sh $name failed — skipping"
+              continue
+            fi
+            current=$(grep '^version:' "$pin" | awk '{print $2}')
+            echo "$name: current=$current latest=$latest"
+            if [[ -n $latest && $latest != "$current" ]]; then
+              sed -i "s/^version:.*/version: $latest/" "$pin"
+              changed+=("$name")
+              msgs+=("$name to $latest")
+            fi
+          done
+          if ((${#changed[@]})); then
+            (IFS=,; echo "packages=${changed[*]}" >> "$GITHUB_OUTPUT")
+            printf -v joined '%s, ' "${msgs[@]}"
+            echo "bumped=${joined%, }" >> "$GITHUB_OUTPUT"
+          else
+            echo "packages=none" >> "$GITHUB_OUTPUT"
+            echo "bumped=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check trixie dependency libraries
+        id: deps
+        run: |
+          set -euo pipefail
+          snapshot=packaging/deps-snapshot.txt
+          new=$(mktemp)
+          bash scripts/ci/check-deps.sh ALL > "$new"
+          echo "bootstrap=false" >> "$GITHUB_OUTPUT"
+          echo "deps3p=none" >> "$GITHUB_OUTPUT"
+          echo "own=none" >> "$GITHUB_OUTPUT"
+          echo "deps_summary=" >> "$GITHUB_OUTPUT"
+
+          if [[ ! -s $snapshot ]]; then
+            # First run: seed the state file and commit it WITHOUT triggering
+            # any rebuild — avoids a one-time thundering herd.
+            cp "$new" "$snapshot"
+            echo "bootstrap=true" >> "$GITHUB_OUTPUT"
+            echo "bootstrapped $snapshot:"
+            cat "$snapshot"
+            exit 0
+          fi
+
+          declare -A oldline=()
+          while IFS= read -r l; do
+            [[ -n $l ]] && oldline[${l%%:*}]=$l
+          done < "$snapshot"
+
+          deps3p=()
+          own=()
+          frags=()
+          changed=0
+          while IFS= read -r l; do
+            [[ -n $l ]] || continue
+            key=${l%%:*}
+            [[ ${oldline[$key]+x} ]] || { echo "::notice::$key newly tracked — recording baseline only"; continue; }
+            [[ ${oldline[$key]} == "$l" ]] && continue
+            changed=1
+            # build per-lib "lib old -> new" fragment for the commit message
+            declare -A ov=()
+            for pair in ${oldline[$key]#*: }; do ov[${pair%%=*}]=${pair#*=}; done
+            trans=()
+            for pair in ${l#*: }; do
+              lib=${pair%%=*}
+              nv=${pair#*=}
+              ovv=${ov[$lib]:-none}
+              [[ $ovv == "$nv" ]] || trans+=("$lib $ovv -> $nv")
+            done
+            printf -v t '%s, ' "${trans[@]}"
+            frags+=("$key: ${t%, }")
+            echo "$key deps changed: ${t%, }"
+            case $key in
+              libacars|dumphfdl)
+                # bump pkgrev so the refreshed build supersedes the old deb
+                pin="packaging/$key/upstream.pin"
+                cur=$(grep '^pkgrev:' "$pin" | awk '{print $2}')
+                sed -i "s/^pkgrev:.*/pkgrev: $((cur + 1))/" "$pin"
+                echo "$key: pkgrev $cur -> $((cur + 1))"
+                deps3p+=("$key")
+                ;;
+              web888-websdr|web888-redpitaya)
+                own+=("$key")
+                ;;
+              *)
+                echo "::warning::$key changed but has no rebuild mapping — snapshot updated only"
+                ;;
+            esac
+          done < "$new"
+
+          ((changed)) || exit 0
+          cp "$new" "$snapshot"
+          ((${#deps3p[@]})) && { (IFS=,; echo "deps3p=${deps3p[*]}" >> "$GITHUB_OUTPUT"); }
+          ((${#own[@]})) && { (IFS=,; echo "own=${own[*]}" >> "$GITHUB_OUTPUT"); }
+          printf -v summary '%s; ' "${frags[@]}"
+          echo "deps_summary=${summary%; }" >> "$GITHUB_OUTPUT"
+
+      - name: Compose outputs and commit message
+        id: msg
+        run: |
+          set -euo pipefail
+          # union of upstream-bumped and deps-changed third-party packages
+          union=$(echo '${{ steps.check.outputs.packages }},${{ steps.deps.outputs.deps3p }}' \
+            | tr ',' '\n' | grep -vx 'none' | grep -v '^$' | sort -u | paste -sd, - || true)
+          echo "packages=${union:-none}" >> "$GITHUB_OUTPUT"
+          echo "own=${{ steps.deps.outputs.own }}" >> "$GITHUB_OUTPUT"
+          parts=()
+          b='${{ steps.check.outputs.bumped }}'
+          d='${{ steps.deps.outputs.deps_summary }}'
+          [[ -n $b ]] && parts+=("bump $b")
+          [[ -n $d ]] && parts+=("trixie lib refresh ($d)")
+          [[ '${{ steps.deps.outputs.bootstrap }}' == true ]] && parts+=("bootstrap deps-snapshot.txt")
+          if ((${#parts[@]})); then
+            printf -v joined '%s / ' "${parts[@]}"
+            echo "commit_msg=upstream-watch: ${joined% / }" >> "$GITHUB_OUTPUT"
+          else
+            echo "commit_msg=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push watch updates
+        if: steps.msg.outputs.commit_msg != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/*/upstream.pin packaging/deps-snapshot.txt
+          git commit -m "${{ steps.msg.outputs.commit_msg }}"
+          # checkout may be a detached HEAD (schedule events) — push via HEAD
+          git push origin "HEAD:${{ github.ref_name }}"
+
+  # Rebuild + republish the bumped/lib-refreshed third-party packages through
+  # the reusable workflow (accepts a comma-separated package list).
+  rebuild:
+    needs: check
+    if: needs.check.outputs.packages != 'none'
+    uses: ./.github/workflows/build-thirdparty-debs.yml
+    with:
+      package: ${{ needs.check.outputs.packages }}
+    secrets: inherit
+
+  # Lib-refreshed own packages rebuild through their own workflows via
+  # workflow_call (they carry no inputs; versions move via +ci<run>).
+  websdr-rebuild:
+    needs: check
+    if: contains(needs.check.outputs.own, 'web888-websdr')
+    uses: ./.github/workflows/build-websdr-deb.yml
+    secrets: inherit
+
+  redpitaya-rebuild:
+    needs: check
+    if: contains(needs.check.outputs.own, 'web888-redpitaya')
+    uses: ./.github/workflows/build-redpitaya-deb.yml
+    secrets: inherit

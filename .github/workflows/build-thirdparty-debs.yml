@@ -1,0 +1,247 @@
+# build-thirdparty-debs.yml — build the third-party deb sets (libacars,
+# dumphfdl, frpc, noip-duc) from their pinned upstreams and publish them to
+# the flat gh-pages APT repo.
+#
+# Each package is built by scripts/ci/build-thirdparty-deb.sh <name> out/
+# (self-contained: fetches the pinned upstream from
+# packaging/<name>/upstream.pin, uses its own chroot helper, honors
+# DEBIAN_MIRROR and GITHUB_RUN_NUMBER). dumphfdl needs the libacars debs in
+# the same out/ dir first, so libacars always builds before dumphfdl.
+#
+# Triggers:
+#   push (master)            — path-filtered via the detect job; a push that
+#                              only touches scripts/ci/** or this workflow
+#                              builds ALL packages (shared build code changed)
+#   workflow_dispatch        — input `package`: all/libacars/dumphfdl/frpc/
+#                              noip-duc ('dumphfdl' implies libacars)
+#   workflow_call            — same input as a plain string; ALSO accepts a
+#                              comma-separated list (e.g. "libacars,dumphfdl")
+#                              so upstream-watch.yml can rebuild exactly the
+#                              packages whose pins it bumped. (Commits pushed
+#                              with GITHUB_TOKEN do not trigger path-filtered
+#                              push workflows, hence the rebuild is invoked
+#                              through workflow_call — see
+#                              docs/dev/github-ci-apt-repo.md §5.)
+
+name: build-thirdparty-debs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packaging/libacars/**'
+      - 'packaging/dumphfdl/**'
+      - 'packaging/frpc/**'
+      - 'packaging/noip-duc/**'
+      - 'scripts/ci/**'
+      - '.github/workflows/build-thirdparty-debs.yml'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to build (dumphfdl implies libacars)'
+        type: choice
+        default: all
+        options:
+          - all
+          - libacars
+          - dumphfdl
+          - frpc
+          - noip-duc
+  workflow_call:
+    inputs:
+      package:
+        description: 'Package name, "all", or comma-separated list (dumphfdl implies libacars)'
+        type: string
+        default: 'all'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-thirdparty
+  cancel-in-progress: false
+
+env:
+  DEBIAN_MIRROR: https://deb.debian.org/debian
+
+jobs:
+  # push events only: which packaging/<name>/ trees changed?
+  detect:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    outputs:
+      libacars: ${{ steps.filter.outputs.libacars }}
+      dumphfdl: ${{ steps.filter.outputs.dumphfdl }}
+      frpc: ${{ steps.filter.outputs.frpc }}
+      noip-duc: ${{ steps.filter.outputs.noip-duc }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            libacars:
+              - 'packaging/libacars/**'
+            dumphfdl:
+              - 'packaging/dumphfdl/**'
+            frpc:
+              - 'packaging/frpc/**'
+            noip-duc:
+              - 'packaging/noip-duc/**'
+
+  # Resolve the ordered build list (canonical order: libacars, dumphfdl,
+  # frpc, noip-duc — libacars before dumphfdl always).
+  # Runs even when detect was skipped (non-push events).
+  select:
+    needs: detect
+    if: ${{ always() && ! cancelled() }}
+    runs-on: ubuntu-24.04
+    outputs:
+      packages: ${{ steps.select.outputs.packages }}
+    steps:
+      - id: select
+        env:
+          INPUT_PACKAGE: ${{ inputs.package }}
+          F_LIBACARS: ${{ needs.detect.outputs.libacars }}
+          F_DUMPHFDL: ${{ needs.detect.outputs.dumphfdl }}
+          F_FRPC: ${{ needs.detect.outputs.frpc }}
+          F_NOIP_DUC: ${{ needs.detect.outputs.noip-duc }}
+        run: |
+          set -euo pipefail
+          sel=""
+          if [[ $GITHUB_EVENT_NAME == push ]]; then
+            [[ $F_LIBACARS == true ]] && sel="$sel libacars"
+            [[ $F_DUMPHFDL == true ]] && sel="$sel dumphfdl"
+            [[ $F_FRPC == true ]]     && sel="$sel frpc"
+            [[ $F_NOIP_DUC == true ]] && sel="$sel noip-duc"
+            # trigger fired on scripts/ci/** or this workflow only: the shared
+            # build code changed — validate everything
+            [[ -z $sel ]] && sel="libacars dumphfdl frpc noip-duc"
+          else
+            input=${INPUT_PACKAGE:-all}
+            if [[ $input == all ]]; then
+              sel="libacars dumphfdl frpc noip-duc"
+            else
+              IFS=',' read -ra parts <<< "$input"
+              for p in "${parts[@]}"; do
+                p=${p// /}
+                case "$p" in
+                  libacars|dumphfdl|frpc|noip-duc)
+                    # dumphfdl links against the libacars debs in out/
+                    [[ $p == dumphfdl ]] && sel="$sel libacars"
+                    sel="$sel $p"
+                    ;;
+                  *) echo "Error: unknown package '$p'" >&2; exit 1 ;;
+                esac
+              done
+            fi
+          fi
+          # dedupe into canonical build order
+          ordered=""
+          for p in libacars dumphfdl frpc noip-duc; do
+            case " $sel " in *" $p "*) ordered="$ordered $p" ;; esac
+          done
+          ordered=${ordered# }
+          [[ -n $ordered ]] || { echo "Error: empty package selection" >&2; exit 1; }
+          echo "building: $ordered"
+          echo "packages=$ordered" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: select
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      SELECTED: ${{ needs.select.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap qemu-user-static binfmt-support rsync git dpkg-dev \
+            curl jq
+
+      # dumphfdl must run after libacars: its packaging picks up the libacars
+      # debs from the shared out/ dir.
+      - name: Build libacars
+        if: contains(env.SELECTED, 'libacars')
+        run: bash scripts/ci/build-thirdparty-deb.sh libacars out/
+
+      - name: Build dumphfdl
+        if: contains(env.SELECTED, 'dumphfdl')
+        run: bash scripts/ci/build-thirdparty-deb.sh dumphfdl out/
+
+      - name: Build frpc
+        if: contains(env.SELECTED, 'frpc')
+        run: bash scripts/ci/build-thirdparty-deb.sh frpc out/
+
+      - name: Build noip-duc
+        if: contains(env.SELECTED, 'noip-duc')
+        run: bash scripts/ci/build-thirdparty-deb.sh noip-duc out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs-thirdparty
+          path: out/*.deb
+
+  publish:
+    needs: build
+    if: ${{ vars.APT_REPO_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # serialize APT-repo publishes across all workflows — concurrent writers
+    # to gh-pages would race the git push and the Packages/Release index.
+    concurrency:
+      group: apt-repo-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out gh-pages into repo/
+        run: |
+          mkdir -p repo
+          cd repo
+          git init -q
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q origin gh-pages 2>/dev/null; then
+            git checkout -q gh-pages
+            # keep the existing tree: the repo accumulates packages from
+            # every publisher workflow; update-apt-repo.sh prunes per package.
+          else
+            git checkout -q --orphan gh-pages
+            # fresh branch: drop anything that is not .git
+            find . -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          fi
+
+      - name: Install repo tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dpkg-dev apt-utils
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: debs-thirdparty
+          path: debs/
+
+      - uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
+
+      - name: Update the APT repo
+        run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/
+
+      - name: Commit and push gh-pages
+        run: |
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "==> no repo changes — nothing to publish"
+            exit 0
+          fi
+          pkgs=$(ls ./*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
+          git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
+          git push origin gh-pages

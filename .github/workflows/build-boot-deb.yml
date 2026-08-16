@@ -1,0 +1,158 @@
+# build-boot-deb.yml — build web888-boot_*_armhf.deb (source-built FSBL +
+# mainline U-Boot v2026.07 SSBL packed into boot.bin, plus boot.scr/uEnv.txt)
+# on GitHub-hosted ubuntu-24.04 and publish it to the flat gh-pages APT repo.
+#
+# Build order mirrors build-all.sh: bootgen tool (exact recipe from
+# build-all.sh lines 115-123) -> build-uboot.sh -> build-fsbl.sh ->
+# build-bootbin.sh uboot -> build-boot-deb.sh. build-boot-deb.sh packages
+# inside the armhf chroot, so mk-websdr-chroot.sh runs first (the chroot
+# provides dpkg-buildpackage only; nothing arch-specific is compiled there).
+#
+# Version: committed changelog version + "+ci${GITHUB_RUN_NUMBER}" (CI
+# checkout only, never committed). See docs/dev/github-ci-apt-repo.md.
+
+name: build-boot-deb
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/fetch-upstream-src.sh'
+      - 'scripts/mk-websdr-chroot.sh'
+      - 'scripts/build-uboot.sh'
+      - 'scripts/build-fsbl.sh'
+      - 'scripts/build-bootbin.sh'
+      - 'scripts/build-boot-deb.sh'
+      - 'config/u-boot/**'
+      - 'packaging/web888-boot/**'
+      - 'resources/reference/embeddedsw-zynq-fsbl/**'
+      - 'resources/reference/redpitaya-fsbl-hooks/**'
+      - 'scripts/ci/**'
+      - '.github/workflows/build-boot-deb.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-boot
+  cancel-in-progress: false
+
+env:
+  DEBIAN_MIRROR: https://deb.debian.org/debian
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      # gcc-arm-none-eabi + libnewlib-arm-none-eabi: the FSBL toolchain.
+      # build-fsbl.sh probes NEWLIB_SYSROOT (override exists in the script);
+      # on Ubuntu these packages work natively — they only need to be present.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap qemu-user-static binfmt-support rsync git dpkg-dev \
+            crossbuild-essential-armhf gcc-arm-none-eabi libnewlib-arm-none-eabi \
+            device-tree-compiler bc flex bison libssl-dev python3 patch
+
+      - name: Stamp CI package version
+        run: |
+          ver=$(dpkg-parsechangelog -l packaging/web888-boot/debian/changelog -S Version)
+          bash scripts/ci/stamp-changelog.sh packaging/web888-boot/debian "${ver}+ci${GITHUB_RUN_NUMBER}"
+
+      - name: Fetch pinned U-Boot source
+        run: bash scripts/fetch-upstream-src.sh u-boot
+
+      - name: Build bootgen (build-all.sh recipe)
+        run: |
+          [[ -d work/bootgen ]] || git clone --depth 1 https://github.com/Xilinx/bootgen work/bootgen
+          make -C work/bootgen \
+            CFLAGS="-O -Wall -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-function-declaration" \
+            CXXFLAGS="-std=c++14 -O -Wall -Wno-reorder -Wno-deprecated-declarations -Wno-aligned-new -Wno-misleading-indentation -Wno-class-memaccess"
+          mkdir --parents work/tools
+          cp work/bootgen/build/bin/bootgen work/tools/
+
+      - name: Build U-Boot (SSBL)
+        run: bash scripts/build-uboot.sh
+
+      - name: Build FSBL
+        run: bash scripts/build-fsbl.sh
+
+      - name: Pack boot.bin (uboot chain)
+        run: bash scripts/build-bootbin.sh uboot
+
+      - name: Create the armhf packaging chroot
+        run: bash scripts/mk-websdr-chroot.sh
+
+      - name: Build the boot deb
+        run: bash scripts/build-boot-deb.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs-boot
+          path: output/boot/*.deb
+
+  publish:
+    needs: build
+    if: ${{ vars.APT_REPO_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # serialize APT-repo publishes across all workflows — concurrent writers
+    # to gh-pages would race the git push and the Packages/Release index.
+    concurrency:
+      group: apt-repo-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out gh-pages into repo/
+        run: |
+          mkdir -p repo
+          cd repo
+          git init -q
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q origin gh-pages 2>/dev/null; then
+            git checkout -q gh-pages
+            # keep the existing tree: the repo accumulates packages from
+            # every publisher workflow; update-apt-repo.sh prunes per package.
+          else
+            git checkout -q --orphan gh-pages
+            # fresh branch: drop anything that is not .git
+            find . -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          fi
+
+      - name: Install repo tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dpkg-dev apt-utils
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: debs-boot
+          path: debs/
+
+      - uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
+
+      - name: Update the APT repo
+        run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/
+
+      - name: Commit and push gh-pages
+        run: |
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "==> no repo changes — nothing to publish"
+            exit 0
+          fi
+          pkgs=$(ls ./*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
+          git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
+          git push origin gh-pages

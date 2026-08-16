@@ -1,0 +1,133 @@
+# build-kernel-deb.yml — build linux-image-6.12.100-web888_*_armhf.deb on
+# GitHub-hosted ubuntu-24.04 and publish it to the flat gh-pages APT repo.
+#
+# Version scheme: KDEB_PKGVERSION="<KVER>-<KREV>web888.ci${GITHUB_RUN_NUMBER}"
+# (KVER/KREV grepped from scripts/build-kernel-6.12.sh) so every CI build
+# sorts newer than the previous one in the repo. See
+# docs/dev/github-ci-apt-repo.md for maintainer setup.
+
+name: build-kernel-deb
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/build-kernel-6.12.sh'
+      - 'config/kernel/**'
+      - 'config/kernel-web888-6.12.fragment'
+      - 'scripts/ci/**'
+      - '.github/workflows/build-kernel-deb.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-kernel
+  cancel-in-progress: false
+
+env:
+  DEBIAN_MIRROR: https://deb.debian.org/debian
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            crossbuild-essential-armhf bc flex bison device-tree-compiler \
+            dpkg-dev curl xz-utils patch python3 libssl-dev kmod ccache
+
+      - uses: hendrikmuhs/ccache-action@v4
+        with:
+          max-size: 500M
+          key: kernel-6.12
+
+      - name: Point the cross toolchain at ccache
+        run: |
+          for tool in arm-linux-gnueabihf-gcc arm-linux-gnueabihf-g++; do
+            sudo ln -sf ../../bin/ccache "/usr/lib/ccache/$tool"
+          done
+          echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+
+      - name: Stamp CI kernel package version
+        run: |
+          KVER=$(grep -m1 '^KVER=' scripts/build-kernel-6.12.sh | cut -d= -f2)
+          KREV=$(grep -m1 '^KREV=' scripts/build-kernel-6.12.sh | cut -d= -f2)
+          [[ -n $KVER && -n $KREV ]] || { echo "Error: KVER/KREV not found in scripts/build-kernel-6.12.sh" >&2; exit 1; }
+          echo "KDEB_PKGVERSION=${KVER}-${KREV}web888.ci${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "kernel deb version: ${KVER}-${KREV}web888.ci${GITHUB_RUN_NUMBER}"
+
+      - name: Build the kernel deb
+        run: bash scripts/build-kernel-6.12.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs-kernel
+          path: output/kernel/linux-image-*_armhf.deb
+
+  publish:
+    needs: build
+    if: ${{ vars.APT_REPO_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # serialize APT-repo publishes across all workflows — concurrent writers
+    # to gh-pages would race the git push and the Packages/Release index.
+    concurrency:
+      group: apt-repo-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out gh-pages into repo/
+        run: |
+          mkdir -p repo
+          cd repo
+          git init -q
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q origin gh-pages 2>/dev/null; then
+            git checkout -q gh-pages
+            # keep the existing tree: the repo accumulates packages from
+            # every publisher workflow; update-apt-repo.sh prunes per package.
+          else
+            git checkout -q --orphan gh-pages
+            # fresh branch: drop anything that is not .git
+            find . -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          fi
+
+      - name: Install repo tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dpkg-dev apt-utils
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: debs-kernel
+          path: debs/
+
+      - uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
+
+      - name: Update the APT repo
+        run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/
+
+      - name: Commit and push gh-pages
+        run: |
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "==> no repo changes — nothing to publish"
+            exit 0
+          fi
+          pkgs=$(ls ./*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
+          git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
+          git push origin gh-pages

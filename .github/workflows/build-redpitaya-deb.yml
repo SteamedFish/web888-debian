@@ -1,0 +1,136 @@
+# build-redpitaya-deb.yml — build web888-redpitaya_*_armhf.deb (armhf build
+# of the Red Pitaya app servers + packaging) on GitHub-hosted ubuntu-24.04
+# and publish it to the flat gh-pages APT repo. Version: committed changelog
+# version + "+ci${GITHUB_RUN_NUMBER}" (CI checkout only, never committed).
+# See docs/dev/github-ci-apt-repo.md.
+
+name: build-redpitaya-deb
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/fetch-upstream-src.sh'
+      - 'scripts/mk-websdr-chroot.sh'
+      - 'scripts/build-redpitaya.sh'
+      - 'scripts/build-redpitaya-deb.sh'
+      - 'scripts/hw-test/si5351/**'
+      - 'config/redpitaya/**'
+      - 'packaging/web888-redpitaya/**'
+      - 'resources/redpitaya-bits/**'
+      - 'scripts/ci/**'
+      - '.github/workflows/build-redpitaya-deb.yml'
+  workflow_dispatch:
+  # invoked by upstream-watch.yml when tracked trixie libs refresh
+  # (no inputs — the version moves via +ci${GITHUB_RUN_NUMBER})
+  workflow_call:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-redpitaya
+  cancel-in-progress: false
+
+env:
+  DEBIAN_MIRROR: https://deb.debian.org/debian
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      # crossbuild-essential-armhf + file: build-redpitaya.sh verifies the
+      # produced binaries with `file` and arm-linux-gnueabihf-readelf on the
+      # host; the chroot provides the armhf build itself.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap qemu-user-static binfmt-support rsync git dpkg-dev \
+            crossbuild-essential-armhf file
+
+      - name: Stamp CI package version
+        run: |
+          ver=$(dpkg-parsechangelog -l packaging/web888-redpitaya/debian/changelog -S Version)
+          bash scripts/ci/stamp-changelog.sh packaging/web888-redpitaya/debian "${ver}+ci${GITHUB_RUN_NUMBER}"
+
+      - name: Fetch pinned upstream source
+        run: bash scripts/fetch-upstream-src.sh redpitaya
+
+      - name: Create the armhf build chroot
+        run: bash scripts/mk-websdr-chroot.sh
+
+      - name: Build the Red Pitaya app servers
+        run: bash scripts/build-redpitaya.sh
+
+      - name: Build the redpitaya deb
+        run: bash scripts/build-redpitaya-deb.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs-redpitaya
+          path: output/redpitaya/*.deb
+
+  publish:
+    needs: build
+    if: ${{ vars.APT_REPO_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # serialize APT-repo publishes across all workflows — concurrent writers
+    # to gh-pages would race the git push and the Packages/Release index.
+    concurrency:
+      group: apt-repo-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out gh-pages into repo/
+        run: |
+          mkdir -p repo
+          cd repo
+          git init -q
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q origin gh-pages 2>/dev/null; then
+            git checkout -q gh-pages
+            # keep the existing tree: the repo accumulates packages from
+            # every publisher workflow; update-apt-repo.sh prunes per package.
+          else
+            git checkout -q --orphan gh-pages
+            # fresh branch: drop anything that is not .git
+            find . -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          fi
+
+      - name: Install repo tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dpkg-dev apt-utils
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: debs-redpitaya
+          path: debs/
+
+      - uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
+
+      - name: Update the APT repo
+        run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/
+
+      - name: Commit and push gh-pages
+        run: |
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "==> no repo changes — nothing to publish"
+            exit 0
+          fi
+          pkgs=$(ls ./*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
+          git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
+          git push origin gh-pages
