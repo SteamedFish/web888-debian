@@ -1,0 +1,23 @@
+Architectures: armhf
+Codename: stable
+Components: main
+Date: Sun, 16 Aug 2026 14:22:17 +0000
+Label: web888
+Origin: web888
+Suite: stable
+MD5Sum:
+ 96b50b10dda54b7e90f80dc70af06af9             1263 Packages
+ 18a829b4343dee90dd3e5c5a803afdc3              816 Packages.gz
+ 9ea223600722504391f0e34f9956fb71              136 Release
+SHA1:
+ da0a4b20eca9e33ceca059306a39ad112f9e59cf             1263 Packages
+ 68f598e08d1c1c39dfaa6fad387a3138e38e94e6              816 Packages.gz
+ 7038a91d1fad027874faa399ef29a50ef45547b8              136 Release
+SHA256:
+ 1aec78e75cec5f5152e513a76a5d27e2f8073bf7c3ad13dbf8a3002934dc4523             1263 Packages
+ 927e4c055829691f2c5a807556b77910e90ec0fda09ffc6b8ef5794fbc9b8b86              816 Packages.gz
+ b690adbe52056a387efe32aedaa90b119f2cd95320c1f9a3613d6d2a41c27b40              136 Release
+SHA512:
+ 15ae9106e86c6974f89a58d5939d040b17cbf76f4cff81978bbf8eb0bead2869c2c59c4d8193c26453eb79b04c8fcfccf76663ccaa61a74f6311821961260f31             1263 Packages
+ c291c808dff46e3549a949f256535e9a4febaf883e4cff32327968a1f76ca35d795776fe28dd8906be72dc68ac1e73b0e86029e7f7eae53b91546c62de7605a0              816 Packages.gz
+ fffb7c3f3295616fbb7d149050113cecfafa50288741d01c2d17453113c3dd9f6c94a0078f4b2144bb132cda5e64b1856dd2f79fd41773e726fa859ca7c7761a              136 Release
