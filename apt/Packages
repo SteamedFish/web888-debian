@@ -577,3 +577,26 @@ Description: Red Pitaya app stack for Web-888 (RX-888) SDR - Debian build
  clients), sdr_receiver (raw I/Q TCP), sdr_transceiver_wide (GNU Radio
  gr-osmosdr), led_blinker (FPGA-load smoke test).
 
+Package: web888-websdr
+Version: 2026.730-9+ci8
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 47989
+Depends: libc6 (>= 2.38), libconfig++11 (>= 1.7.3), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libsqlite3-0 (>= 3.5.9), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.1.4), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc
+Filename: ./web888-websdr_2026.730-9+ci8_armhf.deb
+Size: 30845916
+MD5sum: 4a4da3bf6fd3319eddd8c77a51d5bfca
+SHA1: 9edf49045e21e6c42ec2c669648dd89ed0a3bd7e
+SHA256: 08379118cce7364a81d45e222973b9d421ddc08f9d8270aac4355bf4cc7a0ddd
+Section: hamradio
+Priority: optional
+Homepage: https://github.com/RaspSDR/server
+Description: WebSDR server for Web-888 (RX-888) SDR - Debian build
+ From-source build of the official RaspSDR/Web-888 WebSDR server,
+ patched for Debian: XDG-state layout, systemd-managed service with
+ minimal privileges, notify-only server updates (FPGA bitstream
+ auto-update only), and no SD-card remount operations.
+ Ships /etc/sudoers.d/web888 + root-owned helper scripts for the
+ privileged actions the admin UI needs (network drop-in install,
+ reboot/halt/poweroff); openssh-server stays an image-level package.
+
