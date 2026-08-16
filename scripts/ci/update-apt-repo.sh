@@ -40,6 +40,9 @@ KEEP_VERSIONS=${KEEP_VERSIONS:-4}
 [[ -d $REPO_DIR ]] || die "not a directory: $REPO_DIR"
 [[ $SUBDIR != */* && $SUBDIR != .* && -n $SUBDIR ]] \
     || die "SUBDIR must be a plain directory name (got '$SUBDIR')"
+# Canonicalize to an absolute path: we cd into $SUBDIR for the index work
+# below, and root-level writes (.nojekyll) must not become relative to it.
+REPO_DIR=$(cd "$REPO_DIR" && pwd)
 [[ $KEEP_VERSIONS =~ ^[0-9]+$ && $KEEP_VERSIONS -ge 1 ]] \
     || die "KEEP_VERSIONS must be a positive integer (got '$KEEP_VERSIONS')"
 
@@ -92,7 +95,7 @@ done
 # --- index ------------------------------------------------------------------
 log "generating Packages / Packages.gz"
 dpkg-scanpackages --multiversion . /dev/null > Packages
-gzip -9k Packages
+gzip -9kf Packages
 
 log "generating Release"
 apt-ftparchive \

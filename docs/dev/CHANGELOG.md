@@ -98,6 +98,13 @@ this is a hard project rule).
 - **All five publish jobs** — the commit-message deb glob still read
   `./*.deb`; after the apt/ subdir migration the debs live in `apt/`,
   which would have failed every publish once enabled.
+- **`scripts/ci/update-apt-repo.sh`** — two first-publish fixes found by the
+  very first live publish job: absolutize `REPO_DIR` before the script
+  `cd`s into the apt/ subdir (the root-level `.nojekyll` touch otherwise
+  resolved relative to the subdir and died with ENOENT), and `gzip -9kf`
+  instead of `-9k` so re-publishing onto an existing gh-pages checkout
+  overwrites `Packages.gz` instead of failing on it. Verified locally with
+  a 3-round idempotency smoke test (stubbed apt-ftparchive).
 - **`config/u-boot/web888.fragment`** — disable
   `CONFIG_TOOLS_MKEFICAPSULE`: the EFI capsule host tool needs gnutls
   headers (present on the Arch build host, absent on the ubuntu-24.04
