@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+# payload is staged by scripts/build-boot-deb.sh (boot.bin is packed by
+# build-bootbin.sh from the cross-built FSBL/U-Boot); this package only
+# arranges files
+override_dh_auto_configure:
+override_dh_auto_build:
+override_dh_auto_test:
+override_dh_auto_install:

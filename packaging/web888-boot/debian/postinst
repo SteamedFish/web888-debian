@@ -1,0 +1,58 @@
+#!/bin/sh
+# postinst — install the bootloader payload onto the FAT boot partition.
+#
+# The uboot chain boots from plain files on the FAT partition mounted at
+# /boot (fstab: /dev/mmcblk0p1 /boot vfat), so an upgrade is a file copy:
+# temp file + sync + rename, with one .bak generation kept (brick guard,
+# see docs/dev/github-ci-apt-repo-research.md §2.8 caveat 1).
+set -e
+
+LIB=/usr/lib/web888-boot
+
+# copy via temp file + rename: a cut copy never leaves a half-written
+# boot.bin behind; .bak of the previous file is kept for one generation
+install_boot_file() {
+    name="$1"
+    [ ! -f "/boot/$name" ] || cp "/boot/$name" "/boot/$name.bak"
+    cp "$LIB/$name" "/boot/.$name.new"
+    sync
+    mv "/boot/.$name.new" "/boot/$name"
+}
+
+case "$1" in
+  configure)
+    # Not a booted device (rootfs chroot during image build, or the FAT
+    # partition not mounted): nothing to do.
+    if [ ! -f /boot/boot.bin ]; then
+        echo "web888-boot: /boot/boot.bin not present — skipping bootloader install"
+        exit 0
+    fi
+    # Only write to a mounted vfat /boot; refuse to clobber a stray
+    # boot.bin sitting in the rootfs /boot directory.
+    if [ "$(findmnt -n -o FSTYPE /boot 2>/dev/null)" != "vfat" ]; then
+        echo "web888-boot: /boot is not a mounted vfat partition — skipping bootloader install" >&2
+        exit 0
+    fi
+    # Refuse a payload without the Zynq boot header sync word
+    # (0xAA995566, little-endian, at offset 0x20): writing garbage as
+    # boot.bin bricks the card until it is reflashed.
+    if [ "$(od -An -tx1 -j32 -N4 "$LIB/boot.bin" | tr -d ' \n')" != "665599aa" ]; then
+        echo "web888-boot: payload boot.bin has no Zynq boot header — refusing to install" >&2
+        exit 1
+    fi
+
+    install_boot_file boot.bin
+    install_boot_file boot.scr
+    # uEnv.txt is the on-device kernel-selection knob; never overwrite
+    # user edits, install the default only when missing.
+    if [ ! -f /boot/uEnv.txt ]; then
+        cp "$LIB/uEnv.txt" "/boot/.uEnv.txt.new"
+        sync
+        mv "/boot/.uEnv.txt.new" /boot/uEnv.txt
+    fi
+    sync
+    echo "web888-boot: bootloader updated in /boot (backups: boot.bin.bak, boot.scr.bak); takes effect on next boot"
+    ;;
+esac
+
+exit 0

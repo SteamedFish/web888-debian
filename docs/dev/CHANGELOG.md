@@ -9,6 +9,50 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-16] — Bootloader shipped as a deb (web888-boot); build-all is now fully deb-driven
+
+### Added
+
+- **`packaging/web888-boot/` + `scripts/build-boot-deb.sh`** — new
+  `web888-boot` 2026.07-1 package (§2.8 of
+  `docs/dev/github-ci-apt-repo-research.md`, implemented). Payload: the
+  uboot-chain artifacts — `boot-uboot.bin` (as `boot.bin`), `fsbl.bin`,
+  `u-boot.bin`, rendered `boot.scr`, and `uEnv.txt` — staged under
+  `/usr/lib/web888-boot/`. The postinst installs onto the vfat `/boot`
+  only when it is safe to do so: skips when `/boot/boot.bin` is absent
+  (build-chroot / initramfs-safe), skips when `/boot` is not vfat,
+  validates the Zynq sync word (`0xAA995566` LE @ 0x20) before writing,
+  installs via temp-file + `sync` + rename keeping one
+  `boot.bin.bak`/`boot.scr.bak` generation, and never overwrites an
+  existing `uEnv.txt` (the user's on-device kernel-update knob).
+- **`scripts/install-boot-deb.sh`** — installs the freshly built
+  web888-boot deb into the rootfs chroot (same pattern as the kernel
+  installer); the postinst deliberately skips there.
+- **`build-all.sh`** — new step 9b rebuilds web888-boot when packaging or
+  payload inputs change; new step 9c installs it into the rootfs.
+- **`flash-image.sh` payload gate** — refuses to flash an image whose
+  rootfs lacks the web888-boot payload (checked via a read-only
+  `ro,noload` loop mount; `noload` is required because QEMU boot tests
+  leave a dirty ext4 journal).
+
+### Changed
+
+- **`scripts/build-image.sh`** — no longer copies bootloader files from
+  `output/`: the FAT partition is populated from the installed payload
+  (`work/rootfs/usr/lib/web888-boot/`), and the boot.scr regeneration
+  step is gone (the deb payload is the single source of truth). The FAT
+  `boot.scr` is byte-identical in script data to the payload (mkimage
+  header timestamp aside).
+
+### Verification
+
+- postinst dry-run matrix (fresh install, upgrade with .bak rotation and
+  uEnv.txt preservation, refusal to write a corrupted payload), QEMU boot
+  of the exact deb `boot.bin` payload, on-device postinst execution, full
+  `build-all.sh` image rebuild with payload and FAT parity checks, QEMU
+  gate on the resulting image. Freshly-flashed image hardware boot is
+  pending.
+
 ## [2026-08-16] — build-redpitaya-deb.sh could sentinel-check a stale deb
 
 ### Fixed

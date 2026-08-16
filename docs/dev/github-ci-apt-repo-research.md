@@ -409,7 +409,7 @@ This is the reordering insight at the top of this document, made concrete:
   `file:` or `https://` repo URL instead of running the compile steps —
   same consumer model on a developer machine.
 
-### 2.8 U-Boot / boot.bin: also shippable as a deb
+### 2.8 U-Boot / boot.bin: also shippable as a deb — IMPLEMENTED 2026-08-16 as `web888-boot` (pre-publication)
 
 Question: can the bootloader escape the from-scratch image build too, or
 must the image job always build U-Boot itself? **It can be a deb — and on
@@ -417,7 +417,7 @@ this board it is easier than on most**, but it carries the highest
 publishing-risk of any package:
 
 - **Why it works here**: in the `uboot` chain, `boot-uboot.bin` contains
-  only the stock FSBL + mainline U-Boot (`scripts/build-bootbin.sh`) — the
+  only the source-built FSBL + mainline U-Boot (`scripts/build-bootbin.sh`) — the
   kernel, DTB, `boot.scr`, and `uEnv.txt` are separate files on the FAT
   partition, and the Debian system **mounts that FAT partition at `/boot`**
   (`configure-rootfs.sh` fstab: `/dev/mmcblk0p1 /boot vfat`). Installing a
@@ -426,36 +426,49 @@ publishing-risk of any package:
   `u-boot-*` packages only drop binaries under `/usr/lib/u-boot/` and
   require manual `dd`; Armbian's u-boot debs `dd` raw sectors in postinst.
   Ours is simpler than both: no raw offsets, just a file on a mounted
-  filesystem.) A `web888-boot` deb would ship `boot.bin` (+ `boot.scr` /
-  `uEnv.txt` as conffiles) and the DTB could ride along or stay in the
-  kernel deb.
+  filesystem.) The `web888-boot` deb ships `boot.bin` + `boot.scr` +
+  `uEnv.txt` + `fsbl.bin` + `u-boot.bin` under `/usr/lib/web888-boot/`
+  ("package as much as you can" — uEnv.txt is only written on the device
+  when absent, since boot.cmd treats it as the user's kernel-update knob);
+  the DTB stays in the kernel deb.
 - **Only the `uboot` chain fits**: the stub chain embeds zImage+dtb *inside*
   boot.bin, which couples the bootloader package to every kernel build —
   one more reason stub stays rollback-only.
 - **Caveat 1 — brick risk**: an `apt upgrade` that installs a bad
   `boot.bin` bricks the device until the TF card is physically reflashed
-  (the untouched stock card remains the rollback). Mitigations: the QEMU
-  boot gate (`test-qemu.sh uboot`) must pass **before the deb is
-  published**, not just before the image ships; postinst writes to a temp
-  file + `sync` + rename and keeps `boot.bin.bak`; consider shipping the
-  package in a held/opt-in state (`apt-mark hold web888-boot`) so
+  (the untouched stock card remains the rollback). Mitigations **as
+  implemented in the postinst**: skip unless `/boot` is the vfat boot
+  partition and already has a `boot.bin` (no-op inside the build chroot);
+  validate the Zynq sync word (`0xAA995566` LE at offset 0x20) before
+  writing anything; write via temp file + `sync` + rename, keeping one
+  `boot.bin.bak` / `boot.scr.bak` generation; never touch an existing
+  `uEnv.txt`. Still open: the QEMU boot gate (`test-qemu.sh uboot`) should
+  pass on the exact payload **before the deb is published**, and consider
+  shipping the package held/opt-in (`apt-mark hold web888-boot`) so
   bootloader updates are deliberate.
-- **Caveat 2 — stock FSBL redistribution**: `boot.bin` embeds the factory
-  FSBL blob extracted from `resources/stock/web888-boot.bin`. Publishing
-  the deb publicly is the same redistribution question as the FPGA stack
-  (§2.9.1) and is gated by the same review.
-- **Recommendation**: package it — the "everything is a deb, the image
-  just installs from our repo" model stays uniform, and OTA bootloader
-  updates become possible. If the risk is judged not worth it, the fallback
-  is to keep `build-uboot.sh` + `build-bootbin.sh` as steps of the `image`
-  job only (a fast cross-build, minutes) — the image build stays partly
-  bespoke, but nothing technical forces that choice.
+- **Caveat 2 — FSBL redistribution: resolved**. `boot.bin` used to embed
+  the factory FSBL blob; the default chain is now `FSBL=source` (vendored
+  embeddedsw `zynq_fsbl`, MIT/Xilinx licensed), so every byte in the deb is
+  freely redistributable. `FSBL=stock` remains a local-only escape hatch
+  and is never published.
+- **Implemented 2026-08-16** (per this recommendation): `packaging/web888-boot/`
+  + `scripts/build-boot-deb.sh` build `web888-boot_2026.07-1_armhf.deb` in
+  the armhf chroot; `build-all.sh` gained steps 9b (rebuild the deb on
+  payload/packaging changes) and 9c (`install-boot-deb.sh` installs it into
+  the rootfs chroot, where the postinst deliberately skips); `build-image.sh`
+  now copies the FAT boot files from the installed payload instead of the
+  host-side `output/` copies; `flash-image.sh` refuses images whose rootfs
+  lacks the payload. Verified: postinst dry-run matrix
+  (install/upgrade/refusal-to-write-corrupt-payload), QEMU boot of the exact
+  deb `boot.bin`, on-device postinst execution. Still owed: freshly-flashed
+  image hardware boot, apt-repo publication per chapter 2.
 
 ### 2.9 Part-2 blockers & considerations
 
 1. **⚠️ Closed-source FPGA stack redistribution** — the image contains
    factory bitstreams (`websdr_{hf,vhf}.bit`) and the closed driver/FPGA
-   stack, and a `web888-boot` deb would contain the stock FSBL (§2.8).
+   stack. (The `web888-boot` deb from §2.8 now contains the **source-built**
+   FSBL, so it is no longer part of this redistribution question.)
    Publishing releases from the **public** GitHub mirror makes these
    permanently, publicly downloadable. Review redistribution rights before
    enabling public releases. Alternatives: releases on a private repo (then

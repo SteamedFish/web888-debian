@@ -1,0 +1,17 @@
+web888-boot (2026.07-1) UNRELEASED; urgency=medium
+
+  * Initial package (docs/dev/github-ci-apt-repo-research.md §2.8).
+    - Ships /usr/lib/web888-boot/: boot.bin (source-built FSBL +
+      mainline U-Boot v2026.07 SSBL, packed by build-bootbin.sh uboot),
+      the individual fsbl.bin / u-boot.bin components, boot.scr, and the
+      default uEnv.txt.
+    - postinst configure: on a booted device (FAT partition mounted at
+      /boot) updates /boot/boot.bin and /boot/boot.scr via temp-file +
+      sync + rename, keeping one-generation backups (boot.bin.bak,
+      boot.scr.bak); refuses to write a payload without the Zynq boot
+      header sync word. uEnv.txt is installed only when absent — user
+      edits (kernel_file overrides) are never clobbered.
+    - Skips silently when /boot/boot.bin is absent (chroot/image
+      build), so the deb is safe to install during rootfs assembly.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sun, 16 Aug 2026 00:30:00 +0800

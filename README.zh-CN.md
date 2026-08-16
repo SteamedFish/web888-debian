@@ -56,6 +56,10 @@ English documentation: [README.md](README.md).
   `web888-mode` 在 WebSDR 与 RP 应用之间运行时切换，无需重新刷卡
 - **6.12 内核 + 完整 U-Boot 链路** —— QEMU 门禁已通过；硬件浸泡测试事项见
   `docs/dev/TODO.md`
+- **Bootloader 以 deb 形式发布**（`web888-boot`）—— FSBL + U-Boot +
+  boot.scr/uEnv.txt payload 随镜像预置；设备上升级只需一次 `apt install`
+  （postinst 带一次性 `.bak` 备份与 sync-word 校验写入 vfat /boot，不触碰
+  uEnv.txt）
 
 当前工作项：[`docs/dev/TODO.md`](docs/dev/TODO.md) ·
 已知缺陷：[`docs/dev/KNOWN-ISSUES.md`](docs/dev/KNOWN-ISSUES.md) ·
@@ -75,7 +79,7 @@ English documentation: [README.md](README.md).
 docs/       research/ + dev/ + user/ 文档（入库）
 scripts/    构建 / 重打包 / QEMU / 刷机脚本（入库）
 config/     内核与 u-boot 配置、设备树、驱动源码（入库）
-packaging/  debian 打包：web888-websdr、web888-redpitaya（入库）
+packaging/  debian 打包：web888-boot、web888-websdr、web888-redpitaya（入库）
 resources/  收录的非生成构建输入（入库）
 work/       构建目录（不入库）
 output/     可刷写产物（不入库）

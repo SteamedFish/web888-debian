@@ -18,6 +18,17 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
         controlled reboot), factory MAC stable across reboot (same DHCP
         lease), websdr serves HTTP 200 on :8073, zero journal errors.
   - [ ] Kernel-update SOP final docs sync (P3)
+- [~] **web888-boot deb (bootloader lifecycle)**: FSBL + U-Boot + boot.scr +
+      uEnv.txt shipped as `web888-boot_2026.07-1_armhf.deb` (payload
+      /usr/lib/web888-boot/). build-all installs the deb into the rootfs
+      chroot (postinst skips — no /boot/boot.bin), build-image copies the
+      payload to FAT; on-device upgrades go through apt (postinst does
+      temp-file+sync+rename onto the vfat /boot, keeps one .bak, never
+      touches uEnv.txt, refuses non-Zynq payloads). Verified: postinst
+      dry-run matrix (install/upgrade/refusal), QEMU boot of the exact deb
+      boot.bin, on-device postinst execution. Still owed: freshly-flashed
+      image hardware boot, apt-repo publication + docs close-out
+      (`docs/research/github-ci-apt-repo-research.md` §2.8)
 - [ ] **Red Pitaya coexistence (step 4)**
   - [x] Round-trip switching ×10 (60 s :8073 poll — websdr needs ~33 s
         after RF-active RP apps), reboot-default check, 1 h soak (P4.5 —

@@ -9,10 +9,12 @@
 # The stock card is plain MBR too. Linux does not care either way at 2 GiB.
 #
 # usage: build-image.sh [test|final|uboot] → output/web888-debian-<mode>.img
-#   uboot — step 6: FAT carries boot.bin (FSBL+U-Boot), boot.scr +
-#           uEnv.txt + zImage + web888.dtb (bootargs live in boot.scr, NOT
-#           the dtb), plus zImage.prev when output/zImage.prev is
-#           present (fallback entry).
+#   uboot — FAT carries boot.bin (FSBL+U-Boot), boot.scr + uEnv.txt taken
+#           from the web888-boot deb payload installed in the rootfs
+#           (work/rootfs/usr/lib/web888-boot/ via install-boot-deb.sh — the
+#           deb is the single source of truth for the bootloader), plus
+#           zImage + web888.dtb (bootargs live in boot.scr, NOT the dtb),
+#           plus zImage.prev when output/zImage.prev is present (fallback).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -49,11 +51,9 @@ fi
 [[ -d work/rootfs/etc ]] || { echo "Error: work/rootfs not populated (run configure-rootfs.sh)" >&2; exit 1; }
 
 if [[ $MODE == uboot ]]; then
-    [[ -x work/u-boot/tools/mkimage ]] || { echo "Error: work/u-boot/tools/mkimage missing (run build-uboot.sh)" >&2; exit 1; }
-    # dtb WITHOUT bootargs: the boot flow supplies them (boot.scr).
+    # dtb WITHOUT bootargs: the boot flow supplies them (boot.scr, rendered
+    # from config/u-boot/boot.cmd into the deb payload by build-boot-deb.sh).
     bash scripts/write-dtb.sh "$DTB"
-    work/u-boot/tools/mkimage -A arm -T script -C none -n web888-boot \
-        -d config/u-boot/boot.cmd output/boot.scr
 fi
 
 dd if=/dev/zero of="$IMG" bs=1M count="$SIZE_MB" status=none
@@ -82,14 +82,22 @@ sudo -n mkfs.vfat -F 32 -n BOOT "${LOOP}p1"
 sudo -n mkfs.ext4 -q -L rootfs "${LOOP}p2"
 
 sudo -n mount "${LOOP}p1" "$MNT"
-sudo -n cp "output/boot-${MODE}.bin" "$MNT/boot.bin"
+if [[ $MODE == uboot ]]; then
+    # boot.bin/boot.scr/uEnv.txt come from the deb payload in the rootfs,
+    # not output/: identical bits to what a future deb upgrade installs.
+    PAYLOAD=work/rootfs/usr/lib/web888-boot
+    for f in boot.bin boot.scr uEnv.txt; do
+        [[ -f $PAYLOAD/$f ]] || { echo "Error: $PAYLOAD/$f missing (run install-boot-deb.sh)" >&2; exit 1; }
+    done
+    sudo -n cp "$PAYLOAD/boot.bin" "$MNT/boot.bin"
+    sudo -n cp "$PAYLOAD/boot.scr" "$MNT/boot.scr"
+    sudo -n cp "$PAYLOAD/uEnv.txt" "$MNT/uEnv.txt"
+    [[ -f output/zImage.prev ]] && sudo -n cp output/zImage.prev "$MNT/zImage.prev" || true
+else
+    sudo -n cp "output/boot-${MODE}.bin" "$MNT/boot.bin"
+fi
 sudo -n cp output/zImage "$MNT/zImage"
 sudo -n cp "$DTB" "$MNT/web888.dtb"
-if [[ $MODE == uboot ]]; then
-    sudo -n cp output/boot.scr "$MNT/boot.scr"
-    sudo -n cp config/u-boot/uEnv.txt "$MNT/uEnv.txt"
-    [[ -f output/zImage.prev ]] && sudo -n cp output/zImage.prev "$MNT/zImage.prev" || true
-fi
 sudo -n umount "$MNT"
 
 sudo -n mount "${LOOP}p2" "$MNT"

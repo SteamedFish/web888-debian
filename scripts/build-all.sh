@@ -33,6 +33,9 @@
 #                              embeddedsw source (FSBL=source only; hardware-
 #                              verified, see docs/dev/fsbl-source-build-plan.md)
 #   9. build-bootbin.sh $MODE  output/web888.dtb + output/boot-$MODE.bin
+#  9b. build-boot-deb.sh      web888-boot deb (CHAIN=uboot only)
+#  9c. install-boot-deb.sh    deb -> rootfs; build-image.sh takes the FAT
+#                              boot files from the deb payload
 #  10. build-image.sh $MODE    output/web888-debian-$MODE.img  <- deliverable
 #
 # usage: build-all.sh [--clean]
@@ -242,6 +245,27 @@ fi
 
 echo "== 9/10 boot.bin ($IMG_MODE) =="
 bash scripts/build-bootbin.sh "$IMG_MODE"
+
+if [[ $CHAIN == uboot ]]; then
+    echo "== 9b/10 web888-boot deb =="
+    # Rebuild if missing or any input (packaging, boot config/script, or the
+    # freshly packed binaries) is newer than the cached deb.
+    rebuild=1
+    if ls output/boot/web888-boot_*_armhf.deb >/dev/null 2>&1; then
+        deb=$(ls -t output/boot/web888-boot_*_armhf.deb | head -1)
+        if [[ -z $(find packaging/web888-boot scripts/build-boot-deb.sh config/u-boot output/boot-uboot.bin output/fsbl/fsbl.bin output/u-boot.bin -newer "$deb" 2>/dev/null) ]]; then
+            rebuild=0
+            echo "   deb up to date, skipping: $deb"
+        fi
+    fi
+    if [[ $rebuild -eq 1 ]]; then
+        rm -f output/boot/web888-boot_*_armhf.deb
+        bash scripts/build-boot-deb.sh
+    fi
+
+    echo "== 9c/10 install web888-boot into rootfs =="
+    bash scripts/install-boot-deb.sh
+fi
 
 echo "== 10/10 card image ($IMG_MODE) =="
 bash scripts/build-image.sh "$IMG_MODE"

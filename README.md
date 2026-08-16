@@ -64,6 +64,10 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
   apps, no reflashing
 - **6.12 kernel + full U-Boot chain** — QEMU gates passed; hardware soak
   items tracked in `docs/dev/TODO.md`
+- **Bootloader shipped as a deb** (`web888-boot`) — FSBL + U-Boot + boot.scr /
+  uEnv.txt payload staged in the image; on-device upgrades are one
+  `apt install` (postinst writes the vfat /boot with a one-shot `.bak`,
+  sync-word validation, and leaves uEnv.txt alone)
 
 Current work items: [`docs/dev/TODO.md`](docs/dev/TODO.md) ·
 Known defects: [`docs/dev/KNOWN-ISSUES.md`](docs/dev/KNOWN-ISSUES.md) ·
@@ -83,7 +87,7 @@ History: [`docs/dev/CHANGELOG.md`](docs/dev/CHANGELOG.md)
 docs/       research/ + dev/ + user/ documentation (tracked)
 scripts/    build / repack / QEMU / flash scripts (tracked)
 config/     kernel & u-boot configs, devicetree, driver sources (tracked)
-packaging/  debian packaging: web888-websdr, web888-redpitaya (tracked)
+packaging/  debian packaging: web888-boot, web888-websdr, web888-redpitaya (tracked)
 resources/  vendored non-generated build inputs (tracked)
 work/       build trees (gitignored)
 output/     flashable artifacts (gitignored)

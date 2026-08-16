@@ -1,0 +1,5 @@
+boot/boot.bin usr/lib/web888-boot/
+boot/fsbl.bin usr/lib/web888-boot/
+boot/u-boot.bin usr/lib/web888-boot/
+boot/boot.scr usr/lib/web888-boot/
+boot/uEnv.txt usr/lib/web888-boot/
