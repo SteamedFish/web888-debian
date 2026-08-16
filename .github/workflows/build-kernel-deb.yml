@@ -43,7 +43,7 @@ jobs:
             crossbuild-essential-armhf bc flex bison device-tree-compiler \
             dpkg-dev curl xz-utils patch python3 libssl-dev kmod ccache
 
-      - uses: hendrikmuhs/ccache-action@v4
+      - uses: hendrikmuhs/ccache-action@v1.2
         with:
           max-size: 500M
           key: kernel-6.12
@@ -128,6 +128,6 @@ jobs:
             echo "==> no repo changes — nothing to publish"
             exit 0
           fi
-          pkgs=$(ls ./*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
+          pkgs=$(ls ./apt/*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
           git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
           git push origin gh-pages

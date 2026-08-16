@@ -131,6 +131,6 @@ jobs:
             echo "==> no repo changes — nothing to publish"
             exit 0
           fi
-          pkgs=$(ls ./*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
+          pkgs=$(ls ./apt/*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
           git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
           git push origin gh-pages
