@@ -15,7 +15,7 @@ on:
       - 'scripts/build-kernel-6.12.sh'
       - 'config/kernel/**'
       - 'config/kernel-web888-6.12.fragment'
-      - 'scripts/ci/**'
+      - 'scripts/ci/stamp-changelog.sh'
       - '.github/workflows/build-kernel-deb.yml'
   workflow_dispatch:
 
@@ -30,7 +30,30 @@ env:
   DEBIAN_MIRROR: https://cdn-aws.deb.debian.org/debian
 
 jobs:
+  # Skip the build when this push does not change anything the deb depends
+  # on: preflight-skip.sh hashes the git tree of the input paths and compares
+  # it against apt/build-manifest.json on gh-pages, which the publish job
+  # updates after every successful publish. workflow_dispatch/workflow_call
+  # always build; a missing manifest (nothing published yet) never skips.
+  preflight:
+    runs-on: ubuntu-24.04
+    outputs:
+      hash: ${{ steps.check.outputs.hash }}
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: >-
+          bash scripts/ci/preflight-skip.sh kernel
+          scripts/build-kernel-6.12.sh
+          config/kernel
+          config/kernel-web888-6.12.fragment
+          scripts/ci/stamp-changelog.sh
+          .github/workflows/build-kernel-deb.yml
+
   build:
+    needs: preflight
+    if: ${{ needs.preflight.outputs.skip != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     steps:
@@ -72,7 +95,7 @@ jobs:
           path: output/kernel/linux-image-*_armhf.deb
 
   publish:
-    needs: build
+    needs: [preflight, build]
     if: ${{ vars.APT_REPO_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -117,6 +140,14 @@ jobs:
 
       - name: Update the APT repo
         run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/ apt
+
+      - name: Record the published inputs hash
+        run: |
+          manifest=repo/apt/build-manifest.json
+          [ -f "$manifest" ] || echo '{}' > "$manifest"
+          jq --arg k kernel --arg h '${{ needs.preflight.outputs.hash }}' \
+            '.[$k] = $h' "$manifest" > "$manifest.tmp"
+          mv "$manifest.tmp" "$manifest"
 
       - name: Commit and push gh-pages
         run: |

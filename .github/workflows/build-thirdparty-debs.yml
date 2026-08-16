@@ -33,7 +33,9 @@ on:
       - 'packaging/dumphfdl/**'
       - 'packaging/frpc/**'
       - 'packaging/noip-duc/**'
-      - 'scripts/ci/**'
+      - 'scripts/ci/mk-build-chroot.sh'
+      - 'scripts/ci/build-thirdparty-deb.sh'
+      - 'scripts/ci/stamp-changelog.sh'
       - '.github/workflows/build-thirdparty-debs.yml'
   workflow_dispatch:
     inputs:

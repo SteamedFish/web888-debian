@@ -49,6 +49,13 @@ Review load-bearing claims against binaries and hardware before relying on them.
 - **Blind testing only** — no serial adapter. QEMU boot test gates every hardware
   flash (`scripts/test-qemu.sh uboot`). The stock TF card stays untouched in
   storage as the rollback.
+- **Scratch chroots with bind mounts** — keep throwaway repro chroots under
+  `/tmp`, not `.tmp/`; never `rm -rf` a directory that ever hosted bind mounts
+  without `umount -R` + `mountpoint -q` verification first, and repro scripts
+  must unmount via an EXIT trap. An orphaned `/dev` bind turns cleanup into
+  deletion of the HOST's device nodes (happened 2026-08-16: killed every
+  shell on the host, forced a reboot — postmortem:
+  `docs/dev/github-ci-apt-repo.md` §9).
 - The stock kernel has **no ext4** — a custom kernel is mandatory from the first boot.
 - Build tooling runs on a Linux host; `scripts/env-setup.sh` verifies the
   required toolchain.

@@ -13,10 +13,10 @@ forgejo primary remote has no CI.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `build-kernel-deb.yml` | push paths (`scripts/build-kernel-6.12.sh`, `config/kernel/**`, `config/kernel-web888-6.12.fragment`) | build → publish |
-| `build-websdr-deb.yml` | push paths (`config/websdr/**`, `packaging/web888-websdr/**`, scripts) | build → publish |
-| `build-redpitaya-deb.yml` | push paths (`config/redpitaya/**`, `packaging/web888-redpitaya/**`, scripts, `scripts/hw-test/si5351/**`) | build → publish |
-| `build-boot-deb.yml` | push paths (`config/u-boot/**`, `packaging/web888-boot/**`, FSBL reference trees, scripts) | build → publish |
+| `build-kernel-deb.yml` | push paths (`scripts/build-kernel-6.12.sh`, `config/kernel/**`, `config/kernel-web888-6.12.fragment`) | preflight → build → publish |
+| `build-websdr-deb.yml` | push paths (`config/websdr/**`, `packaging/web888-websdr/**`, scripts) | preflight → build → publish |
+| `build-redpitaya-deb.yml` | push paths (`config/redpitaya/**`, `packaging/web888-redpitaya/**`, scripts, `scripts/hw-test/si5351/**`) | preflight → build → publish |
+| `build-boot-deb.yml` | push paths (`config/u-boot/**`, `packaging/web888-boot/**`, FSBL reference trees, scripts) | preflight → build → publish |
 | `build-thirdparty-debs.yml` | push paths (`packaging/{libacars,dumphfdl,frpc,noip-duc}/**`), dispatch, `workflow_call` | detect → select → build → publish |
 | `upstream-watch.yml` | daily cron `37 5 * * *`, dispatch | check (upstream pins + trixie lib watch) → rebuild / websdr-rebuild / redpitaya-rebuild (`workflow_call`) |
 
@@ -234,3 +234,54 @@ drop `KEEP_VERSIONS` to 3 or 2 in the workflow env. Pages soft bandwidth is
   that rebuilding and redistributing the binary deb from our repo is
   permitted before enabling it in the thirdparty build (research §1.7
   licensing note).
+
+## 9. Postmortem: host /dev deletion via scratch chroot (2026-08-16)
+
+During local repro of the FSBL runner failure, a debootstrap chroot under
+`.tmp/noble` was left behind by a killed tmux session with its bind mounts
+(`/dev`, `/dev/pts`, `/proc`, `/sys`) still active. A later `rm -rf
+.tmp/noble` in the repro script traversed the orphaned `/dev` bind mount and
+deleted the HOST's device nodes; a root-shell redirect then recreated
+`/dev/null` as a regular 644 file, which broke every new shell/process on the
+host (`PermissionDenied` on spawn) until the server was rebooted.
+
+Contributing factors: `tmux kill-session` leaves long-running sudo children
+(and their mounts) alive; `.tmp/` is the project scratch dir so bind mounts
+there are invisible to later cleanup; `rm -rf` gives no warning when crossing
+into a mount.
+
+Prevention (hard rule in AGENTS.md — "Hard constraints"): scratch chroots
+with bind mounts live under `/tmp`, not `.tmp/`; any cleanup of a directory
+that ever held bind mounts must `umount -R` it and verify with
+`mountpoint -q` before `rm -rf`; repro scripts must unmount via an EXIT trap.
+CI itself was never affected — this was host-side repro tooling only.
+
+## 10. Push efficiency: input-hash preflight skip
+
+Every push to `master` that touches a workflow's path filter queues a build —
+kernel and websdr builds take 30-60 minutes, so pushes that only re-trigger
+via shared infrastructure wasted runner hours. Two guards keep CI quiet:
+
+1. **Tightened path filters.** The broad `scripts/ci/**` glob is gone from
+   build triggers. Each workflow lists only the CI scripts its *build* job
+   actually uses (`stamp-changelog.sh` everywhere; plus
+   `mk-build-chroot.sh`/`build-thirdparty-deb.sh` for thirdparty). Editing
+   publish-only or watch-only scripts (`update-apt-repo.sh`,
+   `check-upstream.sh`, `check-deps.sh`) no longer rebuilds anything.
+
+2. **Input-hash preflight skip.** The four own-deb workflows start with a
+   `preflight` job running `scripts/ci/preflight-skip.sh`: it hashes the git
+   tree objects of every input path at HEAD and compares the result against
+   `apt/build-manifest.json` on the gh-pages branch, where the publish job
+   records the hash of every build it actually published. Match → the build
+   (and publish) jobs are skipped; the repo already carries debs built from
+   exactly these inputs. The hash keys on tree *content*, not commits — a
+   revert or a merge that lands the tree back on a previously published state
+   skips cleanly.
+
+   Never skipped: `workflow_dispatch` and `workflow_call` (upstream-watch
+   trixie-lib rebuilds change no repo file — the input hash is unchanged but
+   the build must run), and any state where the manifest is missing or
+   unreadable (nothing published yet — the first full population must run).
+   `build-thirdparty-debs.yml` keeps its per-package `detect` job instead of
+   a preflight; its path filter is already per-package.
