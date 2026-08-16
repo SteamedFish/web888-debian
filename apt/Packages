@@ -1,3 +1,362 @@
+Package: dumphfdl
+Version: 1.7.0-1web8881+ci8
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 144
+Depends: libacars2 (>= 2.2.1), libc6 (>= 2.34), libconfig++11 (>= 1.7.3), libfftw3-single3 (>= 3.3.10), libglib2.0-0t64 (>= 2.46.0), libliquid1 (>= 1.7.0), librdkafka1 (>= 1.2.1), libsoapysdr0.8 (>= 0.8.1), libsqlite3-0 (>= 3.5.9), libzmq5 (>= 3.2.3+dfsg)
+Filename: ./dumphfdl_1.7.0-1web8881+ci8_armhf.deb
+Size: 59940
+MD5sum: 8abf8b2beba2b36c96d7af76c5b31264
+SHA1: df075bb98719d95fa15188c29d3da293a794af27
+SHA256: eea222d6bf02d8f9acb03f789bc2e02e36bd97e4ce0aff4425f6fb5a82b0f514
+Section: hamradio
+Priority: optional
+Homepage: https://github.com/szpajder/dumphfdl
+Description: HFDL (HF Data Link) decoder
+ dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
+ It receives audio from an SDR via SoapySDR (or from files/pipes),
+ demodulates HFDL channels and decodes ACARS and other HFDL payloads
+ using libacars, with output to plain text, SQLite, ZeroMQ, Kafka and
+ other sinks.
+
+Package: dumphfdl-dbgsym
+Source: dumphfdl
+Version: 1.7.0-1web8881+ci8
+Auto-Built-Package: debug-symbols
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 333
+Depends: dumphfdl (= 1.7.0-1web8881+ci8)
+Filename: ./dumphfdl-dbgsym_1.7.0-1web8881+ci8_armhf.deb
+Size: 188612
+MD5sum: 02ed2390092bd12e5fea0bc596a255d4
+SHA1: 3b63cbf8f35fcce8a0ed7ea85c68277c9bf0bfd3
+SHA256: a822db67d36b929db70fd50979762381fe7260b30be17f191664ac424664e357
+Section: debug
+Priority: optional
+Description: debug symbols for dumphfdl
+Build-Ids: 52f467a8a85ee7b2b6d764d9dadde93a57c3be90
+
+Package: frpc
+Version: 0.71.0-1web8881+ci8
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Filename: ./frpc_0.71.0-1web8881+ci8_armhf.deb
+Size: 4695496
+MD5sum: bee07e1e6fa7ac2890c941a542e805ba
+SHA1: dd15e5d7f685309bf303f65411ad49929365435c
+SHA256: 1091ff1a283f084db862d2a9dd5d82bf52a4e8d5a5a4a018f6fc9a3222fb4a35
+Section: net
+Priority: optional
+Homepage: https://github.com/fatedier/frp
+Description: fast reverse proxy client (frp)
+ frp is a fast reverse proxy that allows exposing local servers behind a
+ NAT or firewall to the internet. This package contains frpc, the frp
+ client, repackaged from the official static linux/arm release binary.
+
+Package: libacars2
+Source: libacars
+Version: 2.2.1-1web8881+ci8
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 446
+Depends: libc6 (>= 2.4), libjansson4 (>= 2.14), libxml2 (>= 2.7.4), zlib1g (>= 1:1.1.4)
+Filename: ./libacars2_2.2.1-1web8881+ci8_armhf.deb
+Size: 111876
+MD5sum: cce0ffa8fe08f45904c2c587a243b922
+SHA1: bd5424a131bb92c22b4a41e237181cfad46fea16
+SHA256: a9ee9fa4281ba4c9bd024d8fb2907508307e633a03ffb0957bdb425bdeaad3b1
+Section: libs
+Priority: optional
+Multi-Arch: same
+Homepage: https://github.com/szpajder/libacars
+Description: decoding library for ACARS, ADS-B and other AV protocols
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the libacars-2 shared library.
+
+Package: libacars2-dbgsym
+Source: libacars
+Version: 2.2.1-1web8881+ci8
+Auto-Built-Package: debug-symbols
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 623
+Depends: libacars2 (= 2.2.1-1web8881+ci8)
+Filename: ./libacars2-dbgsym_2.2.1-1web8881+ci8_armhf.deb
+Size: 452764
+MD5sum: 55c108150225725ecaf78c6415649639
+SHA1: ead5cbb2e5353881d33e1b3792a7ade1d64f962d
+SHA256: 48c7d48e26ec4ad3bd49861386ff6e95e96bad87623287a3e1b098f37729ce75
+Section: debug
+Priority: optional
+Multi-Arch: same
+Description: debug symbols for libacars2
+Build-Ids: db672318e94c0eea9c09db492a48b0e7526c511b
+
+Package: libacars2-dev
+Source: libacars
+Version: 2.2.1-1web8881+ci8
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 541
+Depends: libacars2 (= 2.2.1-1web8881+ci8)
+Filename: ./libacars2-dev_2.2.1-1web8881+ci8_armhf.deb
+Size: 56328
+MD5sum: c5b3d5ee33e831b7d01765f4775bf422
+SHA1: e3cb45a322cd85043bfccd5baceed0cf23121816
+SHA256: 7e2dfea19b3a6b9e8642e16131c4ce93542a5d6e24d444738b22a3c2cfcabb58
+Section: libdevel
+Priority: optional
+Multi-Arch: same
+Homepage: https://github.com/szpajder/libacars
+Description: development files for libacars
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the header files, the pkg-config file
+ (libacars-2.pc) and the linker symlink needed to build programs
+ against libacars-2.
+
+Package: libacars2-tools
+Source: libacars
+Version: 2.2.1-1web8881+ci8
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 212
+Depends: libacars2 (>= 2.2.1), libc6 (>= 2.34)
+Filename: ./libacars2-tools_2.2.1-1web8881+ci8_armhf.deb
+Size: 12904
+MD5sum: 150c16ae6bcd6ba25cfd75612890d9eb
+SHA1: 3b62a4ec2bab5975087f4a1fe88c4b902bfb6864
+SHA256: 7d103097449e476edfee2adcde4084884083ef88429de67d581b6f6ea91a3961
+Section: libs
+Priority: optional
+Multi-Arch: same
+Homepage: https://github.com/szpajder/libacars
+Description: command-line tools from the libacars project
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the example/utility programs shipped with
+ libacars (e.g. decode_acars_apps, decode_arinc622_apps).
+
+Package: libacars2-tools-dbgsym
+Source: libacars
+Version: 2.2.1-1web8881+ci8
+Auto-Built-Package: debug-symbols
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 71
+Depends: libacars2-tools (= 2.2.1-1web8881+ci8)
+Filename: ./libacars2-tools-dbgsym_2.2.1-1web8881+ci8_armhf.deb
+Size: 28968
+MD5sum: 6ea7500bf0df53be40c6cd7e8ab7873e
+SHA1: 1bc7e1fb2208480f05fe4ef8574fa3d5863006af
+SHA256: 0a4a0764da02e906a3a468d66afec8d21510a05025a6b5a0a612f6145e592117
+Section: debug
+Priority: optional
+Multi-Arch: same
+Description: debug symbols for libacars2-tools
+Build-Ids: 0a3f07758d1f33c3f650ec0217c398692a971344 338cc7468ceb3723f0d4b4af6e696849e0653206 cbc5636ace0a52c5526cbc2eaf6eb89d0adee521
+
+Package: noip-duc
+Version: 3.3.0
+Architecture: armhf
+Maintainer: No-IP Team <support@noip.com>
+Installed-Size: 2319
+Filename: ./noip-duc_3.3.0_armhf.deb
+Size: 879940
+MD5sum: a70bb0cc8e048bf3a3ac1ac88e3aefdc
+SHA1: 3f0520460937b64d80d48d23ae3e9d74b9ef1216
+SHA256: 4160b6445f0db48298adcfd18983a9848eb7c03eb2c3c8e97595a8d202e0b5a1
+Section: net
+Priority: optional
+Homepage: https://www.noip.com
+Description: No-IP Dynamic Update Client (https://www.noip.com)
+ No-IP Linux DUC 3
+ =================
+ .
+ ### Features
+ .
+ - Simple design with minimal dependencies
+ - No configuration file - all config available via environment variables
+ - AWS metadata support for public IP built in
+ - Allow updating to a specific IP with `--ip-method static:<IP>`
+ - Uses compatibility protocol (`nic/update`)
+ - Run command on IP change
+ .
+ Usage
+ =====
+ .
+ ```
+ noip-duc 3.3.0
+ No-IP Dynamic Update Client
+ .
+ USAGE:
+     noip-duc [OPTIONS] --username <USERNAME> --password <PASSWORD>
+ .
+ OPTIONS:
+         --check-interval <CHECK_INTERVAL>
+             How often to check for a new IP address. Minimum: every 2 minutes
+ .
+             [env: NOIP_CHECK_INTERVAL=]
+             [default: 5m]
+ .
+         --daemon-group <DAEMON_GROUP>
+             When daemonizing, become this group
+ .
+             [env: NOIP_DAEMON_GROUP=]
+ .
+         --daemon-pid-file <DAEMON_PID_FILE>
+             When daemonizing, write process id to this file
+ .
+             [env: NOIP_DAEMON_PID_FILE=]
+ .
+         --daemon-user <DAEMON_USER>
+             When daemonizing, become this user
+ .
+             [env: NOIP_DAEMON_USER=]
+ .
+         --daemonize
+             Fork into the background
+ .
+     -e, --exec-on-change <EXEC_ON_CHANGE>
+             Command to run when the IP address changes. It is run with the
+ environment variables
+             CURRENT_IP and LAST_IP set. Also, {{CURRENT_IP}} and {{LAST_IP}}
+ are replaced with the
+             respective values. This allows you to provide the variables as
+ arguments to your command
+             or read them from the environment. The command is always executed
+ in a shell, sh or cmd
+             on Windows.
+ .
+             Example
+ .
+             noip_duc -e 'mail -s "IP changed to {{CURRENT_IP}} from
+ {{LAST_IP}}" user@example.com'
+ .
+             [env: NOIP_EXEC_ON_CHANGE=]
+ .
+     -g, --hostnames <HOSTNAMES>
+             Comma separated list of groups and hostnames to update
+ .
+             [env: NOIP_HOSTNAMES=]
+ .
+     -h, --help
+             Print help information
+ .
+         --http-timeout <HTTP_TIMEOUT>
+             Timeout when making HTTP requests
+ .
+             [env: NOIP_HTTP_TIMEOUT=]
+             [default: 10s]
+ .
+         --import [<IMPORT>]
+             Import config from noip2 and display it as environment variables
+ .
+             [default: /etc/no-ip2.conf]
+ .
+         --ip-method <IP_METHOD>
+             Methods used to discover the public IP, as a comma separated list.
+ They are tried in
+             order
+             until a public IP is found. Failed methods are not retried unless
+ all methods fail.
+ .
+             Possible values are
+             - 'aws-metadata': uses the AWS metadata URL to get the Elastic IP
+                               associated with your instance.
+             - 'dns': Use No-IP's DNS public IP lookup system.
+             - 'dns:<nameserver>:<port>:<qname>:<record type>': custom DNS
+ lookup.
+             - 'http': No-IP's HTTP method on port 80.
+             - 'http-port-8245': No-IP's HTTP method on port 8245.
+             - 'static:<ip address>': always use this IP address. Helpful with
+ --once.
+             - HTTP URL: An HTTP URL that returns only an IP address.
+ .
+             [env: NOIP_IP_METHOD=]
+             [default: dns,http,http-port-8245]
+ .
+     -l, --log-level <LOG_LEVEL>
+             Set the log level. Possible values: trace, debug, info, warn,
+ error, critical. Overrides
+             --verbose
+ .
+             [env: NOIP_LOG_LEVEL=]
+ .
+         --once
+             Find the public IP and send an update, then exit. This is a good
+ method to verify
+             correct credentials
+ .
+     -p, --password <PASSWORD>
+             Your www.noip.com password. For better security, use Update Group
+ credentials.
+             https://www.noip.com/members/dns/dyn-groups.php
+ .
+             [env: NOIP_PASSWORD=]
+ .
+     -u, --username <USERNAME>
+             Your www.noip.com username. For better security, use Update Group
+ credentials.
+             https://www.noip.com/members/dns/dyn-groups.php
+ .
+             [env: NOIP_USERNAME=]
+ .
+     -v, --verbose
+             Increase logging verbosity. May be used multiple times
+ .
+     -V, --version
+             Print version information
+ ```
+ .
+ Advanced Usage
+ ==============
+ .
+ Daemonize
+ ---------
+ .
+ The most common way to use `noip-duc` is with a supervisor such as Systemd. But
+ `noip-duc` can run as a daemon on its own.
+ .
+ ```
+ # noip-duc will fork into the background, drop privileges and write the new pid
+ to a file.
+ noip-duc --daemonize --daemon-user nobody --daemon-group nogroup
+ --daemon-pid-file /var/run/noip-duc.pid
+ ```
+ .
+ Perform a single update to a specific IP
+ ----------------------------------------
+ .
+ ```
+ source /etc/noip-duc.conf && noip-duc --ip-method static:192.168.1.1 --once
+ ```
+ .
+ Use Custom DNS HTTP Method
+ ------------------------
+ .
+ ```
+ noip-duc --ip-method https://myip.dnsomatic.com
+ noip-duc --ip-method http://ifconfig.me/ip
+ ```
+ .
+ Use Custom DNS IP Method
+ ------------------------
+ .
+ ```
+ noip-duc --ip-method dns:<nameserver>:<port>:<qname>:<record type>
+ .
+ noip-duc --ip-method dns:resolver1.opendns.com:53:myip.opendns.com:A
+ noip-duc --ip-method dns:ns1-1.akamaitech.net:53:whoami.akamai.net:A
+ noip-duc --ip-method dns:ns1.google.com:53:o-o.myaddr.l.google.com:TXT
+ noip-duc --ip-method dns:a14-64.akam.net:53:whoami.ds.akahelp.net:TXT
+ ```
+
 Package: web888-boot
 Version: 2026.07-1+ci10
 Architecture: armhf

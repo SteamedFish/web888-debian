@@ -1,23 +1,23 @@
 Architectures: armhf
 Codename: stable
 Components: main
-Date: Sun, 16 Aug 2026 14:22:40 +0000
+Date: Sun, 16 Aug 2026 14:28:25 +0000
 Label: web888
 Origin: web888
 Suite: stable
 MD5Sum:
- bc0520c80900f91a896abf4c071cc0c2             2622 Packages
- 8cd0908873935883fdee76b9494bad2b             1426 Packages.gz
- 99fe60a92eb7443bca5d3464da8fec5b              136 Release
+ 142159f00e5e9d2321b19cbc3521417a            14667 Packages
+ 7825fc89b058cef8023dc8cf8641639f             5671 Packages.gz
+ 34b74dfa0709294576c5b112844c1515              136 Release
 SHA1:
- a246bb7b41306cb806868814923aeeb95cc6ff71             2622 Packages
- 8772d02fc542ebe6cf2ee394a34996a5b96d7d56             1426 Packages.gz
- 0cb2ad5f84ad8a260b9eac075cebc332b08ac89a              136 Release
+ bb74919b99f317c3d5ff4f18a7c7dc0e4b3dbfb7            14667 Packages
+ ce2b80952edb6ddb59edc313d61cefe4aa2bd10e             5671 Packages.gz
+ b1347162626f33e7052db412453a8ac8334b2d0d              136 Release
 SHA256:
- fa4f4e7b7d3d091330e8031aa0354ef4081d3f626070a2fbaec1955facd5dfdf             2622 Packages
- f9bf07948bbe9b22496fb0d574a7d514d238ac4981b3884e16b1d25ee64a412a             1426 Packages.gz
- d2c870bc877872669a9d60ef54910ff4f27359b5f38968e5574edb10489c2a0d              136 Release
+ f495f547344ecc4a280f9d3da56ab15faa0b9a71b211c9f65f586597a94ec3d7            14667 Packages
+ 45c325aa14973b9a5d978a31d7cfb9fc92bfeda524b8656d4d8154b445ed9643             5671 Packages.gz
+ 59b6d3d335496e57b8a75dac37ebf7c9a2a4546b88ecd01f75bc0126d7a7ccd5              136 Release
 SHA512:
- 621ca79456b00a494aa81fc43a85a774935a792e7f8ba877a9e249d39f94240278941d52e1b012df36027bce220a49bf946cbe88278103aeda89f93516f579ac             2622 Packages
- 87cf68e0182c6d0bb1321246dc66c0a0bd4c7cbecce686781a56c0a22c5604f94b91b5c72da8dec5624b84db5768879094306595c62a1d85926ca584f92f76e6             1426 Packages.gz
- 220fa6c30a1e4fd3470b429818b1d2a70e5f405c3b88582fa1be6992da3c3af2d6c0e2a4bc47a3481f7d101fa74ec12a02ea81e422ab2bc1d3b22c09d6e858a7              136 Release
+ eba77ab8a487d4fa81e1aef789c87ae7e3013acc3e55be693f3b3acffbb7ef1756c7fbcc1b0b27e89c4eb346478a7af526105b68c605225c2c648722fd2c5507            14667 Packages
+ a330555a7154317cffc393ab9a9a7af7948aa1ed499fddc7957bc1c3fff1aea7242e8d55173df458fb4948e6ad32ae9afa0789bcaead59da1f54a5fbea2267d5             5671 Packages.gz
+ fd2e051b93fda5b13b58d1fc4863e60b7d95868150ae62d6b87dc068962589648b92321536d4851787b0e3182c010832707086241a0494d919ec7433c7c2fc47              136 Release
