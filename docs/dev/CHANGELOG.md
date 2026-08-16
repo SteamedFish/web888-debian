@@ -107,14 +107,17 @@ this is a hard project rule).
   installs `usr/share/doc/libacars-2/*.md` that no `.install` claims;
   dh_missing errors on unclaimed files at compat 13. Declared
   intentionally-not-installed (license text lives in debian/copyright).
-- **apt/debootstrap retries** — deb.debian.org (Fastly) occasionally
-  resets connections mid-fetch ("Connection reset by peer"), failing
-  whole chroot builds. Both chroot scripts now write an
-  `Acquire::Retries "5"` dropin into the chroot (covers every in-chroot
-  apt call, both create and reuse paths) and wrap debootstrap itself in
-  a 3-attempt retry loop whose cleanup refuses to run when unexpected
-  child mounts exist (AGENTS.md scratch-chroot rule); runner-host
-  apt-get calls in all workflows get `-o Acquire::Retries=3`.
+- **apt/debootstrap retries + CDN switch** — deb.debian.org (Fastly)
+  repeatedly reset connections mid-fetch from GitHub runners
+  ("Connection reset by peer", two runs in a row), failing whole chroot
+  builds. All workflows now use the official AWS CloudFront CDN
+  (`cdn-aws.deb.debian.org`) as DEBIAN_MIRROR; both chroot scripts write
+  an `Acquire::Retries "10"` dropin into the chroot (covers every
+  in-chroot apt call, both create and reuse paths) and wrap debootstrap
+  itself in a 3-attempt retry loop whose cleanup refuses to run when
+  unexpected child mounts exist (AGENTS.md scratch-chroot rule);
+  runner-host apt-get calls in all workflows get
+  `-o Acquire::Retries=3`.
 - **`scripts/ci/build-thirdparty-deb.sh`** — the dumphfdl dep-install
   step used `find -exec cp {} dir/ +`; GNU find requires `{}` to be the
   LAST argument before `+` and aborts with "missing argument to -exec".

@@ -39,7 +39,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DEBIAN_MIRROR: https://deb.debian.org/debian
+  DEBIAN_MIRROR: https://cdn-aws.deb.debian.org/debian
 
 jobs:
   build:

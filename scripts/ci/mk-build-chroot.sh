@@ -26,7 +26,7 @@ log() { echo "[mk-build-chroot] $*"; }
 # Every in-chroot apt call retries via this dropin; debootstrap itself
 # is wrapped in a retry loop below.
 write_apt_retries() {
-    echo 'Acquire::Retries "5";' | sudo tee "$CHROOT/etc/apt/apt.conf.d/80ci-retries" >/dev/null
+    echo 'Acquire::Retries "10";' | sudo tee "$CHROOT/etc/apt/apt.conf.d/80ci-retries" >/dev/null
 }
 
 log "chroot: $CHROOT (mirror: $MIRROR)"
