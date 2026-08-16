@@ -5,7 +5,9 @@
 # mtime — not a normal unlink). tmpfs eliminates the btrfs variable;
 # chroot is cheap to rebuild.
 #
-# Idempotent: skips debootstrap if /tmp/websdr-build/usr/bin/chroot exists.
+# Idempotent: skips debootstrap if /tmp/websdr-build/usr/bin/chroot exists,
+# but refreshes the chroot (apt-get update + full-upgrade) on every reuse so
+# debs always build against the latest trixie libraries.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -14,7 +16,15 @@ CHROOT=${WEB888_BUILD_CHROOT:-/tmp/websdr-build}
 MIRROR=${DEBIAN_MIRROR:-http://mirrors.tuna.tsinghua.edu.cn/debian}
 
 if [[ -x $CHROOT/usr/bin/cmake ]]; then
-    echo "chroot ready: $CHROOT"
+    # Reuse path: cached chroot — bring it fully up to date first, so
+    # ${shlibs:Depends} minimum versions in built debs match the CURRENT
+    # archive (upgraded users can install; stale users get libs pulled).
+    sudo chroot "$CHROOT" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin bash -c '
+            apt-get update -qq
+            apt-get -y full-upgrade
+        '
+    echo "chroot ready: $CHROOT (reused, apt refreshed)"
     exit 0
 fi
 
@@ -34,6 +44,9 @@ sudo cp "$(command -v qemu-arm-static)" "$CHROOT/usr/bin/"
 sudo chroot "$CHROOT" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
     PATH=/usr/sbin:/usr/bin:/sbin:/bin bash -c '
         apt-get update -qq
+        # Fresh debootstrap: upgrade to the latest trixie BEFORE installing
+        # Build-Depends, so debs are compiled against current archive libs.
+        apt-get -y full-upgrade
         apt-get install -y --no-install-recommends \
             build-essential cmake pkg-config dpkg-dev devscripts debhelper git \
             ca-certificates quilt libfftw3-dev zlib1g-dev libfdk-aac-dev \

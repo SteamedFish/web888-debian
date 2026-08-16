@@ -19,7 +19,9 @@
 #     .tmp/newlib/usr/arm-none-eabi (see scripts/extract-ps7-init.py era
 #     notes / Task 1). CPATH injects headers, --sysroot injects the linker
 #     library path (env LIBRARY_PATH is silently sysroot-prefixed by this
-#     gcc — do not rely on it).
+#     gcc — do not rely on it). Debian/Ubuntu gcc-arm-none-eabi +
+#     libnewlib-arm-none-eabi find newlib natively, so a link probe below
+#     decides; the sysroot is only required when the probe fails.
 #   - Xilinx 2020-era makefiles race under parallel make: -j1 is forced.
 #   - xilrsa is a PREBUILT librsa.a upstream (no C sources) — linked as-is.
 set -euo pipefail
@@ -33,7 +35,7 @@ HOOKS_DIR=resources/reference/redpitaya-fsbl-hooks
 WORK_FSBL=work/fsbl
 WORK_APP="$WORK_FSBL/$FSBL_REL"
 OUT_DIR=output/fsbl
-NEWLIB_SYSROOT="$REPO/.tmp/newlib/usr/arm-none-eabi"
+NEWLIB_SYSROOT="${NEWLIB_SYSROOT:-$REPO/.tmp/newlib/usr/arm-none-eabi}"
 BOARD=web888
 MAX_FSBL_BYTES=$((192 * 1024))
 
@@ -48,10 +50,31 @@ command -v arm-none-eabi-gcc &>/dev/null || {
     echo "Error: arm-none-eabi-gcc required (pacman: arm-none-eabi-gcc)" >&2; exit 1; }
 command -v arm-none-eabi-objcopy &>/dev/null || {
     echo "Error: arm-none-eabi-objcopy required (pacman: arm-none-eabi-binutils)" >&2; exit 1; }
-[[ -f $NEWLIB_SYSROOT/lib/libc.a && -f $NEWLIB_SYSROOT/include/stdint.h ]] || {
-    echo "Error: newlib sysroot missing at $NEWLIB_SYSROOT" >&2
-    echo "  (extract arm-none-eabi-newlib pkg under .tmp/newlib/ — see Task 1 notes)" >&2
-    exit 1; }
+# Newlib probe: can this arm-none-eabi-gcc compile AND LINK a trivial newlib
+# program without any sysroot flag? Debian/Ubuntu (gcc-arm-none-eabi +
+# libnewlib-arm-none-eabi) can; Arch's arm-none-eabi-gcc ships no libc and
+# needs the project-local newlib sysroot ($NEWLIB_SYSROOT, env-overridable).
+PROBE=$(mktemp --suffix=.elf)
+if echo 'int main(void){return 0;}' | arm-none-eabi-gcc -x c - -o "$PROBE" 2>/dev/null; then
+    NATIVE_NEWLIB=1
+else
+    NATIVE_NEWLIB=0
+fi
+rm -f "$PROBE"
+
+LINKER="arm-none-eabi-gcc"
+if [[ $NATIVE_NEWLIB == 1 ]]; then
+    echo "newlib: native (arm-none-eabi-gcc links with no --sysroot)"
+else
+    [[ -f $NEWLIB_SYSROOT/lib/libc.a && -f $NEWLIB_SYSROOT/include/stdint.h ]] || {
+        echo "Error: newlib sysroot missing at $NEWLIB_SYSROOT" >&2
+        echo "  (extract arm-none-eabi-newlib pkg under .tmp/newlib/ — see Task 1 notes)" >&2
+        exit 1; }
+    # CPATH injects headers, --sysroot injects the linker library path.
+    export CPATH="$NEWLIB_SYSROOT/include"
+    LINKER="arm-none-eabi-gcc --sysroot=$NEWLIB_SYSROOT"
+    echo "newlib: sysroot $NEWLIB_SYSROOT (CPATH + LINKER --sysroot)"
+fi
 
 # --- stage a fresh working copy -------------------------------------------
 # copy_bsp.sh resolves drivers/services via ../../../../ relative to misc/,
@@ -69,12 +92,12 @@ cp "$HOOKS_DIR/red_pitaya_fsbl_hooks.c" "$WORK_APP/src/red_pitaya_fsbl_hooks.c"
 patch --dry-run -p0 -d "$WORK_APP/src" < "$HOOKS_DIR/fsbl.patch"
 patch -p0 -d "$WORK_APP/src" < "$HOOKS_DIR/fsbl.patch"
 
-# --- build (serial make; CPATH for newlib headers; sysroot for linking) ---
-export CPATH="$NEWLIB_SYSROOT/include"
+# --- build (serial make; when the newlib probe failed, CPATH + --sysroot ---
+# --- were set above; with native newlib neither is injected) --------------
 make -j1 -C "$WORK_APP/src" \
     BOARD="$BOARD" \
     CC=arm-none-eabi-gcc \
-    LINKER="arm-none-eabi-gcc --sysroot=$NEWLIB_SYSROOT"
+    LINKER="$LINKER"
 
 # --- artifacts -------------------------------------------------------------
 arm-none-eabi-objcopy -O binary "$WORK_APP/src/fsbl.elf" "$OUT_DIR/fsbl.bin"
