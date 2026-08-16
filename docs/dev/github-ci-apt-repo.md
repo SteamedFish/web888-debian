@@ -66,6 +66,19 @@ After the first publish job creates the `gh-pages` branch: Settings → Pages �
 serves at `https://steamedfish.github.io/web888-debian/`. `.nojekyll` is
 touched by the publish script.
 
+**Custom domain (optional, purely cosmetic).** To avoid occupying
+`steamedfish.github.io` URLs, any subdomain works:
+
+1. DNS: add a `CNAME` record, e.g. `apt.steamedfish.org` →
+   `steamedfish.github.io`.
+2. Repo → Settings → Pages → **Custom domain**: enter the subdomain, save,
+   wait for the DNS check, then enable **Enforce HTTPS** (GitHub
+   auto-provisions the certificate).
+3. GitHub writes a `CNAME` file to the root of `gh-pages`; the publish job
+   only ever adds/updates its own files incrementally, so it never
+   overwrites `CNAME`.
+4. Use `https://<subdomain>/ ./` in the sources.list line below instead.
+
 ## 3. User side (device)
 
 ```sh
@@ -76,7 +89,9 @@ echo "deb [arch=armhf signed-by=/usr/share/keyrings/web888.gpg] https://steamedf
 sudo apt update
 ```
 
-The trailing `./` is the flat-repo marker — there is no `dists/` tree.
+(Substitute the custom domain for `steamedfish.github.io/web888-debian` if
+one is configured.) The trailing `./` is the flat-repo marker — there is no
+`dists/` tree.
 
 ## 4. Package inventory
 

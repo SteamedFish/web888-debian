@@ -61,7 +61,8 @@ this is a hard project rule).
   `APT_REPO_GPG_PASSPHRASE` / `APT_REPO_GPG_KEY_ID`, repo variable
   `APT_REPO_ENABLED=true`, Pages "deploy from branch: gh-pages"), and
   the user-side sources.list snippet
-  (`deb [arch=armhf signed-by=...] https://steamedfish.github.io/web888-debian/ ./`).
+  (`deb [arch=armhf signed-by=...] https://steamedfish.github.io/web888-debian/ ./`,
+  with an optional custom-domain variant).
 
 ### Changed
 
