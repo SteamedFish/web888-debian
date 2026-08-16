@@ -71,7 +71,10 @@ sudo bash -c "cp $CHROOT/root/redpitaya-pkg/web888-redpitaya_*_armhf.deb $CHROOT
 sudo chown -R "$USER":"$USER" "$OUT"
 
 echo "==> artifact sentinels"
-DEB=$(find "$OUT" -maxdepth 1 -name 'web888-redpitaya_*_armhf.deb' | head -1)
+# glob can match leftover debs from earlier versions — pick the newest
+# (same take as build-websdr-deb.sh; a plain find|head -1 is inode-ordered
+# and has sent stale debs through the sentinels).
+DEB=$(ls -t "$OUT"/web888-redpitaya_*_armhf.deb | head -1)
 DEB_CONTENTS=$(dpkg-deb -c "$DEB")
 for want in \
   'usr/lib/web888-redpitaya/bin/sdr_receiver-server$' \

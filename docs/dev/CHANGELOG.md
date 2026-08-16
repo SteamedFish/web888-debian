@@ -9,6 +9,16 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-16] — build-redpitaya-deb.sh could sentinel-check a stale deb
+
+### Fixed
+
+- **`scripts/build-redpitaya-deb.sh`** — the newest-deb selection used
+  `find | head -1` (inode order), so leftover debs from earlier versions
+  in `output/redpitaya/` could be sent through the artifact sentinels
+  instead of the one just built. Now picks the newest by mtime via
+  `ls -t | head -1`, matching `build-websdr-deb.sh`.
+
 ## [2026-08-16] — build-image.sh uboot mode no longer requires a stub-chain dtb leftover
 
 ### Fixed
