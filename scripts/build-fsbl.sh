@@ -101,7 +101,15 @@ patch -p0 -d "$WORK_APP/src" < "$HOOKS_DIR/fsbl.patch"
 
 # --- build (serial make; when the newlib probe failed, CPATH + --sysroot ---
 # --- were set above; with native newlib neither is injected) --------------
+# SHELL=/bin/bash: the vendored Xilinx Makefiles use non-POSIX `[ a == b ]`.
+# Arch's /bin/sh is bash so local builds never noticed, but on Ubuntu/Debian
+# /bin/sh is dash: the `[` errors out, the `if` goes false and the
+# `make -C ../misc` BSP build is silently SKIPPED — xparameters_ps.h never
+# lands in misc/ps7_cortexa9_0/include and the src compile dies. GNU make
+# ignores the SHELL env var on Unix but honors it on the command line, and
+# command-line variables propagate to sub-makes via MAKEFLAGS.
 make -j1 -C "$WORK_APP/src" \
+    SHELL=/bin/bash \
     BOARD="$BOARD" \
     CC=arm-none-eabi-gcc \
     LINKER="$LINKER"

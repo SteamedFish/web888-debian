@@ -111,7 +111,12 @@ this is a hard project rule).
   `int main`, which needs crt0.o (libgloss) that Debian/Ubuntu's
   arm-none-eabi newlib does not ship; the probe therefore misfired on the
   CI runner and demanded the Arch-only sysroot. Now probes freestanding
-  (`-nostartfiles`, own `_start`) — the way the FSBL itself links.
+  (`-nostartfiles`, own `_start`) — the way the FSBL itself links. Also
+  pass `SHELL=/bin/bash` to make: the vendored Xilinx FSBL Makefiles use
+  non-POSIX `[ a == b ]`, which dash (Ubuntu `/bin/sh`) rejects — the
+  `if` goes false, the `make -C ../misc` BSP build is silently skipped,
+  and the src compile dies on a missing `xparameters_ps.h`. GNU make
+  ignores the SHELL env var on Unix but honors it on the command line.
 
 ## [2026-08-16] — Bootloader shipped as a deb (web888-boot); build-all is now fully deb-driven
 
