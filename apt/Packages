@@ -1,4 +1,25 @@
 Package: dumphfdl
+Version: 1.7.0-1web8881+ci10
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 144
+Depends: libacars2 (>= 2.2.1), libc6 (>= 2.34), libconfig++11 (>= 1.7.3), libfftw3-single3 (>= 3.3.10), libglib2.0-0t64 (>= 2.46.0), libliquid1 (>= 1.7.0), librdkafka1 (>= 1.2.1), libsoapysdr0.8 (>= 0.8.1), libsqlite3-0 (>= 3.5.9), libzmq5 (>= 3.2.3+dfsg)
+Filename: ./dumphfdl_1.7.0-1web8881+ci10_armhf.deb
+Size: 59944
+MD5sum: ee61caf41b70d2bd6f8ed0a4a13b87b8
+SHA1: 48860e9901128a842fb4a48003a8f82354e3e02a
+SHA256: 740e5c55e5f794405b2a5d93d826bac7be7098aef2b52fff9a2f754f35beb465
+Section: hamradio
+Priority: optional
+Homepage: https://github.com/szpajder/dumphfdl
+Description: HFDL (HF Data Link) decoder
+ dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
+ It receives audio from an SDR via SoapySDR (or from files/pipes),
+ demodulates HFDL channels and decodes ACARS and other HFDL payloads
+ using libacars, with output to plain text, SQLite, ZeroMQ, Kafka and
+ other sinks.
+
+Package: dumphfdl
 Version: 1.7.0-1web8881+ci8
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
@@ -42,6 +63,24 @@ Description: HFDL (HF Data Link) decoder
 
 Package: dumphfdl-dbgsym
 Source: dumphfdl
+Version: 1.7.0-1web8881+ci10
+Auto-Built-Package: debug-symbols
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 333
+Depends: dumphfdl (= 1.7.0-1web8881+ci10)
+Filename: ./dumphfdl-dbgsym_1.7.0-1web8881+ci10_armhf.deb
+Size: 188612
+MD5sum: fd54c67d6bbd6b3dac89411a2efee750
+SHA1: f78d4e06cfd79933420ecbd5a56c7f5ffac0f6e8
+SHA256: eadd756da9982b2c00b2484afafb38620e001d5a7cf78c5c6fc95a745ec5ae0c
+Section: debug
+Priority: optional
+Description: debug symbols for dumphfdl
+Build-Ids: 52f467a8a85ee7b2b6d764d9dadde93a57c3be90
+
+Package: dumphfdl-dbgsym
+Source: dumphfdl
 Version: 1.7.0-1web8881+ci8
 Auto-Built-Package: debug-symbols
 Architecture: armhf
@@ -77,6 +116,23 @@ Description: debug symbols for dumphfdl
 Build-Ids: 52f467a8a85ee7b2b6d764d9dadde93a57c3be90
 
 Package: frpc
+Version: 0.71.0-1web8881+ci10
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Filename: ./frpc_0.71.0-1web8881+ci10_armhf.deb
+Size: 4695448
+MD5sum: f3b42948ec3426bdbfafd086fd694f04
+SHA1: 2628b0a42ec44c84c47b3a34b54e5465f4150187
+SHA256: 2dca26375bb4e9175f185ece6b86e77ce4489bc19f20a2e08645d4b03be3f30d
+Section: net
+Priority: optional
+Homepage: https://github.com/fatedier/frp
+Description: fast reverse proxy client (frp)
+ frp is a fast reverse proxy that allows exposing local servers behind a
+ NAT or firewall to the internet. This package contains frpc, the frp
+ client, repackaged from the official static linux/arm release binary.
+
+Package: frpc
 Version: 0.71.0-1web8881+ci8
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
@@ -109,6 +165,28 @@ Description: fast reverse proxy client (frp)
  frp is a fast reverse proxy that allows exposing local servers behind a
  NAT or firewall to the internet. This package contains frpc, the frp
  client, repackaged from the official static linux/arm release binary.
+
+Package: libacars2
+Source: libacars
+Version: 2.2.1-1web8881+ci10
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 446
+Depends: libc6 (>= 2.4), libjansson4 (>= 2.14), libxml2 (>= 2.7.4), zlib1g (>= 1:1.1.4)
+Filename: ./libacars2_2.2.1-1web8881+ci10_armhf.deb
+Size: 111880
+MD5sum: 2f465a7710c9e0ef97804c4e09b2fd53
+SHA1: a65ed1435357337ffbb456aa5a8487a4ab73cac9
+SHA256: b9fadcac769467ed7f7a637ecb0d6f7fc050e0dbc9e412eba1862460af1f6541
+Section: libs
+Priority: optional
+Multi-Arch: same
+Homepage: https://github.com/szpajder/libacars
+Description: decoding library for ACARS, ADS-B and other AV protocols
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the libacars-2 shared library.
 
 Package: libacars2
 Source: libacars
@@ -156,6 +234,25 @@ Description: decoding library for ACARS, ADS-B and other AV protocols
 
 Package: libacars2-dbgsym
 Source: libacars
+Version: 2.2.1-1web8881+ci10
+Auto-Built-Package: debug-symbols
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 623
+Depends: libacars2 (= 2.2.1-1web8881+ci10)
+Filename: ./libacars2-dbgsym_2.2.1-1web8881+ci10_armhf.deb
+Size: 452764
+MD5sum: 765a43227cf94a1e467eda6174c96a3d
+SHA1: c2e974c7358a66217891efffcfdb289c7e815cc4
+SHA256: 377cdf41d98191d97cb43f0c4d17621461add37757f38337afb2f132d00c949a
+Section: debug
+Priority: optional
+Multi-Arch: same
+Description: debug symbols for libacars2
+Build-Ids: db672318e94c0eea9c09db492a48b0e7526c511b
+
+Package: libacars2-dbgsym
+Source: libacars
 Version: 2.2.1-1web8881+ci8
 Auto-Built-Package: debug-symbols
 Architecture: armhf
@@ -191,6 +288,30 @@ Priority: optional
 Multi-Arch: same
 Description: debug symbols for libacars2
 Build-Ids: db672318e94c0eea9c09db492a48b0e7526c511b
+
+Package: libacars2-dev
+Source: libacars
+Version: 2.2.1-1web8881+ci10
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 541
+Depends: libacars2 (= 2.2.1-1web8881+ci10)
+Filename: ./libacars2-dev_2.2.1-1web8881+ci10_armhf.deb
+Size: 56324
+MD5sum: 6f7baf258c5c9ba0578da412ba4ddc14
+SHA1: 404a31b09c22cb11ba2b7eca1a893050854bc092
+SHA256: 7da12f16cbbfe5a055d8f18f4da205e8455df15ba3b4f4579b59d47ba1fc8340
+Section: libdevel
+Priority: optional
+Multi-Arch: same
+Homepage: https://github.com/szpajder/libacars
+Description: development files for libacars
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the header files, the pkg-config file
+ (libacars-2.pc) and the linker symlink needed to build programs
+ against libacars-2.
 
 Package: libacars2-dev
 Source: libacars
@@ -242,6 +363,29 @@ Description: development files for libacars
 
 Package: libacars2-tools
 Source: libacars
+Version: 2.2.1-1web8881+ci10
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 212
+Depends: libacars2 (>= 2.2.1), libc6 (>= 2.34)
+Filename: ./libacars2-tools_2.2.1-1web8881+ci10_armhf.deb
+Size: 12904
+MD5sum: 9b5202efe1e047bd8d6ba74ff5965317
+SHA1: 32ed5431ffbd4a3dd4216f0de621357779c116b0
+SHA256: 88162e829da158b9c7a53248ffda0c91259e88a1f82f110321a16af525af1ac5
+Section: libs
+Priority: optional
+Multi-Arch: same
+Homepage: https://github.com/szpajder/libacars
+Description: command-line tools from the libacars project
+ libacars is a library that implements decoding of various aviation
+ communication protocols: ACARS, ADS-B, CPDLC, MIAM, X.25 and others.
+ .
+ This package contains the example/utility programs shipped with
+ libacars (e.g. decode_acars_apps, decode_arinc622_apps).
+
+Package: libacars2-tools
+Source: libacars
 Version: 2.2.1-1web8881+ci8
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
@@ -285,6 +429,25 @@ Description: command-line tools from the libacars project
  .
  This package contains the example/utility programs shipped with
  libacars (e.g. decode_acars_apps, decode_arinc622_apps).
+
+Package: libacars2-tools-dbgsym
+Source: libacars
+Version: 2.2.1-1web8881+ci10
+Auto-Built-Package: debug-symbols
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 71
+Depends: libacars2-tools (= 2.2.1-1web8881+ci10)
+Filename: ./libacars2-tools-dbgsym_2.2.1-1web8881+ci10_armhf.deb
+Size: 28972
+MD5sum: 9f92549068f06fb4b65211a3efa161b8
+SHA1: f2c8f5ea4cd5eeac5b4d60b97720e308eec8169b
+SHA256: ec0fcd0017d4ab42fd7b2f4967f7bd1c0c9612360813049e6f895e4f6fc64e26
+Section: debug
+Priority: optional
+Multi-Arch: same
+Description: debug symbols for libacars2-tools
+Build-Ids: 0a3f07758d1f33c3f650ec0217c398692a971344 338cc7468ceb3723f0d4b4af6e696849e0653206 cbc5636ace0a52c5526cbc2eaf6eb89d0adee521
 
 Package: libacars2-tools-dbgsym
 Source: libacars
