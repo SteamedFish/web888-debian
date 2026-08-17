@@ -9,6 +9,35 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-16] — build-all.sh DEB_SOURCE=apt default: install debs from the APT repo
+
+### Added
+
+- **`DEB_SOURCE=apt|local` in `scripts/build-all.sh`** (default **apt**):
+  apt mode skips every local deb build (steps 5 build, 8c/8e/8g/8h, 9,
+  9b) and instead installs `linux-image-6.12.100-web888`, `web888-websdr`,
+  `web888-redpitaya` and `web888-boot` from the CI-published APT repo via
+  the new `scripts/install-debs-apt.sh` (policy-rc.d suppression +
+  verifications mirroring the four local installers; exports
+  `output/zImage`/`output/u-boot.bin` for `build-image.sh`/`test-qemu.sh`).
+  The kernel SOURCE tree is still fetched (`FETCH_ONLY=1` guard in
+  `scripts/build-kernel-6.12.sh`) because `write-dtb.sh` compiles
+  `web888.dts` against it. `DEB_SOURCE=apt` requires the default
+  `CHAIN=uboot KERNEL=6.12` (the repo only publishes that chain).
+- **`scripts/setup-apt-repo.sh`** — idempotent APT repo setup for the
+  image rootfs (vendored `resources/apt-repo/pubkey.asc` →
+  `/usr/share/keyrings/web888.asc` + `sources.list.d/web888.list`);
+  called unconditionally from `configure-rootfs.sh` so every image is
+  repo-ready for on-device `apt` upgrades.
+- **`resources/apt-repo/`** — vendored repo signing pubkey
+  (ed25519 `31CE1BBDFA03BD9EEC625C7FC5D4169E3C0896E3`) + PROVENANCE.md.
+
+### Changed
+
+- `scripts/build-image.sh`: uboot mode no longer requires
+  `output/boot-uboot.bin` (never read there — the FAT `boot.bin` comes
+  from the deb payload); only `output/zImage` is required.
+
 ## [2026-08-16] — GitHub Actions CI: cloud-built debs + flat APT repo on GitHub Pages (research Part 1)
 
 ### Added

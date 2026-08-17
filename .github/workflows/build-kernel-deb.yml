@@ -96,7 +96,7 @@ jobs:
 
   publish:
     needs: [preflight, build]
-    if: ${{ vars.APT_REPO_ENABLED == 'true' }}
+    if: ${{ vars.APT_REPO_ENABLED == 'true' && needs.preflight.outputs.skip != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # serialize APT-repo publishes across all workflows — concurrent writers
