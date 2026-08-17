@@ -108,8 +108,10 @@ jobs:
           {
             echo "Web-888 Debian 13 (trixie, armhf) card image — uboot chain (FSBL + full U-Boot), Debian-source 6.12 kernel."
             echo
-            echo "The image has the project APT repo preconfigured (\`https://web888.steamedfish.org/apt\`);"
-            echo "on-device updates are plain \`apt upgrade\` — no reflash needed for deb-level changes."
+            echo "The image has the project APT repo preconfigured (\`https://web888.steamedfish.org/apt\`)."
+            echo
+            echo "**Existing users do not need to reflash**: run \`apt-get update && apt-get upgrade\`"
+            echo "on the device and reboot to get the latest version."
             echo
             echo "## Package versions in this image"
             echo

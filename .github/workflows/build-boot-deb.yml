@@ -1,11 +1,16 @@
 # build-boot-deb.yml — build web888-boot_*_armhf.deb (source-built FSBL +
-# mainline U-Boot v2026.07 SSBL packed into boot.bin, plus boot.scr/uEnv.txt)
-# on GitHub-hosted ubuntu-24.04 and publish it to the flat gh-pages APT repo.
+# mainline U-Boot v2026.07 SSBL packed into boot.bin, plus boot.scr/uEnv.txt
+# and web888.dtb compiled from config/web888.dts) on GitHub-hosted
+# ubuntu-24.04 and publish it to the flat gh-pages APT repo.
 #
 # Build order mirrors build-all.sh: bootgen tool (exact recipe from
 # build-all.sh lines 115-123) -> build-uboot.sh -> build-fsbl.sh ->
-# build-bootbin.sh uboot -> build-boot-deb.sh. build-boot-deb.sh packages
-# inside the armhf chroot, so mk-websdr-chroot.sh runs first (the chroot
+# build-bootbin.sh uboot -> build-boot-deb.sh. build-boot-deb.sh also
+# compiles web888.dtb via write-dtb.sh, so the Debian kernel source tree
+# is fetched first (FETCH_ONLY=1 — unpack only, nothing compiled; this is
+# what lets DEB_SOURCE=apt image builds skip the kernel tree entirely).
+# build-boot-deb.sh packages inside the armhf chroot, so
+# mk-websdr-chroot.sh runs first (the chroot
 # provides dpkg-buildpackage only; nothing arch-specific is compiled there).
 #
 # Version: committed changelog version + "+ci${GITHUB_RUN_NUMBER}" (CI
@@ -23,7 +28,10 @@ on:
       - 'scripts/build-fsbl.sh'
       - 'scripts/build-bootbin.sh'
       - 'scripts/build-boot-deb.sh'
+      - 'scripts/write-dtb.sh'
+      - 'scripts/build-kernel-6.12.sh'
       - 'config/u-boot/**'
+      - 'config/web888.dts'
       - 'packaging/web888-boot/**'
       - 'resources/reference/embeddedsw-zynq-fsbl/**'
       - 'resources/reference/redpitaya-fsbl-hooks/**'
@@ -64,7 +72,10 @@ jobs:
           scripts/build-fsbl.sh
           scripts/build-bootbin.sh
           scripts/build-boot-deb.sh
+          scripts/write-dtb.sh
+          scripts/build-kernel-6.12.sh
           config/u-boot
+          config/web888.dts
           packaging/web888-boot
           resources/reference/embeddedsw-zynq-fsbl
           resources/reference/redpitaya-fsbl-hooks
@@ -115,6 +126,9 @@ jobs:
 
       - name: Pack boot.bin (uboot chain)
         run: bash scripts/build-bootbin.sh uboot
+
+      - name: Fetch Debian kernel source tree (web888.dtb inputs only, no compile)
+        run: FETCH_ONLY=1 bash scripts/build-kernel-6.12.sh
 
       - name: Create the armhf packaging chroot
         run: bash scripts/mk-websdr-chroot.sh

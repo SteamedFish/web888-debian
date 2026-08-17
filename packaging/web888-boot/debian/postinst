@@ -40,9 +40,16 @@ case "$1" in
         echo "web888-boot: payload boot.bin has no Zynq boot header — refusing to install" >&2
         exit 1
     fi
+    # Same brick guard for the dtb (magic 0xd00dfeed, big-endian at offset
+    # 0): a garbage dtb hangs the boot as surely as a garbage boot.bin.
+    if [ "$(od -An -tx1 -N4 "$LIB/web888.dtb" | tr -d ' \n')" != "d00dfeed" ]; then
+        echo "web888-boot: payload web888.dtb has no DTB magic — refusing to install" >&2
+        exit 1
+    fi
 
     install_boot_file boot.bin
     install_boot_file boot.scr
+    install_boot_file web888.dtb
     # uEnv.txt is the on-device kernel-selection knob; never overwrite
     # user edits, install the default only when missing.
     if [ ! -f /boot/uEnv.txt ]; then
@@ -51,7 +58,7 @@ case "$1" in
         mv "/boot/.uEnv.txt.new" /boot/uEnv.txt
     fi
     sync
-    echo "web888-boot: bootloader updated in /boot (backups: boot.bin.bak, boot.scr.bak); takes effect on next boot"
+    echo "web888-boot: bootloader updated in /boot (backups: boot.bin.bak, boot.scr.bak, web888.dtb.bak); takes effect on next boot"
     ;;
 esac
 

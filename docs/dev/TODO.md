@@ -19,12 +19,12 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
         lease), websdr serves HTTP 200 on :8073, zero journal errors.
   - [ ] Kernel-update SOP final docs sync (P3)
 - [~] **web888-boot deb (bootloader lifecycle)**: FSBL + U-Boot + boot.scr +
-      uEnv.txt shipped as `web888-boot_2026.07-1_armhf.deb` (payload
-      /usr/lib/web888-boot/). build-all installs the deb into the rootfs
-      chroot (postinst skips — no /boot/boot.bin), build-image copies the
-      payload to FAT; on-device upgrades go through apt (postinst does
+      uEnv.txt + web888.dtb shipped as `web888-boot_2026.07-2_armhf.deb`
+      (payload /usr/lib/web888-boot/). build-all installs the deb into the
+      rootfs chroot (postinst skips — no /boot/boot.bin), build-image copies
+      the payload to FAT; on-device upgrades go through apt (postinst does
       temp-file+sync+rename onto the vfat /boot, keeps one .bak, never
-      touches uEnv.txt, refuses non-Zynq payloads). Verified: postinst
+      touches uEnv.txt, refuses non-Zynq payloads and non-`d00dfeed` dtbs). Verified: postinst
       dry-run matrix (install/upgrade/refusal), QEMU boot of the exact deb
       boot.bin, on-device postinst execution. Still owed: freshly-flashed
       image hardware boot, apt-repo publication + docs close-out

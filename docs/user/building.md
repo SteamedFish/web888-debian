@@ -98,7 +98,8 @@ Everything lands in `output/` (gitignored):
 | `web888-debian-final.img` | `build-image.sh final` | Flashable image, stub chain |
 | `boot-uboot.bin` / `boot-final.bin` | `build-bootbin.sh` | FSBL + U-Boot (or FSBL + stub) — flashed to FAT as `boot.bin` |
 | `u-boot.bin` | `build-uboot.sh` | U-Boot proper with appended DTB; packaged into `boot-uboot.bin`, also what the QEMU gate loads |
-| `zImage`, `web888.dtb` | kernel / dtb steps | Loaded by `boot.scr` from the FAT partition |
+| `zImage` | kernel step | Loaded by `boot.scr` from the FAT partition |
+| `web888.dtb` | `build-boot-deb.sh` (write-dtb.sh; inside the web888-boot deb payload) | Loaded by `boot.scr` from the FAT partition |
 | `initramfs.cpio.gz` | `build-initramfs.sh` | Used by the `test` gate |
 
 The card image is GPT: partition 1 = FAT (`/boot`: `boot.bin`, `boot.scr`,

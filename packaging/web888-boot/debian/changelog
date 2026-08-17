@@ -1,3 +1,15 @@
+web888-boot (2026.07-2) UNRELEASED; urgency=medium
+
+  * Ship web888.dtb in the payload (compiled from config/web888.dts by
+    build-boot-deb.sh via write-dtb.sh, no-bootargs variant): image builds
+    with DEB_SOURCE=apt no longer download the kernel source tree just to
+    recompile the dtb, and on-device apt upgrades now update the dtb too.
+  * postinst: install web888.dtb onto /boot with the same temp-file +
+    rename + one-generation .bak treatment as boot.bin/boot.scr, guarded
+    by the DTB magic (0xd00dfeed).
+
+ -- SteamedFish <steamedfish@hotmail.com>  Mon, 17 Aug 2026 20:20:35 +0800
+
 web888-boot (2026.07-1) UNRELEASED; urgency=medium
 
   * Initial package (docs/dev/github-ci-apt-repo-research.md §2.8).

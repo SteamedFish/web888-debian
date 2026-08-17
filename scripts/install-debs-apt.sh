@@ -60,7 +60,7 @@ sudo -n chroot "$ROOTFS" bash -c \
 
 echo "==> verify: boot payload staged"
 sudo -n chroot "$ROOTFS" bash -c '
-    for f in boot.bin fsbl.bin u-boot.bin boot.scr uEnv.txt; do
+    for f in boot.bin fsbl.bin u-boot.bin boot.scr uEnv.txt web888.dtb; do
         [[ -s /usr/lib/web888-boot/$f ]] || { echo "FATAL: /usr/lib/web888-boot/$f missing" >&2; exit 1; }
     done
 '

@@ -36,7 +36,7 @@ sudo rm -rf "$ROOTFS"/tmp/debs
 
 echo "==> verify payload staged"
 sudo chroot "$ROOTFS" bash -c '
-    for f in boot.bin fsbl.bin u-boot.bin boot.scr uEnv.txt; do
+    for f in boot.bin fsbl.bin u-boot.bin boot.scr uEnv.txt web888.dtb; do
         [[ -s /usr/lib/web888-boot/$f ]] || { echo "FATAL: /usr/lib/web888-boot/$f missing" >&2; exit 1; }
     done
     echo "    $(ls -l /usr/lib/web888-boot/boot.bin | awk "{print \$5}") bytes boot.bin"

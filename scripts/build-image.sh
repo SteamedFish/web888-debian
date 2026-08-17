@@ -9,12 +9,13 @@
 # The stock card is plain MBR too. Linux does not care either way at 2 GiB.
 #
 # usage: build-image.sh [test|final|uboot] → output/web888-debian-<mode>.img
-#   uboot — FAT carries boot.bin (FSBL+U-Boot), boot.scr + uEnv.txt taken
-#           from the web888-boot deb payload installed in the rootfs
-#           (work/rootfs/usr/lib/web888-boot/ via install-boot-deb.sh — the
-#           deb is the single source of truth for the bootloader), plus
-#           zImage + web888.dtb (bootargs live in boot.scr, NOT the dtb),
-#           plus zImage.prev when output/zImage.prev is present (fallback).
+#   uboot — FAT carries boot.bin (FSBL+U-Boot), boot.scr + uEnv.txt +
+#           web888.dtb (no-bootargs variant — bootargs live in boot.scr,
+#           NOT the dtb) taken from the web888-boot deb payload installed
+#           in the rootfs (work/rootfs/usr/lib/web888-boot/ — the deb is
+#           the single source of truth for the bootloader), plus
+#           zImage, plus zImage.prev when output/zImage.prev is present
+#           (fallback).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,9 +35,9 @@ if [[ $MODE != uboot ]]; then
     [[ -f output/boot-${MODE}.bin ]] || { echo "Error: missing output/boot-${MODE}.bin (run build-bootbin.sh $MODE)" >&2; exit 1; }
 fi
 # test/final embed the bootargs-carrying dtb (built by build-bootbin.sh) in
-# boot.bin, so it must exist beforehand. uboot regenerates the dtb itself
-# below via write-dtb.sh (no-bootargs variant — bootargs live in boot.scr),
-# so requiring it here would demand a stub-chain leftover.
+# boot.bin, so it must exist beforehand. uboot takes the no-bootargs dtb
+# from the web888-boot deb payload below (bootargs live in boot.scr), so
+# requiring it here would demand a stub-chain leftover.
 if [[ $MODE != uboot ]]; then
     [[ -f $DTB ]] || { echo "Error: missing $DTB (run build-bootbin.sh $MODE)" >&2; exit 1; }
 fi
@@ -54,9 +55,12 @@ fi
 [[ -d work/rootfs/etc ]] || { echo "Error: work/rootfs not populated (run configure-rootfs.sh)" >&2; exit 1; }
 
 if [[ $MODE == uboot ]]; then
-    # dtb WITHOUT bootargs: the boot flow supplies them (boot.scr, rendered
-    # from config/u-boot/boot.cmd into the deb payload by build-boot-deb.sh).
-    bash scripts/write-dtb.sh "$DTB"
+    # dtb WITHOUT bootargs (boot.scr supplies them) ships in the web888-boot
+    # deb payload — use it verbatim (identical bits to what an on-device apt
+    # upgrade installs) instead of recompiling against a kernel source tree.
+    PAYLOAD_DTB=work/rootfs/usr/lib/web888-boot/web888.dtb
+    [[ -f $PAYLOAD_DTB ]] || { echo "Error: $PAYLOAD_DTB missing (web888-boot deb not installed in rootfs?)" >&2; exit 1; }
+    sudo -n cp "$PAYLOAD_DTB" "$DTB"
 fi
 
 dd if=/dev/zero of="$IMG" bs=1M count="$SIZE_MB" status=none

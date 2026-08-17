@@ -58,8 +58,9 @@
 #   DEB_SOURCE=apt|local  where the project debs (kernel, websdr, redpitaya,
 #                      boot) come from. apt (default) installs them from the
 #                      CI-published APT repo (web888.steamedfish.org/apt) —
-#                      no local deb builds; the kernel source tree is still
-#                      fetched (write-dtb.sh needs it). local builds every
+#                      no local deb builds, and with CHAIN=uboot not even
+#                      the kernel source tree is fetched (web888.dtb ships
+#                      in the web888-boot deb payload). local builds every
 #                      deb from source (steps 5, 8b-8f, 8g-8h, 9, 9b-9c).
 #                      apt requires CHAIN=uboot KERNEL=6.12 (the repo only
 #                      publishes that chain).
@@ -172,7 +173,12 @@ fi
 
 echo "== 5/10 kernel =="
 if [[ $KERNEL == 6.12 ]]; then
-    if [[ $DEB_SOURCE == apt ]]; then
+    if [[ $DEB_SOURCE == apt && $CHAIN == uboot ]]; then
+        # Nothing to do: the kernel deb comes from the APT repo below, and
+        # web888.dtb ships inside the web888-boot deb payload — no kernel
+        # source tree is needed anywhere in this flow.
+        echo "   DEB_SOURCE=apt + CHAIN=uboot: kernel tree not needed (dtb ships in web888-boot deb)"
+    elif [[ $DEB_SOURCE == apt ]]; then
         # Only the source tree is needed (write-dtb.sh compiles web888.dts
         # against it); the deb itself is installed from the APT repo below.
         FETCH_ONLY=1 bash scripts/build-kernel-6.12.sh

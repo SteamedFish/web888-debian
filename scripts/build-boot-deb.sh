@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build web888-boot_*.deb from output/ (boot-uboot.bin + fsbl.bin +
-# u-boot.bin + boot.scr + config/u-boot/uEnv.txt).
+# u-boot.bin + boot.scr + config/u-boot/uEnv.txt + web888.dtb).
 # Result: output/boot/web888-boot_2026.07-1_armhf.deb
 #
 # web888-boot ships the Debian (uboot-chain) bootloader: the packed
@@ -54,12 +54,27 @@ if magic != bytes.fromhex('665599aa'):
     sys.exit('Error: output/boot-uboot.bin has no Zynq boot header')
 PY
 
+# --- web888.dtb (no bootargs — boot.scr supplies them) ----------------------
+# Ships in the deb payload so DEB_SOURCE=apt image builds never need a
+# kernel source tree just to recompile the dtb, and on-device apt upgrades
+# update the dtb via the postinst. Compiled against the Debian 6.12 tree
+# when present (matches the packaged kernel), falling back to linux-xlnx.
+KTREE=work/linux-debian-6.12
+[[ -d $KTREE ]] || KTREE=work/linux-xlnx
+[[ -d $KTREE ]] || {
+    echo "Error: no kernel source tree for web888.dtb" >&2
+    echo "       (run FETCH_ONLY=1 scripts/build-kernel-6.12.sh first)" >&2
+    exit 1
+}
+KERNEL_DTS_TREE=$KTREE bash scripts/write-dtb.sh output/web888.dtb
+
 # --- stage payload --------------------------------------------------------
 rm -rf "$TREE"
 mkdir -p "$TREE/boot"
 install -m644 output/boot-uboot.bin "$TREE/boot/boot.bin"
 install -m644 output/fsbl/fsbl.bin  "$TREE/boot/fsbl.bin"
 install -m644 output/u-boot.bin     "$TREE/boot/u-boot.bin"
+install -m644 output/web888.dtb     "$TREE/boot/web888.dtb"
 install -m644 config/u-boot/uEnv.txt "$TREE/boot/uEnv.txt"
 work/u-boot/tools/mkimage -A arm -T script -C none -n web888-boot \
     -d config/u-boot/boot.cmd "$TREE/boot/boot.scr" >/dev/null
@@ -102,7 +117,7 @@ fail=0
 listing=$(dpkg-deb -c "$DEB")
 for f in usr/lib/web888-boot/boot.bin usr/lib/web888-boot/fsbl.bin \
          usr/lib/web888-boot/u-boot.bin usr/lib/web888-boot/boot.scr \
-         usr/lib/web888-boot/uEnv.txt; do
+         usr/lib/web888-boot/uEnv.txt usr/lib/web888-boot/web888.dtb; do
     grep -q "$f" <<<"$listing" || { echo "  missing in deb: $f"; fail=1; }
 done
 dpkg-deb -I "$DEB" | grep -q '^ Package: web888-boot' || { echo "  missing Package field"; fail=1; }

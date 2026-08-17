@@ -9,6 +9,37 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — web888.dtb ships in the web888-boot deb; apt-mode image builds skip the kernel tree
+
+### Changed
+
+- **`web888.dtb` now ships inside the `web888-boot` deb payload**
+  (`/usr/lib/web888-boot/web888.dtb`, version `2026.07-2`).
+  `build-boot-deb.sh` compiles it via `write-dtb.sh` against the Debian
+  6.12 kernel tree (fetched `FETCH_ONLY=1` — unpack only, no compile) and
+  fails loudly if neither `work/linux-debian-6.12` nor `work/linux-xlnx`
+  exists. `build-boot-deb.yml` gained that fetch step plus
+  `config/web888.dts` / `scripts/write-dtb.sh` /
+  `scripts/build-kernel-6.12.sh` in its trigger paths and preflight hash.
+  The postinst now also installs the dtb onto the FAT `/boot` with the
+  same temp-file+sync+rename+`.bak` flow, guarded by the `d00dfeed` dtb
+  magic — on-device `apt upgrade` of web888-boot updates the dtb too.
+- **Release notes** (`build-image.yml`) now state explicitly that existing
+  users do not need to reflash: `apt-get update && apt-get upgrade` plus
+  a reboot delivers the latest version.
+
+### Removed
+
+- **Kernel-source fetch from `DEB_SOURCE=apt` image builds**:
+  `build-all.sh` step 5 no longer runs `FETCH_ONLY=1
+  build-kernel-6.12.sh` in apt+uboot mode, and `build-image.sh` copies the
+  dtb out of the deb payload (`/usr/lib/web888-boot/web888.dtb`) instead
+  of recompiling it. Previously every image build downloaded ~130 MB of
+  Debian kernel source and applied the full quilt patch series just to
+  cpp+dtc one dts — `config/web888.dts` only includes `zynq-7000.dtsi`.
+  The fetch now happens only in the rarely-run, hash-gated
+  `build-boot-deb.yml` (and in local/`DEB_SOURCE=local` builds as before).
+
 ## [2026-08-17] — CI fix: bsdtar missing on image-build runners
 
 ### Fixed
