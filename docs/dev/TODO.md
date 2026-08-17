@@ -141,6 +141,21 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       verify first green runs, Part 2 (image build consuming the repo,
       QEMU gate before web888-boot publish, web888-repo keyring deb)
 
+## ext4 /boot refactor (drop the FAT zImage copy)
+
+- [ ] Move kernel loading off FAT p1 onto the ext4 rootfs, Armbian-style:
+      U-Boot `ext4load`s `/boot/zImage` as a symlink to the installed
+      `vmlinuz-<krel>`; FAT keeps only boot.bin/boot.scr/dtb/uEnv
+      (RPi-style, mounted at /boot/firmware). The kernel deb payload then
+      *is* the boot file, which retires the zz-web888-zimage copy hook and
+      the install-debs-apt.sh zImage export seam, and enables versioned
+      kernels with a real fallback menu. Touches `config/u-boot/boot.cmd`,
+      fstab, image layout, QEMU/CI flows, user docs, uEnv semantics;
+      requires QEMU + hardware validation. Decided against Debian
+      flash-kernel (framework mismatch: uImage/boot.scr-generation
+      conventions do not fit our boot.cmd). Current FAT + copy-hook design
+      (raspi-firmware pattern) stays as the baseline until this lands.
+
 ---
 
 ## Completed feature set
