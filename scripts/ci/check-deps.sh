@@ -95,7 +95,9 @@ collect() { # <pkg-key> -> space-separated lib=version pairs on stdout
 if [[ $1 == ALL ]]; then
     for key in "${order[@]}"; do
         pairs=$(collect "$key")
-        [[ -n $pairs ]] && echo "$key: $pairs"
+        if [[ -n $pairs ]]; then
+            echo "$key: $pairs"
+        fi
     done
 else
     pairs=$(collect "$1")

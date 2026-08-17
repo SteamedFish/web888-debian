@@ -57,6 +57,30 @@ this is a hard project rule).
   `output/boot-uboot.bin` (never read there — the FAT `boot.bin` comes
   from the deb payload); only `output/zImage` is required.
 
+## [2026-08-17] — CI first-live-run fixes (day 2)
+
+### Fixed
+
+- **`scripts/ci/check-deps.sh`** — ALL mode exited 1 even when every tracked
+  library resolved: the loop's last statement `[[ -n $pairs ]] && echo` was
+  false for the trailing lib-less keys (frpc/noip-duc), and that false status
+  became the script's exit status, failing the upstream-watch check job.
+  Replaced with an `if` statement. Verified locally against the cdn-aws
+  trixie armhf indices: all 23 tracked libraries resolve.
+- **`scripts/build-kernel-6.12.sh`** — silent zero-deb on GNU make 4.3
+  (ubuntu-24.04 CI): kernel-package's generated `debian/rules` computes
+  `all-packages = $(shell dh_listpackages)` and dh_listpackages filters by
+  `DEB_HOST_ARCH`; the included `debian/deb-env.vars` exports it, but make
+  4.3 (unlike 4.4+) does not propagate makefile-level exports into
+  `$(shell)` expansions, so the armhf stanzas were all filtered out and the
+  recipe ran zero dh_* commands — green build, no deb. Now the script passes
+  `DEB_HOST_ARCH=armhf DEB_HOST_GNU_TYPE=arm-linux-gnueabihf` in the make
+  environment. Verified in a noble chroot (make 4.3): the full dh_* chain
+  runs and `linux-image-6.12.100-web888` is produced. Also: the final
+  `mv work/linux-image-*.deb` is no longer `|| true`-silent, a verify-step
+  assertion fails the build if no linux-image deb exists, and the kernel
+  workflow's artifact upload is `if-no-files-found: error`.
+
 ## [2026-08-16] — GitHub Actions CI: cloud-built debs + flat APT repo on GitHub Pages (research Part 1)
 
 ### Added
