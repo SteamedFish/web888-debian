@@ -61,7 +61,11 @@ These constrain what the pre-flash gate can cover:
   `-device loader`; the DDR controller is unmodeled), so the source-built
   FSBL (default since 2026-08-15) — ps7_init/DDR init, Si5351/MAC/GPIO
   hooks, and the boot.bin handoff — is verified by the hardware battery
-  only (passed 2026-08-15, see the FSBL=source CHANGELOG entry).
+  only (passed 2026-08-15, see the FSBL=source CHANGELOG entry). The
+  pre-publish smoke jobs in the deb publisher workflows
+  (`scripts/ci/qemu-smoke-deb.sh`, 2026-08-17) inherit this: a broken
+  FSBL inside `web888-boot` passes the smoke gate and is only caught on
+  hardware.
 - QEMU masks blank-PL AXI hangs (its Zynq model returns 0 for unmapped GP
   reads) — hardware does not; see `zynqsdr-port-notes.md` §11 for the
   load-bearing probe-must-not-touch-PL rule.

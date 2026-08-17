@@ -5,6 +5,10 @@
 # (KVER/KREV grepped from scripts/build-kernel-6.12.sh) so every CI build
 # sorts newer than the previous one in the repo. See
 # docs/dev/github-ci-apt-repo.md for maintainer setup.
+#
+# Job chain: preflight -> build -> smoke -> publish. The smoke job
+# (scripts/ci/qemu-smoke-deb.sh) boots the freshly built deb in QEMU before
+# it is published, so a deb that breaks boot never reaches the APT repo.
 
 name: build-kernel-deb
 
@@ -16,6 +20,7 @@ on:
       - 'config/kernel/**'
       - 'config/kernel-web888-6.12.fragment'
       - 'scripts/ci/stamp-changelog.sh'
+      - 'scripts/ci/qemu-smoke-deb.sh'
       - '.github/workflows/build-kernel-deb.yml'
   workflow_dispatch:
 
@@ -51,6 +56,7 @@ jobs:
           config/kernel-web888-6.12.fragment
           config/kernel-web888-minimal.fragment
           scripts/ci/stamp-changelog.sh
+          scripts/ci/qemu-smoke-deb.sh
           .github/workflows/build-kernel-deb.yml
 
   build:
@@ -99,8 +105,41 @@ jobs:
           # the packaging skip is silent (see build-kernel-6.12.sh DEB_HOST_ARCH note).
           if-no-files-found: error
 
-  publish:
+  # Pre-publish gate: boot the freshly built deb in QEMU. The baseline
+  # image is assembled the DEB_SOURCE=apt way from the PUBLISHED repo, the
+  # deb under test is overlaid via chroot dpkg -i, and the image must reach
+  # the 'web888 login:' prompt — a deb that breaks boot never goes live.
+  # Gated on APT_REPO_ENABLED like publish: without the repo there is no
+  # baseline to pull. FSBL is NOT covered (QEMU loads U-Boot directly — see
+  # scripts/test-qemu.sh); that residual risk is hardware-gate only.
+  smoke:
     needs: [preflight, build]
+    if: ${{ vars.APT_REPO_ENABLED == 'true' && needs.preflight.outputs.skip != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same host-toolchain set as build-image.yml's apt-mode image build.
+      - name: Install image-build + QEMU dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            debootstrap qemu-user-static binfmt-support qemu-system-arm rsync \
+            parted dosfstools e2fsprogs xz-utils git dpkg-dev \
+            crossbuild-essential-armhf gcc-arm-none-eabi libnewlib-arm-none-eabi \
+            device-tree-compiler bc flex bison libssl-dev python3 patch
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: debs-kernel
+          path: debs/
+
+      - name: QEMU smoke gate
+        run: bash scripts/ci/qemu-smoke-deb.sh debs/*.deb
+
+  publish:
+    needs: [preflight, build, smoke]
     if: ${{ vars.APT_REPO_ENABLED == 'true' && needs.preflight.outputs.skip != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30

@@ -13,10 +13,10 @@ forgejo primary remote has no CI.
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| `build-kernel-deb.yml` | push paths (`scripts/build-kernel-6.12.sh`, `config/kernel/**`, `config/kernel-web888-6.12.fragment`) | preflight → build → publish |
+| `build-kernel-deb.yml` | push paths (`scripts/build-kernel-6.12.sh`, `config/kernel/**`, `config/kernel-web888-6.12.fragment`) | preflight → build → smoke → publish |
 | `build-websdr-deb.yml` | push paths (`config/websdr/**`, `packaging/web888-websdr/**`, scripts) | preflight → build → publish |
 | `build-redpitaya-deb.yml` | push paths (`config/redpitaya/**`, `packaging/web888-redpitaya/**`, scripts, `scripts/hw-test/si5351/**`) | preflight → build → publish |
-| `build-boot-deb.yml` | push paths (`config/u-boot/**`, `packaging/web888-boot/**`, FSBL reference trees, scripts) | preflight → build → publish |
+| `build-boot-deb.yml` | push paths (`config/u-boot/**`, `packaging/web888-boot/**`, FSBL reference trees, scripts) | preflight → build → smoke → publish |
 | `build-thirdparty-debs.yml` | push paths (`packaging/{libacars,dumphfdl,frpc,noip-duc}/**`), dispatch, `workflow_call` | detect → select → build → publish |
 | `upstream-watch.yml` | daily cron `37 5 * * *`, dispatch | check (upstream pins + trixie lib watch) → rebuild / websdr-rebuild / redpitaya-rebuild (`workflow_call`) |
 | `build-image.yml` | `repository_dispatch` (debs-published, fired by every publish job), push paths (image machinery only — deb inputs `write-dtb.sh` / `build-kernel-6.12.sh` / `config/web888.dts` are excluded; their changes arrive via dispatch, so one push never queues two image builds), dispatch | image (build-all DEB_SOURCE=apt → QEMU uboot gate → xz) → timestamped `img-*` Release (keep 5) |
@@ -30,6 +30,18 @@ half-built deb set is never interrupted mid-publish.
 
 Artifacts: each build job uploads `debs-<pkg>` (retention default) for the
 publish job to consume.
+
+The kernel and boot publishers insert a `smoke` job between build and
+publish (`scripts/ci/qemu-smoke-deb.sh`): it assembles a card image the
+DEB_SOURCE=apt way from the *published* repo, overlays the freshly built
+deb into the rootfs via chroot `dpkg -i`, rebuilds the image, and requires
+the `web888 login:` prompt in the QEMU serial log. Before this gate the
+only QEMU check lived in `build-image.yml`, which runs *after* publish — a
+deb that broke boot was already installable via `apt upgrade` by the time
+the image build caught it. The websdr/redpitaya publishers have no such
+gate: their debs are userspace-only and cannot break boot. The smoke gate
+shares every QEMU limitation in `KNOWN-ISSUES.md` §5 — most notably it
+never executes the FSBL inside `web888-boot` (hardware gate only).
 
 ## 2. One-time GitHub setup
 

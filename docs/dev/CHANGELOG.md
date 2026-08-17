@@ -9,6 +9,37 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — pre-publish QEMU smoke gate for the kernel and boot deb publishers
+
+### Added
+
+- **`scripts/ci/qemu-smoke-deb.sh`** — new pre-publish gate shared by
+  `build-kernel-deb.yml` and `build-boot-deb.yml`. It builds a baseline
+  card image the `DEB_SOURCE=apt` way from the *published* APT repo,
+  overlays the freshly built deb into `work/rootfs` via chroot `dpkg -i`
+  (dpkg, not apt — same-version debs are a silent no-op under apt),
+  verifies the package payload (modules + `xilinx_devcfg`/`zynqsdr` for
+  the kernel; the six `/usr/lib/web888-boot/` files for the boot deb),
+  re-exports `output/zImage` resp. `output/u-boot.bin`, rebuilds the
+  image, and requires `web888 login:` in the QEMU serial log
+  (`scripts/test-qemu.sh uboot`).
+
+### Changed
+
+- **`build-kernel-deb.yml` / `build-boot-deb.yml`** — job chain is now
+  preflight → build → smoke → publish; `publish` needs `smoke`. The smoke
+  job is gated on `APT_REPO_ENABLED` like publish (no repo, no baseline to
+  pull) and added `scripts/ci/qemu-smoke-deb.sh` to the push-path and
+  preflight input lists. Until now the only QEMU gate lived in
+  `build-image.yml`, which runs *after* the deb is published — a deb that
+  broke boot was already installable via `apt upgrade` by the time the
+  image build failed. The websdr/redpitaya publishers intentionally get no
+  gate: userspace-only debs cannot break boot.
+- **`docs/dev/github-ci-apt-repo.md`** (§1) — job topology table and smoke
+  gate description; **`docs/dev/KNOWN-ISSUES.md`** (§5) — the smoke gate
+  inherits the QEMU limitation of never executing the FSBL, so a broken
+  FSBL inside `web888-boot` remains a hardware-gate-only catch.
+
 ## [2026-08-17] — image build: per-unit identity scrub, apt cache dropped, 1024 MB image
 
 ### Changed
