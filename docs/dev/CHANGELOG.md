@@ -9,6 +9,20 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — QEMU gate timeout configurable (`QEMU_TIMEOUT`, CI uses 300s)
+
+### Fixed
+
+- **`scripts/test-qemu.sh`** — the 120s wall-clock budget is now
+  `QEMU_TIMEOUT` (default unchanged at 120). TCG emulation on a loaded CI
+  runner ran ~4x slow: the guest reached `serial-getty@ttyPS0` at ~28s
+  guest time and the hardcoded kill landed seconds before agetty printed
+  `web888 login:`, false-failing the image gate right after the
+  pre-publish smoke gate had passed the same boot on a quieter runner.
+- **`.github/workflows/build-image.yml` / `scripts/ci/qemu-smoke-deb.sh`**
+  — both CI gates now run with `QEMU_TIMEOUT=300`. The pass condition
+  (login prompt on the serial log) is unchanged.
+
 ## [2026-08-17] — smoke-job runners: byte-identical host tooling with build-image.yml
 
 ### Fixed
