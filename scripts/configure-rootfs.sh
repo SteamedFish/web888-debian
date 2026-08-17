@@ -40,6 +40,11 @@ deb $MIRROR trixie-updates main contrib non-free non-free-firmware
 deb $SECURITY_MIRROR trixie-security main contrib non-free non-free-firmware
 EOF
 
+# Every image carries the CI-published APT repo config so devices can
+# apt-install project updates (kernel/websdr/redpitaya/boot) without a
+# reflash. Idempotent; see docs/dev/github-ci-apt-repo.md.
+bash scripts/setup-apt-repo.sh
+
 # DHCP on eth0 via ifupdown; avahi (installed below) advertises web888.local.
 # eth0 uses the MAC the kernel reads from the board EEPROM via the DTB
 # nvmem cell (config/web888.dts gem0/macaddr@10; prefix ce:cf:3f:*). We do

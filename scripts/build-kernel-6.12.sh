@@ -62,6 +62,14 @@ if [[ ! -d $KDIR ]]; then
     dpkg-source --no-check -x "$DL/linux_${KVER}-${KREV}.dsc" "$KDIR"
 fi
 
+# DEB_SOURCE=apt (build-all.sh): the kernel deb comes from the APT repo, so
+# only the source tree is needed here — write-dtb.sh compiles web888.dts
+# against it. Skip config/build/package entirely.
+if [[ ${FETCH_ONLY:-0} == 1 ]]; then
+    echo "FETCH_ONLY=1: kernel source tree ready at $KDIR (build skipped)"
+    exit 0
+fi
+
 # --- 2. materialize our drivers + patches (idempotent) ----------------------
 # Same pattern as build-kernel.sh: the tree is gitignored, so tracked
 # sources/patches in config/kernel/ are applied here. NOTE: use patch(1),

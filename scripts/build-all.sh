@@ -55,6 +55,14 @@
 #                      stock = blob extracted from the stock boot.bin
 #                      (escape hatch)
 #   DEBIAN_MIRROR=URL  debootstrap mirror (default: tuna.tsinghua.edu.cn)
+#   DEB_SOURCE=apt|local  where the project debs (kernel, websdr, redpitaya,
+#                      boot) come from. apt (default) installs them from the
+#                      CI-published APT repo (web888.steamedfish.org/apt) —
+#                      no local deb builds; the kernel source tree is still
+#                      fetched (write-dtb.sh needs it). local builds every
+#                      deb from source (steps 5, 8b-8f, 8g-8h, 9, 9b-9c).
+#                      apt requires CHAIN=uboot KERNEL=6.12 (the repo only
+#                      publishes that chain).
 #
 # Steps 7-10 need sudo (debootstrap/chroot/losetup); run `sudo -v` first or
 # let sudo prompt. Everything else runs unprivileged.
@@ -90,6 +98,19 @@ case "$FSBL" in
     source|stock) ;;
     *) echo "Error: FSBL must be source or stock (got '$FSBL')" >&2; exit 1 ;;
 esac
+
+# Deb source switch: apt (default) installs the CI-built debs from the
+# project APT repo; local builds everything from source.
+DEB_SOURCE="${DEB_SOURCE:-apt}"
+case "$DEB_SOURCE" in
+    apt|local) ;;
+    *) echo "Error: DEB_SOURCE must be apt or local (got '$DEB_SOURCE')" >&2; exit 1 ;;
+esac
+if [[ $DEB_SOURCE == apt && ( $CHAIN != uboot || $KERNEL != 6.12 ) ]]; then
+    echo "Error: DEB_SOURCE=apt requires CHAIN=uboot KERNEL=6.12" >&2
+    echo "       (the APT repo only publishes that chain; use DEB_SOURCE=local)" >&2
+    exit 1
+fi
 
 if [[ "${1:-}" == --clean ]]; then
     echo "== --clean: removing work/ and output/ (rootfs is root-owned, needs sudo) =="
@@ -151,7 +172,13 @@ fi
 
 echo "== 5/10 kernel =="
 if [[ $KERNEL == 6.12 ]]; then
-    bash scripts/build-kernel-6.12.sh
+    if [[ $DEB_SOURCE == apt ]]; then
+        # Only the source tree is needed (write-dtb.sh compiles web888.dts
+        # against it); the deb itself is installed from the APT repo below.
+        FETCH_ONLY=1 bash scripts/build-kernel-6.12.sh
+    else
+        bash scripts/build-kernel-6.12.sh
+    fi
 else
     bash scripts/build-kernel.sh
 fi
@@ -169,6 +196,10 @@ fi
 echo "== 8/10 configure rootfs =="
 bash scripts/configure-rootfs.sh
 
+if [[ $DEB_SOURCE == apt ]]; then
+    echo "== 8b-8f,9b-9c/10 install all debs from APT repo =="
+    bash scripts/install-debs-apt.sh
+else
 echo "== 8b/10 kernel modules into rootfs =="
 if [[ $KERNEL == 6.12 ]]; then
     bash scripts/install-kernel-deb.sh
@@ -223,14 +254,17 @@ fi
 
 echo "== 8f/10 install web888-redpitaya into rootfs =="
 bash scripts/install-redpitaya.sh
+fi # DEB_SOURCE=local
 
-if [[ $CHAIN == uboot ]]; then
+# DEB_SOURCE=apt: the u-boot/fsbl/boot.bin builds and the boot deb are all
+# CI products — they arrive via the web888-boot deb installed above.
+if [[ $CHAIN == uboot && $DEB_SOURCE == local ]]; then
     echo "== 8g/10 U-Boot =="
     bash scripts/fetch-upstream-src.sh u-boot
     bash scripts/build-uboot.sh
 fi
 
-if [[ $FSBL == source ]]; then
+if [[ $FSBL == source && $DEB_SOURCE == local ]]; then
     echo "== 8h/10 FSBL from source =="
     # Same stale-artifact pattern as the deb steps: rebuild if fsbl.bin is
     # missing or any vendored input (embeddedsw tree, hooks, build script)
@@ -243,10 +277,14 @@ if [[ $FSBL == source ]]; then
     fi
 fi
 
-echo "== 9/10 boot.bin ($IMG_MODE) =="
-bash scripts/build-bootbin.sh "$IMG_MODE"
+if [[ $DEB_SOURCE == local ]]; then
+    echo "== 9/10 boot.bin ($IMG_MODE) =="
+    bash scripts/build-bootbin.sh "$IMG_MODE"
+else
+    echo "== 9/10 boot.bin — skipped (DEB_SOURCE=apt: inside the web888-boot deb) =="
+fi
 
-if [[ $CHAIN == uboot ]]; then
+if [[ $CHAIN == uboot && $DEB_SOURCE == local ]]; then
     echo "== 9b/10 web888-boot deb =="
     # Rebuild if missing or any input (packaging, boot config/script, or the
     # freshly packed binaries) is newer than the cached deb.
@@ -270,6 +308,6 @@ fi
 echo "== 10/10 card image ($IMG_MODE) =="
 bash scripts/build-image.sh "$IMG_MODE"
 
-echo "== DONE: output/web888-debian-${IMG_MODE}.img (chain=$CHAIN kernel=$KERNEL fsbl=$FSBL) =="
+echo "== DONE: output/web888-debian-${IMG_MODE}.img (chain=$CHAIN kernel=$KERNEL fsbl=$FSBL deb_source=$DEB_SOURCE) =="
 echo "   QEMU gate: bash scripts/test-qemu.sh $IMG_MODE"
 echo "   Flash:     bash scripts/flash-image.sh /dev/sdX output/web888-debian-${IMG_MODE}.img"

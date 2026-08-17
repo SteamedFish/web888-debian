@@ -27,9 +27,12 @@ SIZE_MB=2048
 DTB=output/web888.dtb
 [[ $MODE == test ]] && DTB=output/web888-test.dtb
 
-for f in "output/boot-${MODE}.bin" output/zImage; do
-    [[ -f $f ]] || { echo "Error: missing $f (run build-bootbin.sh $MODE)" >&2; exit 1; }
-done
+[[ -f output/zImage ]] || { echo "Error: missing output/zImage (kernel build, or install-debs-apt.sh export)" >&2; exit 1; }
+# uboot mode never reads output/boot-uboot.bin (the FAT boot.bin comes from
+# the deb payload below), so only test/final require output/boot-$MODE.bin.
+if [[ $MODE != uboot ]]; then
+    [[ -f output/boot-${MODE}.bin ]] || { echo "Error: missing output/boot-${MODE}.bin (run build-bootbin.sh $MODE)" >&2; exit 1; }
+fi
 # test/final embed the bootargs-carrying dtb (built by build-bootbin.sh) in
 # boot.bin, so it must exist beforehand. uboot regenerates the dtb itself
 # below via write-dtb.sh (no-bootargs variant — bootargs live in boot.scr),
