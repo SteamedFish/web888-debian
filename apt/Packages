@@ -324,6 +324,24 @@ Multi-Arch: same
 Description: debug symbols for libacars2-tools
 Build-Ids: 0a3f07758d1f33c3f650ec0217c398692a971344 338cc7468ceb3723f0d4b4af6e696849e0653206 cbc5636ace0a52c5526cbc2eaf6eb89d0adee521
 
+Package: linux-image-6.12.100-web888
+Source: linux-upstream
+Version: 6.12.100-1web888.ci10
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 104984
+Filename: ./linux-image-6.12.100-web888_6.12.100-1web888.ci10_armhf.deb
+Size: 57791480
+MD5sum: 113ac1aa7080c4a35ee7023cb3b97af3
+SHA1: e2501620e97a81e815e447ff53deafd34ed42203
+SHA256: 5f7800725399eb58a274e74bf40012569aebf1c52331ba399ec937540050dbcd
+Section: kernel
+Priority: optional
+Homepage: https://www.kernel.org/
+Description: Linux kernel, version 6.12.100-web888
+ This package contains the Linux kernel, modules and corresponding other
+ files, version: 6.12.100-web888.
+
 Package: noip-duc
 Version: 3.3.0
 Architecture: armhf
