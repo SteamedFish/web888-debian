@@ -9,6 +9,18 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — CI fix: bsdtar missing on image-build runners
+
+### Fixed
+
+- `build-image.yml` step 6/10 (initramfs) failed on ubuntu-24.04 runners
+  with `Error: bsdtar required`: the "Install host tooling" apt list never
+  included `libarchive-tools` (the Ubuntu package providing `bsdtar`, used
+  by `scripts/build-initramfs.sh` to extract the busybox-static .deb).
+  Added `libarchive-tools` to the list. `scripts/env-setup.sh` also lacked
+  a `bsdtar` check entirely despite the script's error message pointing
+  users there — added `need_cmd bsdtar libarchive` (Arch package name).
+
 ## [2026-08-17] — CI: flashable card-image releases (build-image.yml)
 
 ### Added

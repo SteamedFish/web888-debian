@@ -53,6 +53,7 @@ need_cmd parted                   parted
 need_cmd cpio                     cpio
 need_cmd rsync                    rsync
 need_cmd wget                     wget
+need_cmd bsdtar                   libarchive
 need_cmd git                      git
 
 echo

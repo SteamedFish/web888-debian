@@ -71,7 +71,8 @@ jobs:
             debootstrap qemu-user-static binfmt-support qemu-system-arm \
             gcc-arm-linux-gnueabihf gcc-arm-none-eabi binutils-arm-none-eabi \
             device-tree-compiler u-boot-tools dosfstools e2fsprogs parted \
-            cpio rsync wget git dpkg-dev xz-utils jq curl python3
+            cpio rsync wget git dpkg-dev xz-utils jq curl python3 \
+            libarchive-tools
           sudo modprobe loop
 
       - name: Sanity-check the APT repo is reachable
