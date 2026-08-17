@@ -79,6 +79,12 @@ install -m644 config/u-boot/uEnv.txt "$TREE/boot/uEnv.txt"
 work/u-boot/tools/mkimage -A arm -T script -C none -n web888-boot \
     -d config/u-boot/boot.cmd "$TREE/boot/boot.scr" >/dev/null
 
+# kernel postinst hook: keeps the FAT /boot/zImage in sync with the
+# kernel deb on on-device apt upgrades (see the script header). run-parts
+# naming rules apply — no dots in the filename.
+install -Dm755 "packaging/$PKG/zz-web888-zimage" \
+    "$TREE/etc/kernel/postinst.d/zz-web888-zimage"
+
 cp -a "packaging/$PKG/debian" "$TREE/debian"
 chmod 0755 "$TREE/debian/rules"
 
@@ -117,9 +123,13 @@ fail=0
 listing=$(dpkg-deb -c "$DEB")
 for f in usr/lib/web888-boot/boot.bin usr/lib/web888-boot/fsbl.bin \
          usr/lib/web888-boot/u-boot.bin usr/lib/web888-boot/boot.scr \
-         usr/lib/web888-boot/uEnv.txt usr/lib/web888-boot/web888.dtb; do
+         usr/lib/web888-boot/uEnv.txt usr/lib/web888-boot/web888.dtb \
+         etc/kernel/postinst.d/zz-web888-zimage; do
     grep -q "$f" <<<"$listing" || { echo "  missing in deb: $f"; fail=1; }
 done
+# the kernel postinst hook must be executable in the payload
+grep -q '^-rwxr-xr-x.*zz-web888-zimage$' <<<"$listing" \
+    || { echo "  zz-web888-zimage not executable in deb"; fail=1; }
 dpkg-deb -I "$DEB" | grep -q '^ Package: web888-boot' || { echo "  missing Package field"; fail=1; }
 dpkg-deb -e "$DEB" "$TREE/debcontrol"
 [[ -s $TREE/debcontrol/postinst ]] || { echo "  missing postinst"; fail=1; }

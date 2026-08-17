@@ -9,6 +9,39 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — web888-boot: kernel hook keeps FAT zImage in sync with kernel debs
+
+### Fixed
+
+- Kernel deb installs/upgrades never updated the FAT `zImage` that U-Boot
+  actually boots: `/etc/kernel/postinst.d/` was empty, `boot.cmd` loads the
+  fixed name `zImage` from p1, and the only sync point was the build-time
+  copy in `install-debs-apt.sh`. A `linux-image-*-web888` upgrade on a live
+  system left the board booting the old kernel.
+
+### Added
+
+- `packaging/web888-boot/zz-web888-zimage`, shipped as
+  `/etc/kernel/postinst.d/zz-web888-zimage` in the web888-boot deb. The
+  kernel-deb postinst (`run-parts` over `/etc/kernel/postinst.d`) calls it
+  on every kernel install/upgrade; it copies `/boot/vmlinuz-<kver>` to
+  `/boot/zImage` via temp-file + sync + rename, rotates the old image to
+  `zImage.prev` (U-Boot's existing fallback), refuses non-gzip images so a
+  bad kernel package cannot brick boot, and no-ops outside the live system
+  (chroot / non-vfat `/boot` / missing `boot.bin`). Integrated into
+  `scripts/build-boot-deb.sh` staging and sentinel verification.
+
+### Fixed
+
+- **`build-kernel-deb.yml` / `build-boot-deb.yml`** — the new smoke jobs
+  failed their first CI run at `env-setup.sh` (`MISSING bsdtar`): the
+  hand-copied apt list had drifted from `build-image.yml`'s (missing
+  `libarchive-tools`, `cpio`, `u-boot-tools`, `jq`, `curl`, `wget` and the
+  `modprobe loop` step — the same class of failures `8b21f3e` fixed for
+  the image workflow). The smoke jobs now copy build-image.yml's "Install
+  host tooling" step and APT-repo sanity check verbatim, with a comment
+  pinning the invariant.
+
 ## [2026-08-17] — QEMU gate timeout configurable (`QEMU_TIMEOUT`, CI uses 300s)
 
 ### Fixed
@@ -22,19 +55,6 @@ this is a hard project rule).
 - **`.github/workflows/build-image.yml` / `scripts/ci/qemu-smoke-deb.sh`**
   — both CI gates now run with `QEMU_TIMEOUT=300`. The pass condition
   (login prompt on the serial log) is unchanged.
-
-## [2026-08-17] — smoke-job runners: byte-identical host tooling with build-image.yml
-
-### Fixed
-
-- **`build-kernel-deb.yml` / `build-boot-deb.yml`** — the new smoke jobs
-  failed their first CI run at `env-setup.sh` (`MISSING bsdtar`): the
-  hand-copied apt list had drifted from `build-image.yml`'s (missing
-  `libarchive-tools`, `cpio`, `u-boot-tools`, `jq`, `curl`, `wget` and the
-  `modprobe loop` step — the same class of failures `8b21f3e` fixed for
-  the image workflow). The smoke jobs now copy build-image.yml's "Install
-  host tooling" step and APT-repo sanity check verbatim, with a comment
-  pinning the invariant.
 
 ## [2026-08-17] — lean kernel config: 61% fewer modules, `KERNEL_LEAN=1` default
 

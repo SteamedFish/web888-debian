@@ -1,0 +1,48 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# zz-web888-zimage — keep the FAT /boot/zImage in sync with the kernel deb.
+#
+# Shipped by web888-boot; invoked from the linux-image postinst through
+# run-parts /etc/kernel/postinst.d with:
+#   $1 = kernel release (e.g. 6.12.100-web888)
+#   $2 = installed image path (/boot/vmlinuz-<krel>)
+#
+# Why: boot.scr loads the fixed name zImage from the FAT boot partition
+# (fallback zImage.prev), while the kernel deb only installs
+# /boot/vmlinuz-<krel>. Without this hook an on-device kernel upgrade
+# silently keeps booting the old kernel.
+#
+# Guards: skip when /boot is not the mounted FAT partition (chroot / image
+# build — there the zImage is exported to output/zImage by
+# scripts/install-debs-apt.sh instead), and refuse to install anything
+# that is not a gzip self-extractor (brick guard; same contract as the
+# build-time check in scripts/build-kernel-6.12.sh).
+set -e
+
+image="$2"
+
+# Not a booted device (image-build chroot): /boot is a plain rootfs dir.
+[ -f /boot/boot.bin ] || exit 0
+[ "$(findmnt -n -o FSTYPE /boot 2>/dev/null)" = "vfat" ] || exit 0
+
+[ -f "$image" ] || exit 0
+
+# Brick guard: boot.scr boots a gzip zImage self-extractor only.
+if [ "$(od -An -tx1 -N2 "$image" | tr -d ' \n')" != "1f8b" ]; then
+    echo "zz-web888-zimage: $image is not a gzip zImage — refusing to install" >&2
+    exit 1
+fi
+
+# Rotate the running kernel into the boot.scr fallback slot, then install
+# the new image via temp-file + sync + rename (same pattern as the
+# web888-boot postinst) so a crash mid-copy cannot leave a torn zImage.
+if [ -f /boot/zImage ]; then
+    cp /boot/zImage /boot/.zImage.prev.new
+    sync
+    mv /boot/.zImage.prev.new /boot/zImage.prev
+fi
+cp "$image" /boot/.zImage.new
+sync
+mv /boot/.zImage.new /boot/zImage
+sync
+echo "zz-web888-zimage: /boot/zImage <- $image (previous kernel kept as zImage.prev)"

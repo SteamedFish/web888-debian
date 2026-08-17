@@ -26,3 +26,11 @@ Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
  .
  Only the uboot boot chain is supported; the stub chain embeds
  kernel+dtb inside boot.bin and stays rollback-only.
+ .
+ The package also ships /etc/kernel/postinst.d/zz-web888-zimage, which
+ syncs the FAT /boot/zImage (U-Boot's fixed-name kernel, gzip
+ self-extractor format) with /boot/vmlinuz-<kver> whenever a kernel
+ package is installed or upgraded, rotating the previous image to
+ zImage.prev as the rollback kernel. The hook is a no-op outside the
+ live system (chroot, non-vfat /boot, or missing boot.bin) and refuses
+ non-gzip images, so a bad kernel package cannot brick boot.

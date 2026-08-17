@@ -4,3 +4,4 @@ boot/u-boot.bin usr/lib/web888-boot/
 boot/boot.scr usr/lib/web888-boot/
 boot/uEnv.txt usr/lib/web888-boot/
 boot/web888.dtb usr/lib/web888-boot/
+etc/kernel/postinst.d/zz-web888-zimage etc/kernel/postinst.d/
