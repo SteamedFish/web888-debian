@@ -123,15 +123,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Same host-toolchain set as build-image.yml's apt-mode image build.
-      - name: Install image-build + QEMU dependencies
+      # Keep byte-identical with build-image.yml's "Install host tooling" +
+      # repo sanity check: the smoke job runs the same apt-mode
+      # build-all.sh and needs exactly the same host tools.
+      - name: Install host tooling
         run: |
           sudo apt-get -o Acquire::Retries=3 update
           sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-            debootstrap qemu-user-static binfmt-support qemu-system-arm rsync \
-            parted dosfstools e2fsprogs xz-utils git dpkg-dev \
-            crossbuild-essential-armhf gcc-arm-none-eabi libnewlib-arm-none-eabi \
-            device-tree-compiler bc flex bison libssl-dev python3 patch
+            debootstrap qemu-user-static binfmt-support qemu-system-arm \
+            gcc-arm-linux-gnueabihf gcc-arm-none-eabi binutils-arm-none-eabi \
+            device-tree-compiler u-boot-tools dosfstools e2fsprogs parted \
+            cpio rsync wget git dpkg-dev xz-utils jq curl python3 \
+            libarchive-tools
+          sudo modprobe loop
+
+      - name: Sanity-check the APT repo is reachable
+        run: |
+          for i in {1..10}; do
+            curl -fsSL --max-time 20 https://web888.steamedfish.org/apt/InRelease -o /dev/null && exit 0
+            echo "repo not reachable yet (Pages deploy window?) — retry $i/10"
+            sleep 30
+          done
+          echo "Error: APT repo unreachable" >&2; exit 1
 
       - uses: actions/download-artifact@v4
         with:

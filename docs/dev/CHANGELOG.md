@@ -9,6 +9,19 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — smoke-job runners: byte-identical host tooling with build-image.yml
+
+### Fixed
+
+- **`build-kernel-deb.yml` / `build-boot-deb.yml`** — the new smoke jobs
+  failed their first CI run at `env-setup.sh` (`MISSING bsdtar`): the
+  hand-copied apt list had drifted from `build-image.yml`'s (missing
+  `libarchive-tools`, `cpio`, `u-boot-tools`, `jq`, `curl`, `wget` and the
+  `modprobe loop` step — the same class of failures `8b21f3e` fixed for
+  the image workflow). The smoke jobs now copy build-image.yml's "Install
+  host tooling" step and APT-repo sanity check verbatim, with a comment
+  pinning the invariant.
+
 ## [2026-08-17] — lean kernel config: 61% fewer modules, `KERNEL_LEAN=1` default
 
 ### Added
