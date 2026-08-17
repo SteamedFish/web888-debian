@@ -27,9 +27,16 @@ this is a hard project rule).
   is stable, so `.../releases/latest/download/web888-debian-uboot.img.xz`
   is a permalink. Old `img-*` releases are pruned (keep 5).
 
-### Changed
+### Fixed
 
-- The five deb workflows' publish jobs now fire `repository_dispatch`
+- `env-setup.sh` freestanding smoke test failed on ubuntu-24.04 runners:
+  Ubuntu's armhf gcc defaults to Thumb-2 (r7 = frame pointer → "r7 cannot
+  be used in 'asm'"), while Arch defaults to ARM mode. Added `-marm` to the
+  smoke-test flags; mechanism reproduced and fix verified with the host
+  cross-gcc (`-mthumb` fails with the exact CI error, `-marm` compiles +
+  runs). This blocked `build-image.yml` step 1.
+
+### Changed
   (`debs-published`) after pushing gh-pages (top-level permissions gained
   `actions: write` — repository_dispatch is one of the two events
   GITHUB_TOKEN may fire). Their workflow files are preflight hash inputs,

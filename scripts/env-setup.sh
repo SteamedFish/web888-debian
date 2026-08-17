@@ -89,6 +89,10 @@ echo "== Smoke test: cross-gcc + qemu + binfmt =="
 # are prebuilt; WebSDR/Red Pitaya will be built chroot-NATIVE under qemu). So the
 # smoke test deliberately uses a FREESTANDING static binary — the same linkage
 # style the kernel build uses — executed through binfmt_misc.
+# -marm is REQUIRED: Ubuntu's armhf gcc defaults to Thumb-2, where r7 is the
+# frame pointer and "r7 cannot be used in 'asm'" fails the compile; the svc
+# ABI test needs r7 as the syscall-number register (Arch gcc defaults to ARM
+# mode, which is why this only bit CI runners).
 if command -v arm-linux-gnueabihf-gcc &>/dev/null; then
     SMOKE_DIR=$(mktemp --directory)
     trap 'rm -rf "$SMOKE_DIR"' EXIT
@@ -105,7 +109,7 @@ void _start(void) {
     __asm__ volatile("svc 0" : : "r"(e0), "r"(e7));
 }
 EOF
-    if arm-linux-gnueabihf-gcc -ffreestanding -fno-stack-protector -nostdlib -static \
+    if arm-linux-gnueabihf-gcc -marm -ffreestanding -fno-stack-protector -nostdlib -static \
             -Wl,--build-id=none -o "$SMOKE_DIR/hello" "$SMOKE_DIR/hello.c" 2>"$SMOKE_DIR/cc.log"; then
         OUT=$("$SMOKE_DIR/hello" 2>&1 || true)
         if [[ "$OUT" == "CROSS-ARM-OK" ]]; then
