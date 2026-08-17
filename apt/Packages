@@ -598,6 +598,36 @@ Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
  Only the uboot boot chain is supported; the stub chain embeds
  kernel+dtb inside boot.bin and stays rollback-only.
 
+Package: web888-boot
+Version: 2026.07-1+ci13
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 1922
+Filename: ./web888-boot_2026.07-1+ci13_armhf.deb
+Size: 365816
+MD5sum: e005427beb0fa18fbcbcd2c0bc0fea8e
+SHA1: 3e38597d9c025b2af21794f1ffa372cff06ee377
+SHA256: a29ccc61a7cba84238733859b3d746b25fa4aeccb9d8e48d54644260eb178b30
+Section: admin
+Priority: optional
+Homepage: https://github.com/steamedfish/web888-debian
+Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
+ Bootloader package for the Web-888 Debian image (uboot chain): the
+ packed boot.bin (source-built Xilinx zynq_fsbl + mainline U-Boot as
+ SSBL), the individual FSBL / U-Boot binaries, the compiled boot.scr,
+ and the default uEnv.txt, staged under /usr/lib/web888-boot/.
+ .
+ On configure, the payload is installed onto the FAT boot partition
+ mounted at /boot: boot.bin and boot.scr are replaced via
+ temp-file + sync + rename with one-generation .bak backups; uEnv.txt
+ is only installed when absent (it is the on-device kernel-selection
+ knob and user edits are never overwritten). When /boot/boot.bin does
+ not exist (chroot / image build) the install step is skipped, so the
+ package is safe during rootfs assembly.
+ .
+ Only the uboot boot chain is supported; the stub chain embeds
+ kernel+dtb inside boot.bin and stays rollback-only.
+
 Package: web888-redpitaya
 Version: 2025.430-2+ci10
 Architecture: armhf
