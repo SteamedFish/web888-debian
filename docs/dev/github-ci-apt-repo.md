@@ -19,6 +19,7 @@ forgejo primary remote has no CI.
 | `build-boot-deb.yml` | push paths (`config/u-boot/**`, `packaging/web888-boot/**`, FSBL reference trees, scripts) | preflight → build → publish |
 | `build-thirdparty-debs.yml` | push paths (`packaging/{libacars,dumphfdl,frpc,noip-duc}/**`), dispatch, `workflow_call` | detect → select → build → publish |
 | `upstream-watch.yml` | daily cron `37 5 * * *`, dispatch | check (upstream pins + trixie lib watch) → rebuild / websdr-rebuild / redpitaya-rebuild (`workflow_call`) |
+| `build-image.yml` | `repository_dispatch` (debs-published, fired by every publish job), push paths (image machinery), dispatch | image (build-all DEB_SOURCE=apt → QEMU uboot gate → xz) → timestamped `img-*` Release (keep 5) |
 
 Every `publish` job is gated on the repo variable `APT_REPO_ENABLED=true` and
 serialized across workflows via the shared concurrency group
@@ -285,3 +286,33 @@ via shared infrastructure wasted runner hours. Two guards keep CI quiet:
    unreadable (nothing published yet — the first full population must run).
    `build-thirdparty-debs.yml` keeps its per-package `detect` job instead of
    a preflight; its path filter is already per-package.
+
+## 11. Image releases (build-image.yml)
+
+`build-image.yml` turns the APT repo into a downloadable artifact: it runs
+`DEB_SOURCE=apt bash scripts/build-all.sh` (all project debs install from
+the repo — no local deb builds), gates on the QEMU uboot boot test (the
+serial log must reach the `web888 login:` prompt; test-qemu.sh itself
+always exits 0, so the workflow greps the log), xz-compresses, and
+publishes a GitHub Release tagged `img-YYYYMMDD-HHMMSSZ` (UTC) with the
+stable asset name `web888-debian-uboot.img.xz`.
+
+- **Auto-refresh on new debs**: every deb publish job fires
+  `repository_dispatch` (type `debs-published`) right after its gh-pages
+  push; build-image.yml listens for it. repository_dispatch is one of the
+  two events GITHUB_TOKEN may fire, hence `actions: write` in the deb
+  workflows. The image build always installs the *latest* repo debs at
+  build time, and the `image-build` concurrency group keeps at most one
+  running + one pending build, so a burst of dispatches collapses to a
+  single rebuild with the freshest packages.
+- **Push trigger** only covers the image machinery itself (build-all /
+  build-image / initramfs / configure-rootfs / install-debs-apt /
+  setup-apt-repo / write-dtb / test-qemu / web888.dts / apt-repo key /
+  the workflow file) — deb content changes never rebuild the image via
+  push; they arrive via dispatch.
+- **Permalink**: `/releases/latest` always points at the newest image, so
+  `https://github.com/SteamedFish/web888-debian/releases/latest/download/web888-debian-uboot.img.xz`
+  never changes. Old `img-*` releases are pruned to the newest 5
+  (`gh release delete --cleanup-tag`).
+- The job is gated on `vars.APT_REPO_ENABLED == 'true'` like the publish
+  jobs; forks skip it.

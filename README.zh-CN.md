@@ -65,6 +65,10 @@ English documentation: [README.md](README.md).
   frpc），将签名后的扁平仓库发布到 GitHub Pages；每日 cron 检查上游发布并
   重新构建第三方软件包。配置与 sources.list 见
   [`docs/dev/github-ci-apt-repo.md`](docs/dev/github-ci-apt-repo.md)
+- **GitHub Releases 上的预构建可刷写镜像** —— CI 直接从 APT 仓库组装完整
+  卡镜像（无需本地构建），通过 QEMU 启动门禁后以时间戳 `img-*` tag 发布；
+  任何新 deb 发布会自动触发镜像刷新。最新镜像固定链接：
+  `https://github.com/SteamedFish/web888-debian/releases/latest/download/web888-debian-uboot.img.xz`
 
 当前工作项：[`docs/dev/TODO.md`](docs/dev/TODO.md) ·
 已知缺陷：[`docs/dev/KNOWN-ISSUES.md`](docs/dev/KNOWN-ISSUES.md) ·

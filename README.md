@@ -74,6 +74,11 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
   GitHub Pages, and a daily cron rebuilds third-party packages when
   upstream cuts a new release. Setup and sources.list:
   [`docs/dev/github-ci-apt-repo.md`](docs/dev/github-ci-apt-repo.md)
+- **Prebuilt flashable images on GitHub Releases** — CI builds the full card
+  image from the APT repo (no local build needed), QEMU-boot-gates it, and
+  publishes a timestamped `img-*` release; any new deb release auto-triggers
+  a refresh. Latest image permalink:
+  `https://github.com/SteamedFish/web888-debian/releases/latest/download/web888-debian-uboot.img.xz`
 
 Current work items: [`docs/dev/TODO.md`](docs/dev/TODO.md) ·
 Known defects: [`docs/dev/KNOWN-ISSUES.md`](docs/dev/KNOWN-ISSUES.md) ·

@@ -1,0 +1,149 @@
+# build-image.yml — build the full flashable card image from the CI APT repo
+# and publish it as a timestamped GitHub Release.
+#
+# Flow: DEB_SOURCE=apt build-all.sh (all project debs come from
+# web888.steamedfish.org/apt — no local deb builds) → QEMU uboot gate
+# (serial log must reach the login prompt) → xz-compress →
+# `gh release create img-<UTC timestamp>`.
+#
+# Triggers:
+#   repository_dispatch (debs-published) — fired by every deb-publish job
+#     after a gh-pages push, so a new deb release automatically refreshes
+#     the image release. GITHUB_TOKEN may fire repository_dispatch (one of
+#     the two events exempt from the no-recursive-runs rule).
+#   push — only when the image machinery itself changes (paths filter);
+#     deb content changes never arrive via push (they come via dispatch).
+#   workflow_dispatch — manual rebuild (e.g. after base-system changes in
+#     trixie; the image always pulls the LATEST debs at build time).
+#
+# /releases/latest always points at the freshest image; assets keep a stable
+# name so .../releases/latest/download/web888-debian-uboot.img.xz is a
+# permalink. Old img-* releases are pruned (keep 5).
+name: build-image
+
+on:
+  repository_dispatch:
+    types: [debs-published]
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/build-all.sh'
+      - 'scripts/build-image.sh'
+      - 'scripts/build-initramfs.sh'
+      - 'scripts/configure-rootfs.sh'
+      - 'scripts/setup-apt-repo.sh'
+      - 'scripts/install-debs-apt.sh'
+      - 'scripts/write-dtb.sh'
+      - 'scripts/build-kernel-6.12.sh'
+      - 'scripts/env-setup.sh'
+      - 'scripts/test-qemu.sh'
+      - 'config/web888.dts'
+      - 'resources/apt-repo/**'
+      - 'resources/stock/web888-boot.bin'
+      - '.github/workflows/build-image.yml'
+
+permissions:
+  contents: write   # gh release create / delete
+
+# One running + one pending build at most: each build installs the latest
+# debs at start time, so a superseded pending run would produce nothing new.
+concurrency:
+  group: image-build
+  cancel-in-progress: false
+
+env:
+  DEBIAN_MIRROR: https://cdn-aws.deb.debian.org/debian
+
+jobs:
+  image:
+    # Forks without the APT repo setup skip silently.
+    if: ${{ vars.APT_REPO_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host tooling
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            debootstrap qemu-user-static binfmt-support qemu-system-arm \
+            gcc-arm-linux-gnueabihf gcc-arm-none-eabi binutils-arm-none-eabi \
+            device-tree-compiler u-boot-tools dosfstools e2fsprogs parted \
+            cpio rsync wget git dpkg-dev xz-utils jq curl python3
+          sudo modprobe loop
+
+      - name: Sanity-check the APT repo is reachable
+        run: |
+          for i in {1..10}; do
+            curl -fsSL --max-time 20 https://web888.steamedfish.org/apt/InRelease -o /dev/null && exit 0
+            echo "repo not reachable yet (Pages deploy window?) — retry $i/10"
+            sleep 30
+          done
+          echo "Error: APT repo unreachable" >&2; exit 1
+
+      - name: Build the card image (DEB_SOURCE=apt)
+        run: DEB_SOURCE=apt bash scripts/build-all.sh
+
+      - name: QEMU boot gate (uboot chain, login prompt on serial)
+        run: |
+          # test-qemu.sh is an eyeball gate locally (always exits 0); in CI
+          # the serial log must show the login prompt.
+          bash scripts/test-qemu.sh uboot 2>&1 | tee qemu-gate.log || true
+          grep -q 'web888 login:' qemu-gate.log || {
+            echo "Error: QEMU gate failed — no login prompt in serial log" >&2
+            exit 1
+          }
+          echo "==> QEMU gate passed (login prompt reached)"
+
+      - name: Compress the image
+        run: |
+          xz -T"$(nproc)" -6 -v output/web888-debian-uboot.img
+          ls -lh output/web888-debian-uboot.img.xz
+
+      - name: Collect installed package versions for the release notes
+        run: |
+          {
+            echo "Web-888 Debian 13 (trixie, armhf) card image — uboot chain (FSBL + full U-Boot), Debian-source 6.12 kernel."
+            echo
+            echo "The image has the project APT repo preconfigured (\`https://web888.steamedfish.org/apt\`);"
+            echo "on-device updates are plain \`apt upgrade\` — no reflash needed for deb-level changes."
+            echo
+            echo "## Package versions in this image"
+            echo
+            sudo chroot work/rootfs dpkg-query -W -f='- ${Package} ${Version}\n' \
+              'linux-image-*' 'web888-*' dumphfdl frpc noip-duc libacars2 2>/dev/null || true
+            echo
+            echo "## Flash"
+            echo
+            echo '```sh'
+            echo 'xz -dc web888-debian-uboot.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync'
+            echo '```'
+            echo
+            echo "(balenaEtcher / Raspberry Pi Imager flash the .xz directly.)"
+            echo
+            echo "Docs: [flashing](https://github.com/${{ github.repository }}/blob/master/docs/user/flashing.md) · hostname \`web888\` (mDNS \`web888.local\`), root password \`changeme\` — change it."
+          } > release-notes.md
+
+      - name: Create timestamped release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=img-$(date -u +%Y%m%d-%H%M%SZ)
+          gh release create "$TAG" output/web888-debian-uboot.img.xz \
+            --title "Web-888 Debian card image $TAG" \
+            --notes-file release-notes.md
+          echo "released: $TAG"
+
+      - name: Prune old image releases (keep 5)
+        if: ${{ !failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --limit 100 --json tagName,isDraft \
+            --jq '[.[] | select(.tagName | startswith("img-")) | .tagName] | sort | reverse | .[5:] | .[]' \
+            | while read -r old; do
+                echo "pruning $old"
+                gh release delete "$old" --yes --cleanup-tag || true
+              done

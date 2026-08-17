@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # publish job fires repository_dispatch (image rebuild)
 
 concurrency:
   group: build-websdr
@@ -71,7 +72,7 @@ jobs:
         run: |
           sudo apt-get -o Acquire::Retries=3 update
           sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-            debootstrap qemu-user-static binfmt-support rsync git dpkg-dev
+            debootstrap qemu-user-static binfmt-support rsync git dpkg-dev xz-utils
 
       - name: Stamp CI package version
         run: |
@@ -165,3 +166,8 @@ jobs:
           pkgs=$(ls ./apt/*.deb | cut -d_ -f1 | sort -u | paste -sd, -)
           git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
           git push origin gh-pages
+          # A fresh package set is live — trigger an image rebuild.
+          # (repository_dispatch is one of the two events GITHUB_TOKEN may
+          # fire; requires actions: write.)
+          GH_TOKEN=${{ secrets.GITHUB_TOKEN }} gh api \
+            "repos/${{ github.repository }}/dispatches" -f event_type=debs-published

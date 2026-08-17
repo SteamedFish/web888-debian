@@ -9,6 +9,32 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — CI: flashable card-image releases (build-image.yml)
+
+### Added
+
+- **`.github/workflows/build-image.yml`** — builds the full flashable card
+  image in CI with `DEB_SOURCE=apt bash scripts/build-all.sh` (all project
+  debs come from the published APT repo — no local deb builds), gates on
+  the QEMU uboot boot test (serial log must reach the `web888 login:`
+  prompt), xz-compresses, and publishes a timestamped GitHub Release
+  (`img-YYYYMMDD-HHMMSSZ`, asset `web888-debian-uboot.img.xz`).
+  Triggers: `repository_dispatch` (debs-published) fired by every deb
+  publish job after its gh-pages push — so any new deb release
+  automatically refreshes the image release — plus a path-filtered push
+  trigger for the image machinery itself and `workflow_dispatch`.
+  `/releases/latest` always points at the newest image and the asset name
+  is stable, so `.../releases/latest/download/web888-debian-uboot.img.xz`
+  is a permalink. Old `img-*` releases are pruned (keep 5).
+
+### Changed
+
+- The five deb workflows' publish jobs now fire `repository_dispatch`
+  (`debs-published`) after pushing gh-pages (top-level permissions gained
+  `actions: write` — repository_dispatch is one of the two events
+  GITHUB_TOKEN may fire). Their workflow files are preflight hash inputs,
+  so the push landing this change rebuilds every package once.
+
 ## [2026-08-16] — CI speed: minimal-config kernel + usrmerge-free websdr chroot
 
 ### Changed

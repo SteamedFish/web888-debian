@@ -132,8 +132,8 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 - [x] Push the project repository to GitHub (done:
       <https://github.com/SteamedFish/web888-debian>)
-- [ ] GitHub Actions: build/publish flashable images via Releases
-- [ ] GitHub Actions: build Debian packages, maintain an APT repository
+- [x] GitHub Actions: build/publish flashable images via Releases
+- [x] GitHub Actions: build Debian packages, maintain an APT repository
       for updates without reflashing — **implemented** on `ci/apt-repo`
       (workflows + third-party packaging + gh-pages flat repo); goes
       live after the one-time GitHub setup in
