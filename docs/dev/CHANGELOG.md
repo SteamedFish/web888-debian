@@ -9,6 +9,25 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — image build: per-unit identity scrub, apt cache dropped, 1024 MB image
+
+### Changed
+
+- **`scripts/build-image.sh`** — the rootfs rsync into the image now
+  excludes `/etc/machine-id`, `/var/lib/dbus/machine-id` (a byte-identical
+  copy left behind by the chroot build), `/var/lib/systemd/random-seed`,
+  `/var/cache/apt/*` and `/var/lib/apt/lists/*`. systemd mints a fresh
+  machine-id and random-seed at first boot, so flashed cards no longer
+  share one identity/entropy state; on-device `apt update` refetches the
+  lists. Excluded (not deleted from `work/rootfs/`) so incremental rebuilds
+  keep their apt cache.
+- **`scripts/build-image.sh`** — image size `SIZE_MB` 2048 → 1024. The
+  cleaned payload is ~495 MiB (518,616,076 bytes measured) against a
+  ~895 MiB rootfs partition, and `web888-growroot` expands the partition to
+  the card at first boot, so the only effect is faster `dd` flashing and a
+  smaller `.img.xz` release asset. Must go back up if the payload ever
+  exceeds ~850 MB.
+
 ## [2026-08-17] — image build rides out the APT-repo CDN publish race
 
 ### Fixed

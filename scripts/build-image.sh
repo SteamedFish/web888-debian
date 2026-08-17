@@ -21,7 +21,12 @@ cd "$(dirname "$0")/.."
 
 MODE="${1:-test}"
 IMG=output/web888-debian-${MODE}.img
-SIZE_MB=2048
+# The card's real capacity comes from web888-growroot at first boot, so the
+# image only has to hold the payload: cleaned rootfs is ~540 MB (2026-08)
+# + 128 MiB FAT, leaving ~350 MB headroom at 1024. Smaller image = less dd
+# time on flash and a smaller .img.xz release asset. Grow the payload past
+# ~850 MB and this must go up.
+SIZE_MB=1024
 
 [[ $MODE == test || $MODE == final || $MODE == uboot ]] || { echo "usage: $0 [test|final|uboot]" >&2; exit 1; }
 
@@ -108,7 +113,22 @@ sudo -n cp "$DTB" "$MNT/web888.dtb"
 sudo -n umount "$MNT"
 
 sudo -n mount "${LOOP}p2" "$MNT"
-sudo -n rsync -a work/rootfs/ "$MNT/"
+# Ship-clean exclusions (excluded, not deleted, so work/rootfs keeps its apt
+# cache for incremental rebuilds):
+#   machine-id / random-seed — per-unit identity + entropy must be minted on
+#     the device (systemd regenerates both at first boot); a shipped value
+#     would be shared by every flashed card. var/lib/dbus/machine-id is a
+#     byte-identical copy of etc/machine-id here (created during the chroot
+#     build), so it must go too.
+#   /var/cache/apt + /var/lib/apt/lists — ~260 MB of package cache/lists;
+#     on-device apt update refetches the lists.
+sudo -n rsync -a \
+    --exclude='/etc/machine-id' \
+    --exclude='/var/lib/dbus/machine-id' \
+    --exclude='/var/lib/systemd/random-seed' \
+    --exclude='/var/cache/apt/*' \
+    --exclude='/var/lib/apt/lists/*' \
+    work/rootfs/ "$MNT/"
 sudo -n umount "$MNT"
 
 rmdir "$MNT"
