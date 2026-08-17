@@ -98,7 +98,8 @@ echo "==> rebuild card image with the deb under test"
 bash scripts/build-image.sh uboot
 
 echo "== 4/4 QEMU boot gate =="
-bash scripts/test-qemu.sh uboot | tee output/qemu-test.log
+# 300s wall: TCG on a loaded CI runner can be ~4x slower than local.
+QEMU_TIMEOUT=300 bash scripts/test-qemu.sh uboot | tee output/qemu-test.log
 grep -q 'web888 login:' output/qemu-test.log || {
     echo "Error: QEMU smoke gate FAILED — no login prompt within timeout" >&2
     exit 1

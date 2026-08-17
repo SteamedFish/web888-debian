@@ -91,7 +91,9 @@ jobs:
         run: |
           # test-qemu.sh is an eyeball gate locally (always exits 0); in CI
           # the serial log must show the login prompt.
-          bash scripts/test-qemu.sh uboot 2>&1 | tee qemu-gate.log || true
+          # 300s wall: TCG on a loaded runner can be ~4x slower than local;
+          # 120s has false-failed with the login prompt seconds away.
+          QEMU_TIMEOUT=300 bash scripts/test-qemu.sh uboot 2>&1 | tee qemu-gate.log || true
           grep -q 'web888 login:' qemu-gate.log || {
             echo "Error: QEMU gate failed — no login prompt in serial log" >&2
             exit 1

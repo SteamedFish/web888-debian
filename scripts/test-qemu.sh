@@ -76,4 +76,7 @@ else
     QEMU_ARGS+=(-net user)
 fi
 
-timeout --foreground 120 qemu-system-arm "${QEMU_ARGS[@]}" || true
+# Wall-clock budget: TCG emulation speed varies with host load (loaded CI
+# runners have shown ~4x slowdowns), so CI overrides this with
+# QEMU_TIMEOUT=300; 120s stays the local default.
+timeout --foreground "${QEMU_TIMEOUT:-120}" qemu-system-arm "${QEMU_ARGS[@]}" || true
