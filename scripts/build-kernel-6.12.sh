@@ -204,11 +204,20 @@ export DEBEMAIL="steamedfish@hotmail.com"
     KERNELRELEASE="$KVER-web888" KERNELVERSION="$KVER" srctree=. \
     ARCH=arm SRCARCH=arm UTS_MACHINE=arm \
     ./scripts/package/mkdebian )
+# DEB_HOST_ARCH/DEB_HOST_GNU_TYPE must come from the ENVIRONMENT, not only
+# from the included debian/deb-env.vars: GNU make 4.3 (ubuntu-24.04 CI) does
+# not propagate makefile-level exports into $(shell ...) expansions, so the
+# rules' `all-packages = $(shell dh_listpackages)` saw no DEB_HOST_ARCH,
+# filtered every armhf stanza out, and silently packaged NOTHING (build job
+# green, zero debs). make 4.4+ (Arch) propagates them, which is why local
+# builds always worked. Verified in a noble chroot (make 4.3): with these in
+# the environment the full dh_* chain runs and the deb is produced.
 DEB_BUILD_OPTIONS="parallel=$JOBS" \
+    DEB_HOST_ARCH=armhf DEB_HOST_GNU_TYPE="${CROSS%-}" \
     make -C "$KDIR" -f debian/rules binary-image < /dev/null
 
 mkdir --parents output/kernel
-mv work/linux-image-*.deb output/kernel/ 2>/dev/null || true
+mv work/linux-image-*.deb output/kernel/
 rm -f output/kernel/linux-image-*-dbg_*.deb work/linux-image-*-dbg_*.deb
 cp "$KDIR/arch/arm/boot/zImage" "output/kernel/zImage-${KVER}-web888"
 # Downstream contract: build-bootbin.sh / build-image.sh consume output/zImage
@@ -224,6 +233,10 @@ fi
 for ko in "$KDIR/drivers/char/xilinx_devcfg.ko" "$KDIR/drivers/char/zynqsdr.ko"; do
     [[ -f $ko ]] || { echo "verify: FAIL — $ko missing" >&2; fail=1; }
 done
+# The packaging step above historically could succeed with ZERO debs (silent
+# empty dh_listpackages, see the DEB_HOST_ARCH note); assert the product.
+compgen -G "output/kernel/linux-image-*_armhf.deb" > /dev/null || \
+    { echo "verify: FAIL — no linux-image deb produced" >&2; fail=1; }
 # The two pre-existing -Wmissing-prototypes in xilinx_devcfg.c are known and
 # unchanged from 6.6; no new warnings expected, but bindeb-pkg log parsing is
 # left to the reader (module builds fail hard on errors anyway).

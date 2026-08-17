@@ -48,6 +48,7 @@ jobs:
           scripts/build-kernel-6.12.sh
           config/kernel
           config/kernel-web888-6.12.fragment
+          config/kernel-web888-minimal.fragment
           scripts/ci/stamp-changelog.sh
           .github/workflows/build-kernel-deb.yml
 
@@ -93,6 +94,9 @@ jobs:
         with:
           name: debs-kernel
           path: output/kernel/linux-image-*_armhf.deb
+          # Zero-deb must FAIL the build job here, not the publish job:
+          # the packaging skip is silent (see build-kernel-6.12.sh DEB_HOST_ARCH note).
+          if-no-files-found: error
 
   publish:
     needs: [preflight, build]

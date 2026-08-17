@@ -9,6 +9,25 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-16] — CI speed: minimal-config kernel + usrmerge-free websdr chroot
+
+### Changed
+
+- **`config/kernel-web888-minimal.fragment`** — stripped kernel config
+  fragment (474 disabled symbols, 1089 lines, generated from the Ubuntu
+  24.04 armhf config: no sound/media/GPU/RAID/NFS/thermal/LED/hwmon/…)
+  that `build-kernel-6.12.sh` merges in when `KERNEL_MINIMAL=1`; the
+  kernel CI workflow enables it (timeout-minutes 330 -> 120). Our drivers
+  (xilinx_devcfg, zynqsdr) and the SDR IIO path stay on, of course.
+- **`mk-websdr-chroot.sh`** — debootstrap now excludes `libgnutls30t64`
+  and the leaf essentials (`usr-is-merged`, `usrmerge`, `e2fsprogs`,
+  `hostname`, …); gnutls returns transitively via wget/chrony. This kills
+  the `systemd -> systemd-dev -> usrmerge` chain whose postinst
+  readlink/stat storms tar-choked noble's armhf binfmt for ~1h.
+- **websdr/redpitaya workflows** — install `xz-utils` (xzcat for the
+  upstream .tar.xz fetch); kernel workflow preflight hash now includes
+  `config/kernel-web888-minimal.fragment`.
+
 ## [2026-08-16] — build-all.sh DEB_SOURCE=apt default: install debs from the APT repo
 
 ### Added
