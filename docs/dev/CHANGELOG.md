@@ -9,6 +9,22 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — build-image push trigger no longer overlaps deb publishers
+
+### Changed
+
+- **CI — no more double-triggered image builds**: `build-image.yml`
+  `on.push.paths` no longer lists `scripts/write-dtb.sh`,
+  `scripts/build-kernel-6.12.sh` or `config/web888.dts`. Since the previous
+  commit these files are inputs to the boot/kernel deb workflows only — the
+  apt-mode image build never consumes them directly — so their changes reach
+  the image via the publishers' `debs-published` dispatch. Listing them in
+  both path filters made one push queue two image builds, and the
+  push-triggered one could race a half-updated APT repo (red run, no
+  release; the dispatch run then rebuilt green). Residual, accepted: a
+  single commit touching both image-only and publisher-only paths still
+  double-triggers — noise only, no declarative fix exists.
+
 ## [2026-08-17] — web888.dtb ships in the web888-boot deb; apt-mode image builds skip the kernel tree
 
 ### Changed

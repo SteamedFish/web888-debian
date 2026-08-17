@@ -19,7 +19,7 @@ forgejo primary remote has no CI.
 | `build-boot-deb.yml` | push paths (`config/u-boot/**`, `packaging/web888-boot/**`, FSBL reference trees, scripts) | preflight → build → publish |
 | `build-thirdparty-debs.yml` | push paths (`packaging/{libacars,dumphfdl,frpc,noip-duc}/**`), dispatch, `workflow_call` | detect → select → build → publish |
 | `upstream-watch.yml` | daily cron `37 5 * * *`, dispatch | check (upstream pins + trixie lib watch) → rebuild / websdr-rebuild / redpitaya-rebuild (`workflow_call`) |
-| `build-image.yml` | `repository_dispatch` (debs-published, fired by every publish job), push paths (image machinery), dispatch | image (build-all DEB_SOURCE=apt → QEMU uboot gate → xz) → timestamped `img-*` Release (keep 5) |
+| `build-image.yml` | `repository_dispatch` (debs-published, fired by every publish job), push paths (image machinery only — deb inputs `write-dtb.sh` / `build-kernel-6.12.sh` / `config/web888.dts` are excluded; their changes arrive via dispatch, so one push never queues two image builds), dispatch | image (build-all DEB_SOURCE=apt → QEMU uboot gate → xz) → timestamped `img-*` Release (keep 5) |
 
 Every `publish` job is gated on the repo variable `APT_REPO_ENABLED=true` and
 serialized across workflows via the shared concurrency group

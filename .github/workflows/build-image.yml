@@ -11,8 +11,11 @@
 #     after a gh-pages push, so a new deb release automatically refreshes
 #     the image release. GITHUB_TOKEN may fire repository_dispatch (one of
 #     the two events exempt from the no-recursive-runs rule).
-#   push — only when the image machinery itself changes (paths filter);
-#     deb content changes never arrive via push (they come via dispatch).
+#   push — only when the image machinery itself changes (paths filter).
+#     Deb INPUTS are deliberately excluded: write-dtb.sh,
+#     build-kernel-6.12.sh and config/web888.dts feed the boot/kernel deb
+#     workflows, not this job — their changes arrive via the publishers'
+#     debs-published dispatch, and listing them here would double-trigger.
 #   workflow_dispatch — manual rebuild (e.g. after base-system changes in
 #     trixie; the image always pulls the LATEST debs at build time).
 #
@@ -34,11 +37,8 @@ on:
       - 'scripts/configure-rootfs.sh'
       - 'scripts/setup-apt-repo.sh'
       - 'scripts/install-debs-apt.sh'
-      - 'scripts/write-dtb.sh'
-      - 'scripts/build-kernel-6.12.sh'
       - 'scripts/env-setup.sh'
       - 'scripts/test-qemu.sh'
-      - 'config/web888.dts'
       - 'resources/apt-repo/**'
       - 'resources/stock/web888-boot.bin'
       - '.github/workflows/build-image.yml'
