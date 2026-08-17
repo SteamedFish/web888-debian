@@ -35,11 +35,31 @@ bash scripts/setup-apt-repo.sh
 echo -e '#!/bin/sh\nexit 101' | sudo -n tee "$ROOTFS"/usr/sbin/policy-rc.d >/dev/null
 sudo -n chmod +x "$ROOTFS"/usr/sbin/policy-rc.d
 
+# apt-get update can race a deb publisher mid-push: the repo sits behind a
+# CDN whose edge nodes briefly serve a stale Packages.gz against the new
+# Release file ("File has unexpected size ... Mirror sync in progress?"),
+# which apt treats as a hard failure. Retry until the index settles —
+# worst case is one edge-cache TTL (~10 min).
+echo "==> apt update (retry while the repo index settles)"
+for attempt in $(seq 1 20); do
+    if sudo -n chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+        apt-get update -qq; then
+        break
+    fi
+    if (( attempt == 20 )); then
+        echo "install-debs-apt.sh: apt-get update still failing after $attempt attempts" >&2
+        exit 1
+    fi
+    echo "install-debs-apt.sh: apt-get update failed (attempt $attempt/20) — waiting 30s for the repo index to settle" >&2
+    sleep 30
+done
+
 echo "==> apt install web888 debs from the repo"
 sudo -n chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
     PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-    bash -c "apt-get update -qq && apt-get install -y --no-install-recommends \
-        linux-image-${KREL} web888-websdr web888-redpitaya web888-boot"
+    apt-get install -y --no-install-recommends \
+        linux-image-${KREL} web888-websdr web888-redpitaya web888-boot
 
 sudo -n rm -f "$ROOTFS"/usr/sbin/policy-rc.d
 

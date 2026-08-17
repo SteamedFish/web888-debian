@@ -307,9 +307,18 @@ stable asset name `web888-debian-uboot.img.xz`.
   single rebuild with the freshest packages.
 - **Push trigger** only covers the image machinery itself (build-all /
   build-image / initramfs / configure-rootfs / install-debs-apt /
-  setup-apt-repo / write-dtb / test-qemu / web888.dts / apt-repo key /
-  the workflow file) — deb content changes never rebuild the image via
-  push; they arrive via dispatch.
+  setup-apt-repo / test-qemu / apt-repo key / the workflow file) — deb
+  content changes never rebuild the image via push; they arrive via
+  dispatch. Deb *inputs* (write-dtb.sh, build-kernel-6.12.sh, web888.dts)
+  are deliberately excluded: listing them would double-trigger one image
+  build per push on top of the publisher's dispatch.
+- **CDN index race**: the APT repo sits behind Cloudflare, so right after
+  a gh-pages publish an edge node can briefly serve a stale `Packages.gz`
+  against the new `Release` file, and apt hard-fails ("File has unexpected
+  size … Mirror sync in progress?"). `install-debs-apt.sh` retries
+  `apt-get update` (20 × 30 s ≈ one edge-cache TTL) to ride out the
+  window; a CDN-side cache-bypass rule for `/apt/*` would remove it
+  entirely.
 - **Permalink**: `/releases/latest` always points at the newest image, so
   `https://github.com/SteamedFish/web888-debian/releases/latest/download/web888-debian-uboot.img.xz`
   never changes. Old `img-*` releases are pruned to the newest 5

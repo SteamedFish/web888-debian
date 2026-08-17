@@ -9,6 +9,18 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — image build rides out the APT-repo CDN publish race
+
+### Fixed
+
+- **`scripts/install-debs-apt.sh`** — right after a deb publish, the
+  Cloudflare-fronted APT repo can briefly serve a stale `Packages.gz`
+  against the new `Release` file, and apt hard-fails the whole image
+  build (`E: Failed to fetch … File has unexpected size … Mirror sync in
+  progress?`). `apt-get update` now retries 20 × 30 s (≈ one edge-cache
+  TTL) before giving up. A CDN-side cache-bypass rule for `/apt/*` would
+  remove the window entirely; noted in `docs/dev/github-ci-apt-repo.md`.
+
 ## [2026-08-17] — build-image push trigger no longer overlaps deb publishers
 
 ### Changed
