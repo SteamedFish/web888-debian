@@ -505,6 +505,24 @@ Description: Linux kernel, version 6.12.100-web888
  This package contains the Linux kernel, modules and corresponding other
  files, version: 6.12.100-web888.
 
+Package: linux-image-6.12.100-web888
+Source: linux-upstream
+Version: 6.12.100-1web888.ci11
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 104978
+Filename: ./linux-image-6.12.100-web888_6.12.100-1web888.ci11_armhf.deb
+Size: 57786376
+MD5sum: 19198a3899a8960026a6b99017f66590
+SHA1: b9e9679abc13113fe57f0486351f6976381bfb4a
+SHA256: bf41d5130affc7f4e4739517e91dea343bba3035d4d02e9f8387a128e84ca1f6
+Section: kernel
+Priority: optional
+Homepage: https://www.kernel.org/
+Description: Linux kernel, version 6.12.100-web888
+ This package contains the Linux kernel, modules and corresponding other
+ files, version: 6.12.100-web888.
+
 Package: noip-duc
 Version: 3.3.0
 Architecture: armhf
