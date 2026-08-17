@@ -23,6 +23,13 @@ DL=work/downloads/linux-${KVER}
 CROSS=arm-linux-gnueabihf-
 JOBS="$(nproc)"
 FRAG=config/kernel-web888-6.12.fragment
+# Lean trim (generated; see scripts/gen-kernel-lean-fragment.py). Applied by
+# default — the full Debian armmp config builds ~3.5k modules, most of which
+# the Zynq-7010 can never use (PCI, GPU, DVB, platform sensors, ...). USB
+# peripheral breadth is kept. KERNEL_LEAN=0 restores the full config, both
+# as a debugging escape hatch and to regenerate the fragment.
+FRAG_LEAN=config/kernel-web888-6.12-lean.fragment
+KERNEL_LEAN=${KERNEL_LEAN:-1}
 
 for cmd in "${CROSS}gcc" bc flex bison dtc dpkg-source patch python3; do
     command -v "$cmd" >/dev/null 2>&1 || {
@@ -120,10 +127,12 @@ PYTHONPATH="$SNAP/bin:$SNAP/lib/python" python3 "$SNAP/bin/kconfig.py" \
     "$SNAP/config/kernelarch-arm/config" \
     "$SNAP/config/armhf/config"
 
-# Apply our fragment. Pin KCONFIG_CONFIG (stray-merge footgun, see
+# Apply our fragments. Pin KCONFIG_CONFIG (stray-merge footgun, see
 # build-kernel.sh) and keep CROSS_COMPILE on every make invocation.
+frags=("$FRAG")
+[[ $KERNEL_LEAN == 1 && -f $FRAG_LEAN ]] && frags+=("$FRAG_LEAN")
 KCONFIG_CONFIG="$(readlink --canonicalize "$KDIR/.config")" \
-    "$KDIR/scripts/kconfig/merge_config.sh" -m "$KDIR/.config" "$FRAG"
+    "$KDIR/scripts/kconfig/merge_config.sh" -m "$KDIR/.config" "${frags[@]}"
 
 # Deterministic fixups the fragment cannot express:
 # - dep chains that must be promoted to =y for the initrd-less boot (Debian
@@ -173,8 +182,32 @@ grep --quiet '^CONFIG_CMA_SIZE_MBYTES=64' "$KDIR/.config" || {
     echo "verify: FAIL — CMA_SIZE_MBYTES != 64" >&2; fail=1; }
 grep --quiet '^CONFIG_LOCALVERSION="-web888"' "$KDIR/.config" || {
     echo "verify: FAIL — LOCALVERSION != -web888" >&2; fail=1; }
+if [[ $KERNEL_LEAN == 1 && -f $FRAG_LEAN ]]; then
+    # Trim contract: masters that must be dead, USB keep-list that must live.
+    for sym in PCI DRM FB ATA MD MTD INFINIBAND XEN ACCESSIBILITY W1 NFC \
+               SND_SOC MEDIA_DIGITAL_TV_SUPPORT MEDIA_ANALOG_TV_SUPPORT \
+               MEDIA_RADIO_SUPPORT MEDIA_PLATFORM_SUPPORT MEDIA_CEC_SUPPORT \
+               RC_CORE DVB_CORE ATM X25 IEEE802154 RDS SMC PHONET QRTR \
+               NET_DSA CORESIGHT TARGET_CORE VIRTIO MODULE_SIG USB_XHCI_HCD \
+               USB_DWC3 USB_DWC2 FPGA_MGR NET_PKTGEN ATALK IPX ARCNET MHI_BUS; do
+        if ! grep --quiet "^# CONFIG_${sym} is not set" "$KDIR/.config" \
+           && grep --quiet "^CONFIG_${sym}=" "$KDIR/.config"; then
+            echo "verify: FAIL — lean CONFIG_${sym} must be n/absent" >&2
+            fail=1
+        fi
+    done
+    for sym in SND_USB_AUDIO USB_VIDEO_CLASS USB_STORAGE USB_UAS \
+               USB_SERIAL_FTDI_SIO USB_SERIAL_CP210X BT_HCIBTUSB ATH9K_HTC \
+               MT7601U RT2800USB RTL8XXXU USB_NET_AX88179_178A USB_RTL8152; do
+        grep --quiet "^CONFIG_${sym}=m" "$KDIR/.config" || {
+            echo "verify: FAIL — USB keep CONFIG_${sym} is not =m" >&2
+            fail=1; }
+    done
+fi
 (( fail == 0 )) || exit 1
-echo "verify: config contract OK (armmp + web888 fragment resolved)"
+mods=$(grep -c '=m$' "$KDIR/.config" || true)
+echo "verify: config contract OK (armmp + web888 fragment resolved; ${mods} modules)"
+[[ ${CONFIG_ONLY:-0} == 1 ]] && { echo "CONFIG_ONLY=1 — stopping after config"; exit 0; }
 
 # --- 5. build + package -----------------------------------------------------
 # Package via the debian/rules binary-image target directly, NOT bindeb-pkg:

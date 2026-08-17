@@ -21,7 +21,7 @@ Pitaya applications.
 
 ## Highlights
 
-- A fully featured Debian kernel, using the default kernel configuration and firmware from Debian – so you get out‑of‑the‑box support for most Wi‑Fi dongles.
+- A fully featured Debian kernel, built from Debian sources with a trimmed config derived from the Debian armmp default (61% fewer modules; USB peripheral breadth kept) plus Debian firmware – so you get out‑of‑the‑box support for most Wi‑Fi dongles.
 - The root partition (/) resides on an ext4 TF card rather than entirely in memory. Its size is determined by your TF card, not the onboard 512 MB memory, which means you can install applications without worrying about running out of space.
 - Carefully backported the latest features and bug fixes from KiwiSDR.
 - Tweaks and optimizations for low‑memory TF‑card‑based devices, including zram, log2ram, and more.

@@ -19,6 +19,8 @@ on:
       - 'scripts/build-kernel-6.12.sh'
       - 'config/kernel/**'
       - 'config/kernel-web888-6.12.fragment'
+      - 'config/kernel-web888-6.12-lean.fragment'
+      - 'scripts/gen-kernel-lean-fragment.py'
       - 'scripts/ci/stamp-changelog.sh'
       - 'scripts/ci/qemu-smoke-deb.sh'
       - '.github/workflows/build-kernel-deb.yml'
@@ -54,7 +56,8 @@ jobs:
           scripts/build-kernel-6.12.sh
           config/kernel
           config/kernel-web888-6.12.fragment
-          config/kernel-web888-minimal.fragment
+          config/kernel-web888-6.12-lean.fragment
+          scripts/gen-kernel-lean-fragment.py
           scripts/ci/stamp-changelog.sh
           scripts/ci/qemu-smoke-deb.sh
           .github/workflows/build-kernel-deb.yml

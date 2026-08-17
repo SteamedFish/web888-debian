@@ -9,6 +9,48 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — lean kernel config: 61% fewer modules, `KERNEL_LEAN=1` default
+
+### Added
+
+- **`scripts/gen-kernel-lean-fragment.py`** — generator that derives the
+  lean config fragment from a full resolved `.config` (Debian armmp +
+  web888 fragment, `KERNEL_LEAN=0 CONFIG_ONLY=1
+  scripts/build-kernel-6.12.sh` first, then run the generator). Policy
+  lives in the generator: ~90 master-switch kills, per-Kconfig-directory
+  `=m` sweeps with keep-lists, exotic filesystem kills, and the
+  `NET_VENDOR_*` sweep (CADENCE kept). Modelled on Armbian's
+  `linux-zynq-legacy.config` strategy (SoC IP =y, peripherals =m,
+  everything else off) but keeps USB breadth: USB serial/net/storage/UAS/
+  audio/BT/WiFi/gadget/UVC all survive — users plug arbitrary dongles
+  into the USB port.
+- **`config/kernel-web888-6.12-lean.fragment`** — generated fragment,
+  1854 disabled symbols. Module count 3467 → 1348 (-61%); deb 58 MB →
+  25.6 MB. Headline kills: PCI ecosystem, DRM/FB/GPU, DVB (bonus: RTL-SDR
+  users no longer fight the DVB driver blacklist), platform IIO (core +
+  `XILINX_XADC` kept), ASoC (`SND_USB_AUDIO` kept), ATA/NVMe/MD/
+  Infiniband/Xen/target/coresight/accessibility, exotic filesystems,
+  MTD (no flash/MTD node in the dts), virtio (the QEMU gate uses
+  cadence GEM + SD, no virtio devices), hwmon/input platform drivers.
+  Kconfig subtleties encoded in the generator comments:
+  `MEDIA_*_SUPPORT` are promptless under Debian's `EXPERT=y` and can
+  only die via `MEDIA_SUPPORT_FILTER=y` + `MEDIA_CAMERA_SUPPORT=y`;
+  `MODULE_SIG` is force-selected by `SECURITY_LOCKDOWN_LSM` (killed the
+  Armbian way); `VIRTIO` resurrects via `VIRTIO_CONSOLE=y`/`VIRTIO_FS`/
+  RPMSG selectors.
+
+### Changed
+
+- **`scripts/build-kernel-6.12.sh`** — `KERNEL_LEAN=1` (default) merges
+  the lean fragment after the web888 fragment; `KERNEL_LEAN=0` restores
+  the full Debian config. New asserts: masters-off list and USB
+  keep-list `=m` checks, plus a resolved-module count print.
+  `CONFIG_ONLY=1` stops after config verification (fast iteration).
+- **`.github/workflows/build-kernel-deb.yml`** — preflight hash and push
+  paths now cover the lean fragment and the generator. The ghost
+  `config/kernel-web888-minimal.fragment` preflight entry is gone (see
+  correction on the 2026-08-16 minimal-config entry below).
+
 ## [2026-08-17] — build-all.sh: skip bootgen/stock-blob/initramfs steps that no mode consumes
 
 ### Changed
@@ -188,6 +230,14 @@ this is a hard project rule).
   so the push landing this change rebuilds every package once.
 
 ## [2026-08-16] — CI speed: minimal-config kernel + usrmerge-free websdr chroot
+
+> **Correction (2026-08-17):** the kernel half of this entry never
+> actually landed — `config/kernel-web888-minimal.fragment` was never
+> committed, `build-kernel-6.12.sh` never grew `KERNEL_MINIMAL` logic,
+> and the workflow timeout stayed at 330. The same goal is implemented
+> for real by the 2026-08-17 lean-config entry above (different
+> mechanism: generated `kernel-web888-6.12-lean.fragment` merged by
+> default via `KERNEL_LEAN=1`, keeping USB peripheral breadth).
 
 ### Changed
 
