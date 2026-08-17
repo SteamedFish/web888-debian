@@ -7,14 +7,21 @@
 #   1. env-setup.sh            verify host toolchain + binfmt
 #   2. kernel source           work/linux-xlnx (local cache .tmp/linux-xlnx
 #                              preferred, else shallow GitHub clone)
-#   3. bootgen                 work/tools/bootgen (built from Xilinx/bootgen)
+#   3. bootgen                 work/tools/bootgen (built from Xilinx/bootgen;
+#                              DEB_SOURCE=local only — bootgen only feeds
+#                              build-bootbin.sh, which the apt flow skips)
 #   4. stock FSBL/SSBL         extracted from resources/stock/web888-boot.bin → work/stock/
 #                              (= boot.bin from the stock TF card partition 1;
 #                              copy it there yourself once — it is the ONLY
 #                              input that does not come from the network;
-#                              the extracted FSBL is only used for FSBL=stock)
+#                              DEB_SOURCE=local with CHAIN=stub or FSBL=stock
+#                              only — the extracted FSBL is only used for
+#                              FSBL=stock, the SSBL only by the stub chain)
 #   5. build-kernel.sh         output/zImage
-#   6. build-initramfs.sh      output/initramfs.cpio.gz (test-mode gate)
+#   6. build-initramfs.sh      output/initramfs.cpio.gz — NOT run here: only
+#                              the manual test-mode gate (build-bootbin.sh
+#                              test / test-qemu.sh test) consumes it; run
+#                              build-initramfs.sh by hand for that
 #   7. debootstrap             work/rootfs (trixie armhf, qemu binfmt)
 #   8. configure-rootfs.sh     hostname/password/network/openssh-server
 #  8b. install-modules.sh      kernel modules into rootfs
@@ -135,7 +142,9 @@ elif [[ ! -d "$KDIR" ]]; then
 fi
 
 echo "== 3/10 bootgen =="
-if [[ ! -x work/tools/bootgen ]]; then
+if [[ $DEB_SOURCE == apt ]]; then
+    echo "   skipped (DEB_SOURCE=apt: boot.bin ships inside the web888-boot deb)"
+elif [[ ! -x work/tools/bootgen ]]; then
     [[ -d work/bootgen ]] || \
         git clone --depth 1 https://github.com/Xilinx/bootgen work/bootgen
     # -Wno-error demotes REQUIRED with gcc >= 14 (see env-setup.sh header)
@@ -149,7 +158,9 @@ echo "== 4/10 stock FSBL/SSBL =="
 # Offsets verified against the stock boot.bin (docs/research/bootbin-repack-spec.md).
 # Input is vendored in git (resources/); extracted pieces are generated → work/.
 mkdir -p work/stock
-if [[ ! -f work/stock/fsbl.bin || ! -f work/stock/ssbl.bin ]]; then
+if [[ $DEB_SOURCE == apt || ( $CHAIN == uboot && $FSBL == source ) ]]; then
+    echo "   skipped (only needed for DEB_SOURCE=local with CHAIN=stub or FSBL=stock)"
+elif [[ ! -f work/stock/fsbl.bin || ! -f work/stock/ssbl.bin ]]; then
     [[ -f resources/stock/web888-boot.bin ]] || {
         echo "Error: resources/stock/web888-boot.bin missing — incomplete checkout?" >&2
         exit 1
@@ -190,7 +201,8 @@ else
 fi
 
 echo "== 6/10 initramfs =="
-bash scripts/build-initramfs.sh
+echo "   skipped (no build-all.sh mode consumes it — only the manual test-mode"
+echo "    gate does: run scripts/build-initramfs.sh before build-bootbin.sh test)"
 
 echo "== 7/10 debootstrap rootfs =="
 if [[ ! -d work/rootfs/etc ]]; then

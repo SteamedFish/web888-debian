@@ -9,6 +9,30 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-17] — build-all.sh: skip bootgen/stock-blob/initramfs steps that no mode consumes
+
+### Changed
+
+- **`scripts/build-all.sh`** — three previously unconditional steps are now
+  gated, so the `DEB_SOURCE=apt` CI image build no longer compiles or
+  extracts anything outside the deb packages:
+  - **step 3 (bootgen)** is skipped under `DEB_SOURCE=apt`. bootgen only
+    feeds `build-bootbin.sh`, which build-all.sh runs exclusively in the
+    `DEB_SOURCE=local` flow; under apt the boot.bin comes from the
+    `web888-boot` deb.
+  - **step 4 (stock FSBL/SSBL extraction)** is skipped under
+    `DEB_SOURCE=apt` and under the `CHAIN=uboot FSBL=source` local default.
+    The extracted blobs are only consumed by `build-bootbin.sh` (stub chain
+    SSBL, `FSBL=stock` FSBL) and the manual dev tool
+    `extract-ps7-init.py`.
+  - **step 6 (initramfs)** no longer runs at all: `output/initramfs.cpio.gz`
+    is only consumed by `build-bootbin.sh test` / `test-qemu.sh test`, and
+    build-all.sh's mode mapping (uboot→uboot, stub→final) never produces
+    test mode. Run `scripts/build-initramfs.sh` by hand before a manual
+    test-mode gate.
+- **`scripts/env-setup.sh`** — the "bootgen will be built by build-all.sh"
+  note now says this only happens under `DEB_SOURCE=local`.
+
 ## [2026-08-17] — pre-publish QEMU smoke gate for the kernel and boot deb publishers
 
 ### Added

@@ -61,8 +61,9 @@ echo "== Project-local tools =="
 if [[ -x "$TOOLS_DIR/bootgen" ]]; then
     report "OK  bootgen" "$("$TOOLS_DIR/bootgen" -help 2>&1 | grep -m1 Bootgen || echo present)"
 else
-    # not fatal: bootgen is project-built, build-all.sh bootstraps it (step 3)
-    report "NOTE  bootgen" "will be built into work/tools/ by build-all.sh (see header)"
+    # not fatal: bootgen is project-built; build-all.sh step 3 bootstraps it
+    # when DEB_SOURCE=local (the apt flow never runs bootgen)
+    report "NOTE  bootgen" "will be built into work/tools/ by build-all.sh when DEB_SOURCE=local (see header)"
 fi
 
 echo
