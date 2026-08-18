@@ -901,36 +901,6 @@ Description: No-IP Dynamic Update Client (https://www.noip.com)
  ```
 
 Package: web888-boot
-Version: 2026.07-1+ci12
-Architecture: armhf
-Maintainer: SteamedFish <steamedfish@hotmail.com>
-Installed-Size: 1922
-Filename: ./web888-boot_2026.07-1+ci12_armhf.deb
-Size: 365848
-MD5sum: c0dc46bb25eecdd6b917920845a18824
-SHA1: cc3a2e8292a16145148de59fd022884dce1bf6d4
-SHA256: ccd6a0a4a8df4717d05ca6a06eb2ffade85b07993ff7df1e874cb4ae92ccc431
-Section: admin
-Priority: optional
-Homepage: https://github.com/steamedfish/web888-debian
-Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
- Bootloader package for the Web-888 Debian image (uboot chain): the
- packed boot.bin (source-built Xilinx zynq_fsbl + mainline U-Boot as
- SSBL), the individual FSBL / U-Boot binaries, the compiled boot.scr,
- and the default uEnv.txt, staged under /usr/lib/web888-boot/.
- .
- On configure, the payload is installed onto the FAT boot partition
- mounted at /boot: boot.bin and boot.scr are replaced via
- temp-file + sync + rename with one-generation .bak backups; uEnv.txt
- is only installed when absent (it is the on-device kernel-selection
- knob and user edits are never overwritten). When /boot/boot.bin does
- not exist (chroot / image build) the install step is skipped, so the
- package is safe during rootfs assembly.
- .
- Only the uboot boot chain is supported; the stub chain embeds
- kernel+dtb inside boot.bin and stays rollback-only.
-
-Package: web888-boot
 Version: 2026.07-1+ci13
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
@@ -1027,6 +997,44 @@ Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
  zImage.prev as the rollback kernel. The hook is a no-op outside the
  live system (chroot, non-vfat /boot, or missing boot.bin) and refuses
  non-gzip images, so a bad kernel package cannot brick boot.
+
+Package: web888-boot
+Version: 2026.07-3+ci21
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 1943
+Filename: ./web888-boot_2026.07-3+ci21_armhf.deb
+Size: 368264
+MD5sum: 00e3f8d44bf14f7adf5166ee14029281
+SHA1: 99cfadd3ce317e93e523ccdfffe9b500669e2a27
+SHA256: 0c1eaeb89cd28b61aefec6991d78323f06326ee4c45acb1f9b6e635c840eed53
+Section: admin
+Priority: optional
+Homepage: https://github.com/steamedfish/web888-debian
+Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
+ Bootloader package for the Web-888 Debian image (uboot chain): the
+ packed boot.bin (source-built Xilinx zynq_fsbl + mainline U-Boot as
+ SSBL), the individual FSBL / U-Boot binaries, the compiled boot.scr,
+ and the default uEnv.txt, staged under /usr/lib/web888-boot/.
+ .
+ On configure, the payload is installed onto the FAT firmware partition
+ mounted at /boot/firmware: boot.bin and boot.scr are replaced via
+ temp-file + sync + rename with one-generation .bak backups; uEnv.txt
+ is only installed when absent (it is the on-device kernel-selection
+ knob and user edits are never overwritten). When
+ /boot/firmware/boot.bin does not exist (chroot / image build, or an
+ old-layout device with the FAT at /boot) the install step is skipped,
+ so the package is safe during rootfs assembly and on legacy images.
+ .
+ Only the uboot boot chain is supported; the stub chain embeds
+ kernel+dtb inside boot.bin and stays rollback-only.
+ .
+ The package also ships /etc/kernel/postinst.d/zz-web888-zimage, which
+ points the /boot/zImage symlink (the fixed name boot.scr ext4-loads
+ from the rootfs) at /boot/vmlinuz-<kver> whenever a kernel package is
+ installed or upgraded, rotating the previous target to zImage.prev as
+ the rollback kernel. Symlinks only — no copies, no mount requirements,
+ so the hook also runs correctly inside the image-build chroot.
 
 Package: web888-redpitaya
 Version: 2025.430-2+ci10
