@@ -18,6 +18,9 @@ this is a hard project rule).
 - `zz-web888-zimage` hook: manages the `/boot/zImage` + `/boot/zImage.prev`
   symlinks instead of copying the kernel onto FAT — no copy seam, no brick
   guard needed, and the hook now runs correctly inside the build chroot.
+- `web888-boot` postinst: payload installs to `/boot/firmware`; old-layout
+  devices fail the guards and no-op safely; a kernel-hook fallback covers
+  the chroot install order. web888-boot deb bumped to 2026.07-3.
 
 ## [2026-08-18] — web888-websdr: drop broken vendored dumphfdl, use system package
 

@@ -16,21 +16,21 @@ Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
  SSBL), the individual FSBL / U-Boot binaries, the compiled boot.scr,
  and the default uEnv.txt, staged under /usr/lib/web888-boot/.
  .
- On configure, the payload is installed onto the FAT boot partition
- mounted at /boot: boot.bin and boot.scr are replaced via
+ On configure, the payload is installed onto the FAT firmware partition
+ mounted at /boot/firmware: boot.bin and boot.scr are replaced via
  temp-file + sync + rename with one-generation .bak backups; uEnv.txt
  is only installed when absent (it is the on-device kernel-selection
- knob and user edits are never overwritten). When /boot/boot.bin does
- not exist (chroot / image build) the install step is skipped, so the
- package is safe during rootfs assembly.
+ knob and user edits are never overwritten). When
+ /boot/firmware/boot.bin does not exist (chroot / image build, or an
+ old-layout device with the FAT at /boot) the install step is skipped,
+ so the package is safe during rootfs assembly and on legacy images.
  .
  Only the uboot boot chain is supported; the stub chain embeds
  kernel+dtb inside boot.bin and stays rollback-only.
  .
  The package also ships /etc/kernel/postinst.d/zz-web888-zimage, which
- syncs the FAT /boot/zImage (U-Boot's fixed-name kernel, gzip
- self-extractor format) with /boot/vmlinuz-<kver> whenever a kernel
- package is installed or upgraded, rotating the previous image to
- zImage.prev as the rollback kernel. The hook is a no-op outside the
- live system (chroot, non-vfat /boot, or missing boot.bin) and refuses
- non-gzip images, so a bad kernel package cannot brick boot.
+ points the /boot/zImage symlink (the fixed name boot.scr ext4-loads
+ from the rootfs) at /boot/vmlinuz-<kver> whenever a kernel package is
+ installed or upgraded, rotating the previous target to zImage.prev as
+ the rollback kernel. Symlinks only — no copies, no mount requirements,
+ so the hook also runs correctly inside the image-build chroot.

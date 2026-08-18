@@ -1,36 +1,53 @@
 #!/bin/sh
-# postinst — install the bootloader payload onto the FAT boot partition.
+# postinst — install the bootloader payload onto the FAT firmware partition.
 #
-# The uboot chain boots from plain files on the FAT partition mounted at
-# /boot (fstab: /dev/mmcblk0p1 /boot vfat), so an upgrade is a file copy:
-# temp file + sync + rename, with one .bak generation kept (brick guard,
-# see docs/dev/github-ci-apt-repo-research.md §2.8 caveat 1).
+# The uboot chain boots the kernel from the ext4 rootfs (boot.scr ext4-loads
+# /boot/zImage from p2); the FAT partition (p1, fstab: /dev/mmcblk0p1
+# /boot/firmware vfat) carries only boot.bin, boot.scr, uEnv.txt and
+# web888.dtb, so an upgrade is a file copy: temp file + sync + rename, with
+# one .bak generation kept (brick guard, see
+# docs/dev/github-ci-apt-repo-research.md §2.8 caveat 1).
 set -e
 
 LIB=/usr/lib/web888-boot
+FW=/boot/firmware
 
 # copy via temp file + rename: a cut copy never leaves a half-written
 # boot.bin behind; .bak of the previous file is kept for one generation
 install_boot_file() {
     name="$1"
-    [ ! -f "/boot/$name" ] || cp "/boot/$name" "/boot/$name.bak"
-    cp "$LIB/$name" "/boot/.$name.new"
+    [ ! -f "$FW/$name" ] || cp "$FW/$name" "$FW/$name.bak"
+    cp "$LIB/$name" "$FW/.$name.new"
     sync
-    mv "/boot/.$name.new" "/boot/$name"
+    mv "$FW/.$name.new" "$FW/$name"
 }
 
 case "$1" in
   configure)
+    # Kernel-hook fallback: the hook ships in THIS package but is fired by
+    # kernel postinsts, so a kernel configured before web888-boot (chroot
+    # install order during image builds) never ran it — create the link
+    # here. Only when /boot is a plain rootfs directory: on old-layout
+    # devices /boot IS the FAT partition, which cannot hold symlinks.
+    # No-op whenever /boot/zImage already exists.
+    if [ ! -e /boot/zImage ] && [ "$(findmnt -n -o FSTYPE /boot 2>/dev/null)" != "vfat" ]; then
+        latest=$(ls -1v /boot/vmlinuz-* 2>/dev/null | tail -1)
+        if [ -n "$latest" ]; then
+            sh /etc/kernel/postinst.d/zz-web888-zimage "${latest#/boot/vmlinuz-}" "$latest"
+        fi
+    fi
+
     # Not a booted device (rootfs chroot during image build, or the FAT
-    # partition not mounted): nothing to do.
-    if [ ! -f /boot/boot.bin ]; then
-        echo "web888-boot: /boot/boot.bin not present — skipping bootloader install"
+    # partition not mounted): nothing to do. Old-layout devices (FAT at
+    # /boot, no /boot/firmware mount) fail here too — a safe no-op.
+    if [ ! -f $FW/boot.bin ]; then
+        echo "web888-boot: $FW/boot.bin not present — skipping bootloader install"
         exit 0
     fi
-    # Only write to a mounted vfat /boot; refuse to clobber a stray
-    # boot.bin sitting in the rootfs /boot directory.
-    if [ "$(findmnt -n -o FSTYPE /boot 2>/dev/null)" != "vfat" ]; then
-        echo "web888-boot: /boot is not a mounted vfat partition — skipping bootloader install" >&2
+    # Only write to a mounted vfat /boot/firmware; refuse to clobber stray
+    # files sitting in the rootfs directory.
+    if [ "$(findmnt -n -o FSTYPE $FW 2>/dev/null)" != "vfat" ]; then
+        echo "web888-boot: $FW is not a mounted vfat partition — skipping bootloader install" >&2
         exit 0
     fi
     # Refuse a payload without the Zynq boot header sync word
@@ -52,13 +69,13 @@ case "$1" in
     install_boot_file web888.dtb
     # uEnv.txt is the on-device kernel-selection knob; never overwrite
     # user edits, install the default only when missing.
-    if [ ! -f /boot/uEnv.txt ]; then
-        cp "$LIB/uEnv.txt" "/boot/.uEnv.txt.new"
+    if [ ! -f $FW/uEnv.txt ]; then
+        cp "$LIB/uEnv.txt" "$FW/.uEnv.txt.new"
         sync
-        mv "/boot/.uEnv.txt.new" /boot/uEnv.txt
+        mv "$FW/.uEnv.txt.new" $FW/uEnv.txt
     fi
     sync
-    echo "web888-boot: bootloader updated in /boot (backups: boot.bin.bak, boot.scr.bak, web888.dtb.bak); takes effect on next boot"
+    echo "web888-boot: bootloader updated in $FW (backups: boot.bin.bak, boot.scr.bak, web888.dtb.bak); takes effect on next boot"
     ;;
 esac
 
