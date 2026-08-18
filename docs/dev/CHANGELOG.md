@@ -9,6 +9,13 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — ext4 /boot: kernel boots from rootfs, FAT becomes /boot/firmware
+
+### Changed
+- `config/u-boot/boot.cmd`: the kernel is now ext4-loaded from the rootfs
+  partition (`/boot/zImage` symlink, fallback `/boot/zImage.prev`); dtb,
+  boot.scr and uEnv.txt stay on FAT p1, which mounts at `/boot/firmware`.
+
 ## [2026-08-18] — web888-websdr: drop broken vendored dumphfdl, use system package
 
 ### Fixed

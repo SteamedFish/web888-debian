@@ -1,7 +1,7 @@
 # web888 uEnv overrides — imported by boot.scr after its defaults.
-# Empty by default; this file is the on-device kernel-update knob:
-# drop a new zImage onto the FAT partition, point kernel_file at it, keep
-# the previous one as zImage.prev, reboot. boot.scr's fallback chain boots
-# zImage.prev if the primary fails to load.
-#kernel_file=zImage-6.12.101-web888
+# Empty by default. kernel_file names a file under /boot on the ext4
+# rootfs (default: zImage, a symlink the web888-boot kernel hook points
+# at the newest installed kernel). To boot one specific installed
+# version:
+#kernel_file=vmlinuz-6.12.101-web888
 #bootargs_extra=ignore_loglevel
