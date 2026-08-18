@@ -9,6 +9,19 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — websdr: silence the admin status-tab 1 Hz "unknown command" spam
+
+### Fixed
+- New patch `config/websdr/cherry-picks/0153-admin-status-poll-unknown-cmd-noise.patch`:
+  0145's admin.js resync to KiwiSDR v1.902 added a 1-second `status_focus()`
+  poll sending `SET xfer_stats` and `ADM antsw_GetCurrentAnt`; RaspSDR's
+  server implements neither, so it logged `ADMIN: unknown command` twice per
+  second while an admin status tab was open. Both sends removed — nothing
+  ever rendered from their replies (no server responses; the ant_switch
+  extension JS never loads on the Web-888 admin page). Verified: full
+  54-patch series applies with `-F 0`, `node --check` clean. Runtime
+  hardware confirmation (absence of the log lines) still owed.
+
 ## [2026-08-18] — ext4 /boot: kernel boots from rootfs, FAT becomes /boot/firmware
 
 ### Changed

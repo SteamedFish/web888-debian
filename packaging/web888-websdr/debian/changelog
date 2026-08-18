@@ -7,6 +7,12 @@ web888-websdr (2026.730-10) UNRELEASED; urgency=medium
     /usr/bin/dumphfdl instead (renamed 0006-hfdl-system-dumphfdl.patch).
     The submodule is still compiled (ENABLE_HDFL=ON also gates the HFDL
     extension itself) but its binary is no longer installed.
+  * New patch 0153-admin-status-poll-unknown-cmd-noise.patch: the 0145
+    admin.js v1.902 resync added a 1 Hz status-tab poll sending
+    'SET xfer_stats' and 'ADM antsw_GetCurrentAnt', which RaspSDR's
+    server does not implement — it logged "ADMIN: unknown command"
+    twice per second while an admin status tab was open. Both sends
+    are removed; nothing ever rendered from their replies.
 
  -- SteamedFish <steamedfish@hotmail.com>  Tue, 18 Aug 2026 12:31:57 +0800
 

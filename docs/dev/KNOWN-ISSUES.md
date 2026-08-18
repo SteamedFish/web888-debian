@@ -27,6 +27,12 @@ materialises:
 
 ## 4. Minor / watchlist
 
+- **0153 admin status-poll fix pending hardware verification** — patch 0153
+  removes the 1 Hz `SET xfer_stats` / `ADM antsw_GetCurrentAnt` sends that
+  0145's admin.js resync added (RaspSDR's server implements neither →
+  `ADMIN: unknown command` twice per second while an admin status tab was
+  open). Patch-applies and `node --check` verified; watch the device log for
+  absence of the lines after the new deb is deployed.
 - **0148 mongoose EPOLLERR fix pending hardware verification** — the
   0148 SO_ERROR pre-check only quiets the close logging: the ~0.5 s
   `/admin` websocket drops it addressed are now known to be *caused by

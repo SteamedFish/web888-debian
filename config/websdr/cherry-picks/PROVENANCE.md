@@ -487,3 +487,30 @@ patches (0104) — only reports drift on those.
   series tree; runtime verification on hardware with
   `scripts/test-websocket-frames.py` (previously reproduced corruption in
   ~5 s) plus an admin-page browser soak.
+
+## 0153-admin-status-poll-unknown-cmd-noise.patch
+
+- **Upstream:** none — Web-888-local fix (RaspSDR's server does not
+  implement the polled commands; real KiwiSDR does, so there is nothing
+  to cherry-pick).
+- **Why:** 0145's admin.js resync to KiwiSDR v1.902 brought
+  `status_focus()`'s 1-second interval that sends `SET xfer_stats` and
+  `ADM antsw_GetCurrentAnt` while the admin status tab is open.
+  RaspSDR's server implements neither, so `ui/admin.cpp` logged
+  `ADMIN: unknown command: <ip> <...>` twice per second per open admin
+  status tab, drowning real log entries and churning log2ram.
+- **What it does:** removes the two sends from the interval. The
+  surrounding ant_switch status display block is kept to stay close to
+  upstream shape; it is inert on Web-888 (the ant_switch extension JS
+  is never loaded on the admin page, so `ant_sw.status` is never set
+  and `id-msg-antsw` stays hidden, exactly as before).
+- **Scope:** 1 file (`web/kiwi/admin.js`), 2 lines replaced by an
+  explanatory comment. `SET auto_nat_status_poll` (network tab, 2 s)
+  IS implemented server-side and is untouched. Deliberately unchanged:
+  the `xfer_stats_cb` / `status_xfer_cb` client callbacks (dead without
+  a server, harmless) and the `stats.html` "Server Load" table (always
+  empty on Web-888, before and after).
+- **Verification:** `patch -p1 -F 0` clean against the full post-0152
+  series tree (whole 54-patch series re-verified); `node --check` clean.
+  Runtime confirmation owed on hardware: absence of `ADMIN: unknown
+  command` lines while browsing /admin's status tab.

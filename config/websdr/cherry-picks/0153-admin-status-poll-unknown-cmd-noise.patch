@@ -1,0 +1,45 @@
+From: Web-888 Debian port
+Subject: [0153] stop admin status-tab 1 Hz poll of unimplemented commands
+
+0145 resynced admin.js to KiwiSDR v1.902, including status_focus()'s
+1-second interval that sends 'SET xfer_stats' and
+'ADM antsw_GetCurrentAnt' while the admin status tab is open.
+RaspSDR's server implements neither command, so ui/admin.cpp logged
+"ADMIN: unknown command: <ip> <SET xfer_stats>" (and the antsw variant)
+twice per second whenever an admin page sat on the status tab,
+drowning real log entries and keeping the log2ram/journal busy.
+
+Remove the two sends. Consequences, verified against the post-0152 tree:
+- xfer_stats: the server never answers, so nothing ever rendered in
+  id-msg-stats-xfer anyway (the RaspSDR admin page has no live CPU/net
+  stats). stats.html's "Server Load" table stays empty as before.
+- antsw_GetCurrentAnt: the ant_switch extension JS is never loaded on
+  the Web-888 admin page (see the `var ant_sw;` declaration comment in
+  admin.js), so ant_sw.status was never set and the id-msg-antsw
+  element stayed hidden; the remaining display block is inert and kept
+  to stay close to upstream shape.
+- The other polled admin message from 0145, 'SET auto_nat_status_poll'
+  (network tab, 2 s), IS implemented server-side (ui/admin.cpp) and is
+  left untouched.
+
+LOCAL FIX (not a cherry-pick). node --check clean; dry-run verified
+with -F 0 against the post-0152 series tree.
+
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -308,8 +308,13 @@
+ 	admin.status_interval =
+ 	   setInterval(
+ 	      function() {
+-	         msg_send('SET xfer_stats');
+-	         ext_send('ADM antsw_GetCurrentAnt');
++	         // Web-888 0153: upstream v1.902 polls msg_send('SET xfer_stats')
++	         // and ext_send('ADM antsw_GetCurrentAnt') here once per second.
++	         // RaspSDR's server implements neither command, so it logged
++	         // "ADMIN: unknown command: ..." twice per second while the admin
++	         // status tab was open, drowning real log entries. Sends removed;
++	         // the ant_sw status display below is inert on Web-888 (the
++	         // extension JS is never loaded on the admin page).
+ 	         
+ 	         var hide = true;
+ 	         if (ant_sw && isNonEmptyString(ant_sw.status) && isFunction(ant_switch_disabled) && !ant_switch_disabled()) {

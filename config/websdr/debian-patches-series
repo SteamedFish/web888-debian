@@ -129,6 +129,15 @@
 # Verified with -F 0 against the full post-0151 series tree.
 0152-websocket-control-msgs-no-drop.patch
 
+# 0153: Web-888-local admin.js fix — 0145's v1.902 resync brought a 1 Hz
+# status-tab poll sending 'SET xfer_stats' + 'ADM antsw_GetCurrentAnt',
+# neither implemented by RaspSDR's server -> "ADMIN: unknown command"
+# twice a second while the admin status tab is open. Sends removed;
+# nothing ever rendered from them (no server replies, ant_switch
+# extension JS never loads on the admin page).
+# Verified with -F 0 against the full post-0152 series tree.
+0153-admin-status-poll-unknown-cmd-noise.patch
+
 # 0020: kiwi_str_encode (support/str.cpp) — mongoose mg_url_encode() does
 # NOT percent-encode '%' itself, so console output containing '%' (e.g.
 # ping's "0% packet loss") went onto the websocket with a raw '%' and broke
