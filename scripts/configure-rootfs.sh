@@ -158,7 +158,48 @@ systemctl enable avahi-daemon.service avahi-daemon.socket
 # (already removed by the chrony install above).
 systemctl enable gpsd.socket gpsd.service
 systemctl enable chrony.service
+
+# Units that must stay off (rationale in the 99-web888.preset written below):
+#   chronyd-restricted.service        — Conflicts=chronyd.service (alias of
+#                                       chrony.service): when it wins the boot
+#                                       race chrony never runs and NTP is dead.
+#                                       It also cannot use refclocks, so our
+#                                       SHM/PPS chrony.conf makes it fail with
+#                                       shmget() EPERM.
+#   systemd-networkd{,-wait-online}   — the image network stack is ifupdown +
+#                                       dhcpcd; networkd manages no links, so
+#                                       wait-online blocks ~2 min at every
+#                                       boot and then fails.
+# Disabling here is not enough on its own: the image ships an empty
+# /etc/machine-id, so the first boot on device runs the systemd first-boot
+# preset pass (machine-id(5) "First Boot Semantics"), which force-enables
+# every unit with an [Install] section. The preset file below covers that.
+systemctl disable chronyd-restricted.service 2>/dev/null || true
+systemctl disable systemd-networkd.service systemd-networkd-wait-online.service 2>/dev/null || true
 '
+
+# web888 service policy for systemd's first-boot preset pass. The image ships
+# an empty /etc/machine-id, so on the first boot on device PID 1 presets units
+# (machine-id(5) "First Boot Semantics") with default policy = enable: every
+# unit with an [Install] section gets force-enabled — that is how a fresh
+# flash ended up with chronyd-restricted, chrony-wait, noip-duc, frpc and
+# networkd enabled even though the build only enabled chrony.service. This
+# file sorts after /usr/lib/systemd/system-preset/90-systemd.preset, so these
+# disable lines also override Debian's enable lines for networkd.
+#   chronyd-restricted / systemd-networkd / systemd-networkd-wait-online:
+#     see the in-chroot disables above.
+#   noip-duc.service / frpc.service: pulled in by the web888-websdr Depends;
+#     installed unconfigured (no /etc/default/noip-duc, no frpc.ini) →
+#     guaranteed start failure (frpc crash-loops on RestartSec=5s). Users who
+#     configure them can `systemctl enable --now noip-duc` / `frpc`.
+sudo mkdir -p "$ROOTFS/etc/systemd/system-preset"
+sudo tee "$ROOTFS/etc/systemd/system-preset/99-web888.preset" >/dev/null <<'PRESET'
+disable chronyd-restricted.service
+disable noip-duc.service
+disable frpc.service
+disable systemd-networkd.service
+disable systemd-networkd-wait-online.service
+PRESET
 
 # openssh-server keeps the documented device-access contract (AGENTS.md):
 # root + password login on port 22, same as dropbear had. Debian's sshd

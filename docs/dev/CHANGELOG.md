@@ -9,6 +9,55 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — image build: keep chronyd-restricted / noip-duc / frpc / networkd off (first-boot preset fix)
+
+### Fixed
+
+- **Four systemd units misbehaved on every fresh-flash boot** (found on
+  hardware 2026-08-18):
+  - `chronyd-restricted.service` — chrony 4.6 ships this unit with
+    `Conflicts=chronyd.service` (alias of `chrony.service`); both were enabled
+    → boot race. When restricted wins (observed on this boot), `chrony.service`
+    never runs and NTP is completely dead. The restricted unit itself fails
+    with `shmget() failed: Permission denied` because the image's chrony.conf
+    uses SHM/PPS refclocks, which the sandboxed restricted unit cannot use.
+  - `noip-duc.service` — pulled in by the web888-websdr `Depends`; postinst
+    self-enables, but the package is unconfigured (no
+    `/etc/default/noip-duc`) → guaranteed start failure.
+  - `frpc.service` — same story (web888-websdr `Depends`, no frpc.ini): it
+    crash-loops on `RestartSec=5s`, so it shows as `activating` rather than
+    in `systemctl --failed`.
+  - `systemd-networkd-wait-online.service` — Debian's `90-systemd.preset`
+    enables networkd, but the image network stack is ifupdown + dhcpcd;
+    networkd manages no links → wait-online blocks ~2 min at every boot and
+    then fails.
+- Root cause of "why did chronyd-restricted suddenly start this time": the
+  image ships an **empty `/etc/machine-id`**, so the first boot on device runs
+  systemd's first-boot preset pass (machine-id(5) "First Boot Semantics":
+  PID 1 presets units, default policy = enable). It force-enabled every unit
+  with an `[Install]` section — including chronyd-restricted — even though
+  only `chrony.service` was enabled in the image at build time. Device
+  evidence: the force-enabled units' symlinks carry the first-boot epoch
+  timestamp (2026-04-14 03:38:09, the systemd build date the clock starts
+  from) while chrony.service's symlink carries the CI build time. The
+  chrony-vs-restricted race had been present on every flash; earlier boots
+  just happened to be won by chrony.
+- Fix, all in the image build (device untouched):
+  `scripts/configure-rootfs.sh` disables chronyd-restricted and
+  systemd-networkd{,-wait-online} in-chroot AND writes
+  `/etc/systemd/system-preset/99-web888.preset` (sorts after
+  `90-systemd.preset`, overriding its networkd enables) disabling
+  chronyd-restricted, noip-duc, frpc, systemd-networkd and
+  systemd-networkd-wait-online so the first-boot preset pass keeps them off;
+  `scripts/install-debs-apt.sh` and `scripts/install-websdr.sh` (both
+  DEB_SOURCE paths) disable noip-duc + frpc after the websdr install. QEMU
+  regression check added to `scripts/qemu-verify-step35.sh` (the five units
+  must report `disabled`, chrony.service `enabled` — QEMU runs the same
+  first-boot preset pass as hardware). Pending: image rebuild + reflash.
+- noip-duc and frpc stay installed but disabled: the WebSDR admin DDNS /
+  reverse-proxy UIs expect the binaries; users who configure them can
+  `systemctl enable --now noip-duc` / `frpc`.
+
 ## [2026-08-18] — web888-boot: kernel hook keeps FAT zImage in sync with kernel debs
 
 ### Fixed

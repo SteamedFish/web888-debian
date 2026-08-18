@@ -66,6 +66,11 @@ EOF
 if sudo -u web888 sudo -n /usr/lib/web888/root-helpers/web888-netconfig static 2>&1; then echo "INJECTION ACCEPTED - FAIL"; else echo "rejected OK"; fi; ls /etc/network/interfaces.d/'
 check "websdr journal errors" 'journalctl -u web888-websdr -b --no-pager | grep -iE "lbu|noip2|fw_printenv|chpasswd|cannot|error" | grep -v si5351 | head -8; echo "(end)"'
 check "gpsd/chrony unaffected" 'systemctl is-active gpsd chrony'
+# Regression guard for the 2026-08-18 first-boot preset fix: these five must
+# print "disabled" (is-enabled exits non-zero for them → || true keeps the
+# check from failing), chrony.service must print "enabled" (its non-zero exit
+# would fail the check). QEMU runs the same first-boot preset pass as hardware.
+check "unwanted units disabled (first-boot preset)" 'systemctl is-enabled chronyd-restricted.service noip-duc.service frpc.service systemd-networkd.service systemd-networkd-wait-online.service 2>&1 || true; systemctl is-enabled chrony.service'
 
 echo "QEMU-VERIFY-DONE fail=$fail"
 exit $fail

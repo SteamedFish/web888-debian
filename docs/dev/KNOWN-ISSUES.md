@@ -104,3 +104,23 @@ rendered only Antenna Switch, intermittently per page load
 log if ever hit); stream data keeps the original drop behaviour. Built
 as web888-websdr 2026.730-8, deployed and verified 2026-08-14 (7/7
 /admin reloads show all extensions).
+
+## 7. Fresh-flash boot failures: chronyd-restricted / noip-duc / frpc / networkd-wait-online (FIXED in build scripts, pending reflash)
+
+Found on hardware 2026-08-18: three units in `systemctl --failed` on every
+fresh flash — `chronyd-restricted.service` (wins a `Conflicts=` boot race
+against chrony → NTP dead when it wins; fails itself because it cannot use
+the image's SHM/PPS refclocks), `noip-duc.service` (web888-websdr Depends,
+installed unconfigured), `systemd-networkd-wait-online.service` (networkd
+enabled by Debian's preset but manages no links → ~2 min boot stall then
+failure) — plus `frpc.service` crash-looping as `activating` (web888-websdr
+Depends, unconfigured, RestartSec=5s keeps it out of --failed). Root cause:
+the image ships an empty `/etc/machine-id`, so systemd's first-boot preset
+pass force-enables every unit with an `[Install]` section regardless of what
+the build enabled. Fixed in
+`scripts/configure-rootfs.sh` (in-chroot disables +
+`/etc/systemd/system-preset/99-web888.preset`), `install-debs-apt.sh` and
+`install-websdr.sh` (noip-duc + frpc disables) with a QEMU regression check
+in `scripts/qemu-verify-step35.sh` — see the 2026-08-18 CHANGELOG entry.
+Remove this section once a rebuilt image is flashed and
+`systemctl --failed` comes back empty.
