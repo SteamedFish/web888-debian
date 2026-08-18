@@ -23,6 +23,15 @@ this is a hard project rule).
   (runs the shipped hook if present, else creates it directly) with a loud
   WARNING before verifying — a heal needed with a current repo deb still
   signals a hook regression in the log.
+- **Heal fallthrough for no-op hooks** (`scripts/install-debs-apt.sh`): the
+  first heal version trusted a present hook to create the link, but ci17's
+  hook is a deliberate chroot no-op (guards on `/boot/boot.bin`, absent in
+  the image-build chroot), so the heal printed its WARNING and the verify
+  still FATALed (build-image red again after the deb builds went green).
+  The heal now falls through to a direct `ln -sfn` whenever the link is
+  still missing after the hook attempt. Reproduced and verified in a
+  minimal local chroot against three fixtures: ci17-style no-op hook,
+  hook absent, and a working ci18-style hook.
 - **Smoke gate strictness** (`scripts/ci/qemu-smoke-deb.sh`): the
   web888-boot recipe now force-recreates `/boot/zImage` via the deb's own
   `zz-web888-zimage` hook after deleting it, so a broken hook in the deb

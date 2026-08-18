@@ -109,11 +109,14 @@ echo "==> ensure: /boot/zImage symlink exists (heal repo/deb skew)"
 sudo -n chroot "$ROOTFS" bash -c "
     if [[ ! -L /boot/zImage && -f /boot/vmlinuz-$KREL ]]; then
         echo 'WARNING: /boot/zImage missing after deb install — healing (repo web888-boot predates the kernel hook?)' >&2
+        # ci17-era hooks deliberately no-op inside a chroot (they guarded on
+        # /boot/boot.bin, absent here — observed 2026-08-18: hook ran, link
+        # still missing, verify FATAL). So never TRUST the hook: fall through
+        # to a direct symlink whenever the link is still missing afterwards.
         if [[ -x /etc/kernel/postinst.d/zz-web888-zimage ]]; then
-            /etc/kernel/postinst.d/zz-web888-zimage $KREL /boot/vmlinuz-$KREL
-        else
-            ln -sfn vmlinuz-$KREL /boot/zImage
+            /etc/kernel/postinst.d/zz-web888-zimage $KREL /boot/vmlinuz-$KREL || true
         fi
+        [[ -L /boot/zImage ]] || ln -sfn vmlinuz-$KREL /boot/zImage
     fi
 "
 
