@@ -45,6 +45,7 @@ this is a hard project rule).
   based).
 - docs: `building.md` partition description updated for the new layout (and
   fixed: the image is MBR, not GPT); `AGENTS.md` boot-chain summary updated.
+- Docs sweep follow-up: hardware-facts.md DT-deploy lesson, TODO.md web888-boot deb entry, github-ci-apt-repo.md §8, and install-boot-deb.sh comment updated to the /boot/firmware layout.
 
 ## [2026-08-18] — web888-websdr: drop broken vendored dumphfdl, use system package
 

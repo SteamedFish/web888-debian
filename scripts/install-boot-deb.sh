@@ -3,7 +3,8 @@
 # build-boot-deb.sh into work/rootfs (chain=uboot). Same pattern as
 # install-kernel-deb.sh: dpkg -i inside the chroot.
 #
-# The postinst skips the /boot write here (no /boot/boot.bin inside the
+# The postinst skips the /boot/firmware write here (no
+# /boot/firmware/boot.bin inside the
 # chroot — the FAT partition only exists at image-flash time), so this
 # only stages the payload to /usr/lib/web888-boot/. build-image.sh then
 # populates the FAT partition FROM THAT PAYLOAD, making the deb the single

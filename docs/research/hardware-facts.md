@@ -156,9 +156,9 @@ when they conflict.
   Operational lessons kept:
   - **DT deploy lesson**: the running kernel's DT comes from the DTB
     EMBEDDED IN boot.bin (FSBL partition #3, per `bootbin-repack-spec.md`)
-    — `/boot/web888.dtb` on the FAT partition is NOT used by the boot
+    — `/boot/firmware/web888.dtb` on the FAT partition is NOT used by the boot
     flow. Deploy DT changes via `scripts/build-bootbin.sh final` ->
-    replace `/boot/boot.bin` -> reboot. Verify a DT change with
+    replace `/boot/firmware/boot.bin` -> reboot. Verify a DT change with
     `od -A d -t x1 /proc/device-tree/<node>/gpios`, never file timestamps.
   - **`zynqsdr-smoke` is a QEMU-mode binary** — its "FAIL ... (0 under
     QEMU)" messages actually mean the hardware returned correct NONZERO

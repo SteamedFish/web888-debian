@@ -238,7 +238,7 @@ drop `KEEP_VERSIONS` to 3 or 2 in the workflow env. Pages soft bandwidth is
 ## 8. Open items
 
 - **QEMU boot gate for `web888-boot` publish** (research §2.8 caveat 1): the
-  deb postinst overwrites `/boot/boot.bin` on the device; a bad payload
+  deb postinst overwrites `/boot/firmware/boot.bin` on the device; a bad payload
   bricks until physical reflash. A `test-qemu.sh uboot` gate job should pass
   on the exact deb payload before publish (part 2).
 - **Image build workflow** (part 2): debootstrap → add this repo →
