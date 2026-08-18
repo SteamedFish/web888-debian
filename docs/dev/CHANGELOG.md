@@ -31,6 +31,8 @@ this is a hard project rule).
   headroom); start offset stays 1 MiB, FAT32 unchanged; the reclaimed space
   goes to the rootfs. web888-growroot needs no change (partition-number
   based).
+- docs: `building.md` partition description updated for the new layout (and
+  fixed: the image is MBR, not GPT); `AGENTS.md` boot-chain summary updated.
 
 ## [2026-08-18] — web888-websdr: drop broken vendored dumphfdl, use system package
 

@@ -69,7 +69,7 @@ test. Gate the exact image you are about to flash:
 
 | Mode | Command | What it verifies |
 |---|---|---|
-| `uboot` | `scripts/test-qemu.sh uboot` | The real boot flow: QEMU loads `output/u-boot.bin` (U-Boot + appended DTB) at `0x04000000`, U-Boot runs `boot.scr` from the image's FAT partition, which loads zImage+dtb and boots Linux from the ext4 rootfs. Pass = login prompt on the serial log. |
+| `uboot` | `scripts/test-qemu.sh uboot` | The real boot flow: QEMU loads `output/u-boot.bin` (U-Boot + appended DTB) at `0x04000000`, U-Boot runs `boot.scr` from the image's FAT partition, which ext4-loads the kernel via the rootfs `/boot/zImage` symlink (+ dtb from FAT) and boots Linux from the ext4 rootfs. Pass = login prompt on the serial log. |
 | `final` | `scripts/test-qemu.sh final` | Direct-kernel boot of the stub-chain image onto `/dev/mmcblk0p2`. |
 | `test` | `scripts/test-qemu.sh test` | initramfs gate: must print `DEBIAN_ROOTFS_MOUNTED`. |
 
@@ -98,12 +98,14 @@ Everything lands in `output/` (gitignored):
 | `web888-debian-final.img` | `build-image.sh final` | Flashable image, stub chain |
 | `boot-uboot.bin` / `boot-final.bin` | `build-bootbin.sh` | FSBL + U-Boot (or FSBL + stub) — flashed to FAT as `boot.bin` |
 | `u-boot.bin` | `build-uboot.sh` | U-Boot proper with appended DTB; packaged into `boot-uboot.bin`, also what the QEMU gate loads |
-| `zImage` | kernel step | Loaded by `boot.scr` from the FAT partition |
+| `zImage` | kernel step | Feeds the stub chain (embedded in boot.bin) and the QEMU `-kernel` modes; the uboot chain boots the rootfs `/boot/zImage` symlink instead |
 | `web888.dtb` | `build-boot-deb.sh` (write-dtb.sh; inside the web888-boot deb payload) | Loaded by `boot.scr` from the FAT partition |
 | `initramfs.cpio.gz` | `build-initramfs.sh` | Used by the `test` gate |
 
-The card image is GPT: partition 1 = FAT (`/boot`: `boot.bin`, `boot.scr`,
-`uEnv.txt`, `zImage`, `web888.dtb`, `uboot.env`), partition 2 = ext4 rootfs.
+The card image is plain MBR (the Zynq BootROM cannot parse GPT): partition
+1 = FAT firmware (64 MiB, `/boot/firmware`: `boot.bin`, `boot.scr`,
+`uEnv.txt`, `web888.dtb`), partition 2 = ext4 rootfs (kernels in `/boot`,
+`zImage`/`zImage.prev` symlinks managed by the web888-boot kernel hook).
 
 ## Manual per-step builds
 

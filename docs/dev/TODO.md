@@ -143,7 +143,7 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 ## ext4 /boot refactor (drop the FAT zImage copy)
 
-- [ ] Move kernel loading off FAT p1 onto the ext4 rootfs, Armbian-style:
+- [x] Move kernel loading off FAT p1 onto the ext4 rootfs, Armbian-style:
       U-Boot `ext4load`s `/boot/zImage` as a symlink to the installed
       `vmlinuz-<krel>`; FAT keeps only boot.bin/boot.scr/dtb/uEnv
       (RPi-style, mounted at /boot/firmware). The kernel deb payload then
@@ -153,8 +153,11 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       fstab, image layout, QEMU/CI flows, user docs, uEnv semantics;
       requires QEMU + hardware validation. Decided against Debian
       flash-kernel (framework mismatch: uImage/boot.scr-generation
-      conventions do not fit our boot.cmd). Current FAT + copy-hook design
-      (raspi-firmware pattern) stays as the baseline until this lands.
+      conventions do not fit our boot.cmd). **DONE 2026-08-18** (SDD plan
+      Tasks 1-6: boot.cmd, kernel hook, web888-boot postinst, fstab, image
+      layout, docs; QEMU gate + hardware validation are Task 7, still
+      pending). The old FAT + copy-hook design
+      (raspi-firmware pattern) remained the baseline until this landed.
 
 ---
 
