@@ -4,7 +4,7 @@
 0003-state-paths.patch
 0004-update-bitstream-only.patch
 0005-peri-firmware-lookup.patch
-0006-hfdl-libexec-path.patch
+0006-hfdl-system-dumphfdl.patch
 0007-gnu-source-qsort.patch
 0008-stats-missing-sysfs.patch
 0009-gps-no-gpsd-guard.patch

@@ -1,5 +1,7 @@
 build/websdr.bin usr/bin/
-build/externals/dumphfdl/src/dumphfdl usr/lib/web888/
+# vendored externals/dumphfdl binary intentionally NOT installed: its library
+# linkage doesn't match trixie; websdr launches the system dumphfdl package's
+# /usr/bin/dumphfdl instead (patch 0006, hard Depends in control).
 extensions/DRM/FDK-AAC/lib/arm32/libfdk-aac.so.2.0.1 usr/lib/web888/
 debian/web888-websdr-seed-defaults usr/lib/web888/
 debian/root-helpers/web888-netconfig usr/lib/web888/root-helpers/

@@ -1,3 +1,15 @@
+web888-websdr (2026.730-10) UNRELEASED; urgency=medium
+
+  * Stop shipping the vendored dumphfdl at /usr/lib/web888/dumphfdl: its
+    library linkage (built from the externals/ submodule) does not match
+    the Debian trixie runtime, so it cannot run. The system dumphfdl
+    package is already a hard Depends; patch 0006 now launches
+    /usr/bin/dumphfdl instead (renamed 0006-hfdl-system-dumphfdl.patch).
+    The submodule is still compiled (ENABLE_HDFL=ON also gates the HFDL
+    extension itself) but its binary is no longer installed.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Tue, 18 Aug 2026 12:31:57 +0800
+
 web888-websdr (2026.730-9) UNRELEASED; urgency=medium
 
   * Depend on dumphfdl, noip-duc and frpc: the Web-888 feature set

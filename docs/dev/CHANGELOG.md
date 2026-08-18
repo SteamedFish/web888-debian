@@ -9,6 +9,21 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — web888-websdr: drop broken vendored dumphfdl, use system package
+
+### Fixed
+
+- **The vendored dumphfdl shipped at `/usr/lib/web888/dumphfdl` cannot run**:
+  built from the websdr `externals/dumphfdl` submodule, its library linkage
+  does not match the Debian trixie runtime. The system `dumphfdl` package
+  (already a hard `Depends` of web888-websdr since -9) installs a working
+  binary at `/usr/bin/dumphfdl`.
+  - Patch 0006 renamed to `0006-hfdl-system-dumphfdl.patch` and now execs
+    `/usr/bin/dumphfdl` instead of `DIR_LIBEXEC "/dumphfdl"`.
+  - The vendored binary is no longer installed (`debian/install`); the
+    submodule is still compiled because `ENABLE_HDFL` also gates the HFDL
+    extension itself, so it cannot simply be switched off.
+
 ## [2026-08-18] — image build: keep chronyd-restricted / noip-duc / frpc / networkd off (first-boot preset fix)
 
 ### Fixed

@@ -1,6 +1,149 @@
+# Debian-adaptation patches (config/websdr/patches/) — apply first.
 0001-cmake-debian-paths.patch
 0002-main-distro-detect.patch
 0003-state-paths.patch
 0004-update-bitstream-only.patch
 0005-peri-firmware-lookup.patch
-0006-hfdl-libexec-path.patch
+0006-hfdl-system-dumphfdl.patch
+0007-gnu-source-qsort.patch
+0008-stats-missing-sysfs.patch
+0009-gps-no-gpsd-guard.patch
+0010-rlimit-core-tolerant.patch
+0011-cfg-save-no-panic.patch
+0012-wf-engine-decim-rearm.patch
+0013-startup-speedup-log-quiet.patch
+
+# KiwiSDR → Web-888 cherry-picks (config/websdr/cherry-picks/) — apply after the
+# Debian set, i.e. against the Debian-adapted tree. See cherry-picks/PROVENANCE.md
+# and cherry-picks.manifest. Only "applied" candidates are listed here; "pending"
+# entries are added as their patch files land.
+0101-kiwi-remove-chu.patch
+0104-kiwi-ip-parse-security.patch
+0110-kiwi-copyright-url-rename.patch
+0111-kiwi-types-macros.patch
+0113-kiwi-ksplit-parse-numeric.patch
+0114-kiwi-str-helpers.patch
+0117-kiwi-ansi-h-split.patch
+0119-kiwi-ft8-freq-sort.patch
+0120-kiwi-symmetrical-fir-taps.patch
+0121-kiwi-admin-pwd-serno-detection.patch
+0122-kiwi-admin-pwd-serno-popup.patch
+0123-kiwi-inet4-d-valid.patch
+0124-kiwi-bad-api-bot-logging.patch
+0125-kiwi-show-ip-denied.patch
+0126-kiwi-reject-default-latlon.patch
+0128-kiwi-nonblock-cmd-foreach.patch
+0129-kiwi-dx-search-debug.patch
+0130-kiwi-pskreporter-buflen.patch
+0131-kiwi-ft8-vuhf-qo100-freqs.patch
+0132-kiwi-wspr-qo100-band.patch
+0133-kiwi-sstv-r36bw.patch
+0134-kiwi-mode-flags-scan.patch
+0135-kiwi-users-connecting-placeholder.patch
+0136-kiwi-disable-conn-autorun.patch
+0137-kiwi-drm-kick-autorun.patch
+0138-kiwi-wspr-upload-checkbox.patch
+0139-kiwi-wspr-clear-button.patch
+0140-kiwi-photo-upload-crash.patch
+0141-kiwi-utf8-username.patch
+0142-kiwi-timecode-phase-correction.patch
+0143-kiwi-dx-label-mode-sort.patch
+
+# Plan section B feature ports (not cherry-picks — wholesale file adoption
+# with Web-888 deltas re-applied). 0144 switches the whole web layer to
+# mongoose 7.14; everything after it assumes the 7.14 API.
+0144-kiwi-mongoose-7.14-upgrade.patch
+
+# Plan section B.2 feature port: wholesale re-sync of the admin-page stack
+# (web/kiwi/{admin.js,admin.html,w3_util.js,kiwi.css,w3_ext.css} + one-line
+# admin_sdr.js id fix) to KiwiSDR v1.902 with Web-888 deltas re-applied.
+# See cherry-picks/PROVENANCE.md.
+0145-kiwi-admin-resync.patch
+
+# 0146: restore EXT_LIST_JS registration in web.cpp (0144 brought upstream's
+# USE_SDR guard; Web-888's cmake build never defines it -> literal %[EXT_LIST_JS]
+# on admin.html + extension JS no longer loaded on the admin page).
+0146-webcpp-restore-ext-list-js.patch
+
+# 0147: cherry-pick KiwiSDR f98b3779 (post-v1.902) — remove FAX extension's
+# server-side recording (fixed, world-downloadable /root/samples/fax.chN.pgm
+# info leak) in favor of a browser-side Save button (canvas JPEG download).
+0147-kiwi-fax-recording-info-leak.patch
+
+# 0148: Web-888-local mongoose fix — epoll EPOLLERR on a gracefully-closing
+# peer (admin websocket navigating away) no longer takes the mg_error
+# hard-close path; SO_ERROR is checked first (sdrpp_server precedent).
+# Background: docs/dev/mongoose-websocket-socket-error-investigation.md.
+0148-mongoose-epollerr-graceful-close.patch
+
+# 0149: KiwiSDR rx_snr SNR framework port (plan doc step B.4) — imports
+# rx/rx_snr.{h,cpp} wholesale (adapted: no ant_switch coupling, MAX_ZOOM,
+# scheduler differences), full admin.js SNR options UI (custom intervals,
+# custom band, ham/BCB, measure-now spinner) and kiwi.js snr_stats MSG
+# handling. Replaces the hourly-only SNR block in rx_util.
+0149-kiwi-rx-snr-port.patch
+
+# Step 3.5 Debian compatibility fixes.
+# These apply AFTER the cherry-picks: 0104 rewrites admin.cpp's DNS block
+# (inet4_d2h_strict) in the same region 0014 touches — applying 0014 first
+# would break 0104's context. Contexts here match the cherry-picked tree.
+0014-network-interfaces-writer.patch
+0015-sudo-poweroff.patch
+0016-chpasswd-guard.patch
+
+# Bundle Leaflet locally (web/pkgs_maps/leaflet/) instead of unpkg.com CDN.
+0017-bundle-leaflet.patch
+
+# Antenna-switch SNR re-measure (0150): adapted from KiwiSDR's SET antsw_snr
+# handler — re-wakes the SNR measurement task after a server-side antenna
+# change so the admin SNR page reflects the newly selected antenna.
+# Verified with -F 0 against the full post-0017 series tree.
+0150-antenna-switch-snr-remeasure.patch
+
+# 0018: admin console spawns "/bin/bash --login" instead of "/bin/sh --login"
+# — Debian's /bin/sh is dash, which rejects --login ("Illegal option --") and
+# killed the console immediately after "CONSOLE: open connection".
+0018-admin-console-bash.patch
+
+# 0019: admin console "enable hotspot" button — guard stock-only
+# /root/wifi/hotspot.sh with test -x so the button prints a clear message
+# instead of "not found" on Debian.
+0019-admin-console-buttons-debian.patch
+
+# Websocket frame corruption fix (0151): the 0144 mongoose 7.14 upgrade
+# dropped the old global mongoose_lock, and this port runs every kiwi task as
+# a real pthread (support/coroutines.cpp) — send_msg*() from task threads
+# raced the web server task's poll-side socket write on mc->send, producing
+# malformed frames (zeroed/misaligned headers) and probabilistic /admin
+# disconnects. Routes send_msg_buf()/send_msg_mc() through the locked s2c
+# nbuf queue so only the poll thread calls mg_ws_send().
+# Verified with -F 0 against the full post-0019 series tree.
+0151-websocket-send-via-s2c-queue.patch
+# Websocket control messages must not be dropped (0152): 0151 routed
+# send_msg*() through the s2c nbuf queue whose stream-data watermarks
+# (ND_HIWAT=64 ovfl latch) silently dropped the /admin startup burst's
+# ext_call extension-config messages -> Extensions tab lost all extensions
+# except ant_switch. Adds nbuf_allocq_critical() (bypasses ovfl, pathological
+# 1024-entry cap only) used by send_msg_buf()/send_msg_mc(); stream audio/WF
+# data keeps the original drop behaviour.
+# Verified with -F 0 against the full post-0151 series tree.
+0152-websocket-control-msgs-no-drop.patch
+
+# 0020: kiwi_str_encode (support/str.cpp) — mongoose mg_url_encode() does
+# NOT percent-encode '%' itself, so console output containing '%' (e.g.
+# ping's "0% packet loss") went onto the websocket with a raw '%' and broke
+# the client's decodeURIComponent. Expand '%' -> '%25' after mg_url_encode.
+0020-encode-percent-in-kiwi-str-encode.patch
+
+# 0021: kiwi_decodeURIComponent (web/kiwi/kiwi_util.js) — the recovery loop
+# that strips invalid %xx sequences only set double_fail when it actually
+# removed something; a payload whose only flaw was a bare '%' (from the
+# 0020 bug) removed nothing and the while(obj==null) loop spun forever,
+# freezing the browser tab at 100% CPU. Track a `removed` flag and force
+# double_fail when nothing was removed.
+0021-decodeURIComponent-infinite-loop.patch
+
+# console_c2w text is decoded once by kiwi_output_chars(); admin.console did not
+# set no_decode, so kiwi_output_msg() decodeURIComponent()d it again and failed on
+# shell output containing % (df "43%", ping "0%"). Set no_decode: true.
+0022-console-no-double-decode.patch
