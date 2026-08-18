@@ -25,8 +25,7 @@ this is a hard project rule).
   longer reads `output/zImage`; the image build asserts the rootfs
   `/boot/zImage` symlink exists (kernel hook ran in the chroot).
 - fstab: FAT p1 mounts at `/boot/firmware`; kernels live in the rootfs
-  `/boot`. Partition geometry unchanged (p1 stays 128 MiB), so
-  web888-growroot is untouched.
+  `/boot`. web888-growroot is untouched.
 - FAT partition shrunk 128→64 MiB (firmware-only payload ≈3 MB, >10×
   headroom); start offset stays 1 MiB, FAT32 unchanged; the reclaimed space
   goes to the rootfs. web888-growroot needs no change (partition-number
