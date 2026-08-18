@@ -161,7 +161,7 @@ systemctl enable avahi-daemon.service avahi-daemon.socket
 systemctl enable gpsd.socket gpsd.service
 systemctl enable chrony.service
 
-# Units that must stay off (rationale in the 99-web888.preset written below):
+# Units that must stay off (rationale in the 80-web888.preset written below):
 #   chronyd-restricted.service        — Conflicts=chronyd.service (alias of
 #                                       chrony.service): when it wins the boot
 #                                       race chrony never runs and NTP is dead.
@@ -185,9 +185,14 @@ systemctl disable systemd-networkd.service systemd-networkd-wait-online.service 
 # (machine-id(5) "First Boot Semantics") with default policy = enable: every
 # unit with an [Install] section gets force-enabled — that is how a fresh
 # flash ended up with chronyd-restricted, chrony-wait, noip-duc, frpc and
-# networkd enabled even though the build only enabled chrony.service. This
-# file sorts after /usr/lib/systemd/system-preset/90-systemd.preset, so these
-# disable lines also override Debian's enable lines for networkd.
+# networkd enabled even though the build only enabled chrony.service.
+# Preset semantics (systemd.preset(5)): files apply in lexicographic order
+# and the FIRST matching line wins. /usr/lib/systemd/system-preset/
+# 90-systemd.preset carries `enable systemd-networkd.service` and
+# `enable systemd-networkd-wait-online.service`, so this file MUST sort
+# before it — hence 80-. (9f31df3 shipped this as 99-web888.preset on the
+# backwards assumption that later files override; 90 won and a fresh flash
+# still booted with networkd + wait-online enabled.)
 #   chronyd-restricted / systemd-networkd / systemd-networkd-wait-online:
 #     see the in-chroot disables above.
 #   noip-duc.service / frpc.service: pulled in by the web888-websdr Depends;
@@ -195,7 +200,8 @@ systemctl disable systemd-networkd.service systemd-networkd-wait-online.service 
 #     guaranteed start failure (frpc crash-loops on RestartSec=5s). Users who
 #     configure them can `systemctl enable --now noip-duc` / `frpc`.
 sudo mkdir -p "$ROOTFS/etc/systemd/system-preset"
-sudo tee "$ROOTFS/etc/systemd/system-preset/99-web888.preset" >/dev/null <<'PRESET'
+sudo rm -f "$ROOTFS/etc/systemd/system-preset/99-web888.preset"
+sudo tee "$ROOTFS/etc/systemd/system-preset/80-web888.preset" >/dev/null <<'PRESET'
 disable chronyd-restricted.service
 disable noip-duc.service
 disable frpc.service

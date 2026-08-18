@@ -9,6 +9,32 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — image build: rename first-boot preset to 80-web888.preset (networkd fix, take 2)
+
+### Fixed
+- **Preset ordering made the networkd disable a no-op**
+  (`scripts/configure-rootfs.sh`): the first-boot preset policy shipped
+  earlier today as `/etc/systemd/system-preset/99-web888.preset` on the
+  assumption that a lexicographically later file overrides
+  `90-systemd.preset`. systemd applies preset files in lexicographic order
+  and the FIRST matching line wins (systemd.preset(5)), so
+  `90-systemd.preset`'s `enable systemd-networkd.service` /
+  `enable systemd-networkd-wait-online.service` lines beat the 99- file and
+  a fresh flash still booted with networkd enabled (wait-online stalled ~2
+  min then failed; confirmed on hardware — the enablement symlinks carry the
+  systemd deb's build-date mtime, minted by the first-boot preset pass while
+  the clock sits at TIME_EPOCH). Renamed to `80-web888.preset` so the
+  disable lines match first; verified with a `systemctl --root` scratch
+  experiment (90-enable + 99-disable → unit enabled; 90-enable + 80-disable
+  → not enabled). The in-chroot `systemctl disable` calls stay as a guard
+  but were always a no-op — the networkd symlinks are minted by the
+  first-boot preset pass on device, never during the build.
+- **QEMU regression check now asserts** (`scripts/qemu-verify-step35.sh`):
+  the "unwanted units disabled" check only printed `is-enabled` states
+  (`|| true`), so the ordering bug above passed the gate; the check now
+  fails when any of the five units (chronyd-restricted, noip-duc, frpc,
+  systemd-networkd, systemd-networkd-wait-online) reports `enabled`.
+
 ## [2026-08-18] — ci: heal /boot/zImage repo skew, dedup build-image triggers
 
 ### Fixed

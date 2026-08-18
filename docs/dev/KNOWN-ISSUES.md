@@ -125,8 +125,13 @@ the image ships an empty `/etc/machine-id`, so systemd's first-boot preset
 pass force-enables every unit with an `[Install]` section regardless of what
 the build enabled. Fixed in
 `scripts/configure-rootfs.sh` (in-chroot disables +
-`/etc/systemd/system-preset/99-web888.preset`), `install-debs-apt.sh` and
+`/etc/systemd/system-preset/80-web888.preset`), `install-debs-apt.sh` and
 `install-websdr.sh` (noip-duc + frpc disables) with a QEMU regression check
-in `scripts/qemu-verify-step35.sh` — see the 2026-08-18 CHANGELOG entry.
-Remove this section once a rebuilt image is flashed and
+in `scripts/qemu-verify-step35.sh` — see the 2026-08-18 CHANGELOG entries.
+Follow-up same day: the preset was first shipped as `99-web888.preset`, but
+systemd applies presets in lexicographic order with first match winning, so
+`90-systemd.preset`'s `enable systemd-networkd{,-wait-online}` still beat it
+and a fresh flash kept networkd enabled; renamed to `80-web888.preset` and
+the QEMU check now asserts (any of the five printing `enabled` fails the
+gate). Remove this section once a rebuilt image is flashed and
 `systemctl --failed` comes back empty.

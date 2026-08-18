@@ -66,7 +66,7 @@ sudo -n chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
 # noip-duc + frpc (web888-websdr Depends) postinsts self-enable, but both
 # packages are unconfigured (no /etc/default/noip-duc, no frpc.ini) →
 # guaranteed start failure on every boot (frpc crash-loops on RestartSec=5s).
-# Disable here; configure-rootfs.sh's 99-web888.preset keeps them off across
+# Disable here; configure-rootfs.sh's 80-web888.preset keeps them off across
 # the first-boot preset pass. Users who configure them can re-enable.
 sudo -n chroot "$ROOTFS" /usr/bin/systemctl disable noip-duc.service frpc.service 2>/dev/null || true
 
