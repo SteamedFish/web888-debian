@@ -9,6 +9,31 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — ci: heal /boot/zImage repo skew, dedup build-image triggers
+
+### Fixed
+- **CI bootstrap deadlock** (`scripts/install-debs-apt.sh`): the ext4 /boot
+  refactor made the apt-mode installer verify the `/boot/zImage` symlink,
+  but the published APT repo still carried pre-hook `web888-boot
+  2026.07-2+ci17` (whose chroot hook was a deliberate no-op). The
+  build-boot-deb smoke gate builds its baseline from the PUBLISHED repo, so
+  it could never pass with the old deb — and the fixed deb could never be
+  published. build-boot-deb #18 and build-image #17/#18 all failed with
+  `FATAL: /boot/zImage symlink missing`. The installer now heals the link
+  (runs the shipped hook if present, else creates it directly) with a loud
+  WARNING before verifying — a heal needed with a current repo deb still
+  signals a hook regression in the log.
+- **Smoke gate strictness** (`scripts/ci/qemu-smoke-deb.sh`): the
+  web888-boot recipe now force-recreates `/boot/zImage` via the deb's own
+  `zz-web888-zimage` hook after deleting it, so a broken hook in the deb
+  under test cannot hide behind the installer heal.
+
+### Changed
+- `build-image.yml` concurrency now cancels in-progress runs: a push that
+  touches the image machinery and a `debs-published` dispatch commonly fire
+  for the same master sha (observed: #17 push + #18 dispatch built identical
+  inputs back-to-back), and the newer run sees an equal-or-newer APT repo.
+
 ## [2026-08-18] — websdr: backfill manifest/PROVENANCE docs for patches 0151/0152
 
 ### Fixed

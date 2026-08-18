@@ -82,6 +82,19 @@ case $PKG in
                 [[ -s /usr/lib/web888-boot/$f ]] || { echo "FATAL: /usr/lib/web888-boot/$f missing" >&2; exit 1; }
             done
         '
+        # Hook contract: uboot-mode boot.scr ext4-loads the rootfs
+        # /boot/zImage, which this deb's kernel hook (or its postinst
+        # fallback) must (re)create. Force a recreate from scratch — the
+        # baseline was built via install-debs-apt.sh, which HEALS a missing
+        # link, so without this a broken hook in the deb under test would
+        # hide behind the heal and sail through the gate.
+        sudo -n chroot "$ROOTFS" bash -c '
+            rm -f /boot/zImage
+            latest=$(ls -1v /boot/vmlinuz-* | tail -1)
+            [[ -n $latest ]] || { echo "FATAL: no /boot/vmlinuz-* to hook against" >&2; exit 1; }
+            /etc/kernel/postinst.d/zz-web888-zimage "${latest#/boot/vmlinuz-}" "$latest"
+            [[ -L /boot/zImage ]] || { echo "FATAL: zz-web888-zimage did not recreate /boot/zImage" >&2; exit 1; }
+        '
         # U-Boot for the QEMU gate loader (build-image.sh takes the rest of
         # the FAT payload straight from the rootfs).
         echo "==> export output/u-boot.bin from the deb payload"

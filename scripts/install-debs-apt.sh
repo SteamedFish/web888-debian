@@ -94,6 +94,29 @@ sudo -n chroot "$ROOTFS" bash -c '
     done
 '
 
+echo "==> ensure: /boot/zImage symlink exists (heal repo/deb skew)"
+# The link is normally created during the apt install above by web888-boot's
+# kernel hook (or its postinst fallback). Heal it when the APT repo still
+# carries a pre-hook web888-boot: without this, a hook/layout change in
+# web888-boot is a bootstrap deadlock — the build-boot-deb smoke gate builds
+# its baseline from the PUBLISHED repo, so a verify-only check can never
+# pass with the old deb, and the fixed deb can never be published (observed
+# 2026-08-18: ci17 predated the hook; build-boot-deb #18 + build-image
+# #17/#18 all red until the deb could be published). The image builder owns
+# the final rootfs state, and build-image.sh uboot mode cannot assemble
+# without the link. A heal is logged loudly: with a current web888-boot in
+# the repo, needing one IS a hook regression.
+sudo -n chroot "$ROOTFS" bash -c "
+    if [[ ! -L /boot/zImage && -f /boot/vmlinuz-$KREL ]]; then
+        echo 'WARNING: /boot/zImage missing after deb install — healing (repo web888-boot predates the kernel hook?)' >&2
+        if [[ -x /etc/kernel/postinst.d/zz-web888-zimage ]]; then
+            /etc/kernel/postinst.d/zz-web888-zimage $KREL /boot/vmlinuz-$KREL
+        else
+            ln -sfn vmlinuz-$KREL /boot/zImage
+        fi
+    fi
+"
+
 echo "==> verify: /boot/zImage symlink (kernel hook ran in chroot)"
 sudo -n chroot "$ROOTFS" bash -c "
     [[ -L /boot/zImage ]] || { echo 'FATAL: /boot/zImage symlink missing (web888-boot kernel hook did not run)' >&2; exit 1; }

@@ -48,9 +48,14 @@ permissions:
 
 # One running + one pending build at most: each build installs the latest
 # debs at start time, so a superseded pending run would produce nothing new.
+# cancel-in-progress: a push that changes the image machinery AND a
+# debs-published dispatch commonly fire for the same master sha (observed
+# 2026-08-18: #17 push + #18 dispatch built identical inputs back-to-back);
+# the newer run sees an equal-or-newer APT repo, so the older one is pure
+# waste — cancel it.
 concurrency:
   group: image-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   DEBIAN_MIRROR: https://cdn-aws.deb.debian.org/debian
