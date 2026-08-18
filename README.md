@@ -66,7 +66,7 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
   items tracked in `docs/dev/TODO.md`
 - **Bootloader shipped as a deb** (`web888-boot`) — FSBL + U-Boot + boot.scr /
   uEnv.txt payload staged in the image; on-device upgrades are one
-  `apt install` (postinst writes the vfat /boot with a one-shot `.bak`,
+  `apt install` (postinst writes the vfat /boot/firmware with a one-shot `.bak`,
   sync-word validation, and leaves uEnv.txt alone)
 - **CI-built APT repository** — GitHub Actions builds every deb (kernel,
   WebSDR, Red Pitaya, web888-boot, plus dumphfdl / noip-duc / frpc) on

@@ -95,9 +95,9 @@ regression"). Checklist, cheapest first:
    correct NONZERO values. Do not trust it as a hardware health check; use
    `rx-matrix`/`rx-dump`.
 5. **Stale DT after a DT change:** the running device tree comes from the
-   DTB **embedded in boot.bin**, not `/boot/web888.dtb`. If you changed
+   DTB **embedded in boot.bin**, not `/boot/firmware/web888.dtb`. If you changed
    `config/web888.dts` and just copied the .dtb file, nothing took effect.
-   Deploy via `scripts/build-bootbin.sh final` → replace `/boot/boot.bin`
+   Deploy via `scripts/build-bootbin.sh final` → replace `/boot/firmware/boot.bin`
    → reboot. Verify with `od -A d -t x1 /proc/device-tree/<node>/gpios`.
 6. **Partial FPGA wedge** (RX ring static while the waterfall ring stays
    live): only a full PL reconfiguration clears it — `web888-mode stop`

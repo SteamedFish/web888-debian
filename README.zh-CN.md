@@ -58,7 +58,7 @@ English documentation: [README.md](README.md).
   `docs/dev/TODO.md`
 - **Bootloader 以 deb 形式发布**（`web888-boot`）—— FSBL + U-Boot +
   boot.scr/uEnv.txt payload 随镜像预置；设备上升级只需一次 `apt install`
-  （postinst 带一次性 `.bak` 备份与 sync-word 校验写入 vfat /boot，不触碰
+  （postinst 带一次性 `.bak` 备份与 sync-word 校验写入 vfat /boot/firmware，不触碰
   uEnv.txt）
 - **CI 构建的 APT 仓库** —— GitHub Actions 在相关源码变更的推送时构建全部
   deb（内核、WebSDR、Red Pitaya、web888-boot，以及 dumphfdl / noip-duc /

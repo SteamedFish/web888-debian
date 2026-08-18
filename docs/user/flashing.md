@@ -93,8 +93,8 @@ You normally do **not** re-flash for software updates:
   `dpkg -i` (see `usage.md`).
 - Kernel: follow `../dev/kernel-update-sop.md` (host-built pinned deb).
 - Device-tree changes: the running DT comes from the DTB **embedded in
-  boot.bin**, not from `/boot/web888.dtb` — rebuild with
-  `scripts/build-bootbin.sh uboot`, replace `/boot/boot.bin` on the FAT
+  boot.bin**, not from `/boot/firmware/web888.dtb` — rebuild with
+  `scripts/build-bootbin.sh uboot`, replace `/boot/firmware/boot.bin` on the FAT
   partition, reboot (see `../research/hardware-facts.md`, "DT deploy
   lesson").
 
