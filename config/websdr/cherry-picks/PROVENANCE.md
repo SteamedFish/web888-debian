@@ -488,6 +488,42 @@ patches (0104) — only reports drift on those.
   `scripts/test-websocket-frames.py` (previously reproduced corruption in
   ~5 s) plus an admin-page browser soak.
 
+## 0152-websocket-control-msgs-no-drop.patch
+
+- **Upstream:** none — Web-888-local fix on top of 0151. Upstream KiwiSDR
+  never routes websocket control messages through the s2c nbuf queue (its
+  unlocked direct `mg_ws_send()` is safe on the non-parallel BeagleBone
+  coroutines), so there is nothing to cherry-pick; the bug only exists
+  because 0151 put control traffic onto a queue whose watermarks were
+  designed for stream data.
+- **Why:** 0151 routed `send_msg_buf()`/`send_msg_mc()` through the locked
+  s2c nbuf queue to fix cross-thread frame corruption, but that queue's
+  stream-data watermarks (`ND_HIWAT=64`, ovfl latch until `< ND_LOWAT=32`)
+  exist for audio/waterfall data where dropping under backpressure is
+  correct — they silently dropped *control messages* too. The /admin
+  startup burst (`load_cfg`/`load_dxcfg`/`load_dxcomm_cfg`/`load_adm` +
+  ~170 `log_msg` frames + 25 `ext_call` extension-config messages, one
+  queue entry each) exceeds 64 outstanding entries whenever the mongoose
+  poll thread drains slower than the task threads produce;
+  `nbuf_enqueue()` then latches `nd->ovfl` and `nbuf_allocq()` frees the
+  message, so the client never receives its `ext_call` burst and the admin
+  Extensions tab renders nothing (except ant_switch, which registers its
+  admin config independently). Reproduced live on device (2026.730-7): one
+  /admin load received all 25 `ADM ext_call=...` frames, the next load
+  received zero (plus zero `extint_list_json`) while ~170 `log_msg` frames
+  on the same connection still flowed — a drain-rate race, hence the
+  per-page-load nondeterminism.
+- **What it does:** adds `nbuf_allocq_critical()`, which bypasses the ovfl
+  latch and only drops past a pathological `ND_CRIT_HIWAT=1024` cap —
+  loudly, via `lprintf`, since tripping it would signal a wedged
+  connection rather than normal load. `send_msg_buf()`/`send_msg_mc()`
+  use the critical variant. `nbuf_allocq()` stays as-is for stream data,
+  so audio/waterfall backpressure behaviour is unchanged.
+- **Scope:** 3 files (`net/nbuf.cpp`, `net/nbuf.h`, `support/misc.cpp`).
+- **Verification:** live reproduction on device documented above; the
+  patch ships in the 01xx series (position-independent against the
+  surrounding entries).
+
 ## 0153-admin-status-poll-unknown-cmd-noise.patch
 
 - **Upstream:** none — Web-888-local fix (RaspSDR's server does not

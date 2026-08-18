@@ -9,6 +9,19 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-18] — websdr: backfill manifest/PROVENANCE docs for patches 0151/0152
+
+### Fixed
+- `config/websdr/cherry-picks.manifest` was missing the `applied` lines for
+  0151 (websocket sends via the s2c queue) and 0152 (control messages survive
+  s2c queue overflow), and `cherry-picks/PROVENANCE.md` was missing the 0152
+  section (0151's section existed). Documentation-only gap — both patches
+  were always built and applied, since `debian-patches-series` (copied to
+  `debian/patches/series` at build time) is the authoritative apply list, not
+  the manifest. Backfilled both manifest lines with the upstream-status
+  column (`none (Web-888 local fix)`) and full root-cause descriptions, plus
+  a complete PROVENANCE entry for 0152.
+
 ## [2026-08-18] — websdr: silence the admin status-tab 1 Hz "unknown command" spam
 
 ### Fixed
