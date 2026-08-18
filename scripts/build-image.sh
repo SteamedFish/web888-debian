@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # build-image.sh — assemble the card image.
-# Layout: p1 = 128 MiB FAT32 boot (boot.bin + zImage + web888.dtb),
+# Layout: p1 = 64 MiB FAT32 firmware (boot.bin + boot.scr + uEnv.txt +
+#         web888.dtb; the kernel lives in the rootfs /boot),
 #         p2 = ext4 rootfs (contents of work/rootfs/).
 # Partition table is plain MBR (msdos), NOT GPT: the Zynq-7000 BootROM finds
 # BOOT.BIN by parsing the MBR partition table and does NOT understand GPT —
@@ -13,9 +14,9 @@
 #           web888.dtb (no-bootargs variant — bootargs live in boot.scr,
 #           NOT the dtb) taken from the web888-boot deb payload installed
 #           in the rootfs (work/rootfs/usr/lib/web888-boot/ — the deb is
-#           the single source of truth for the bootloader), plus
-#           zImage, plus zImage.prev when output/zImage.prev is present
-#           (fallback).
+#           the single source of truth for the bootloader). The kernel is
+#           NOT on the FAT: boot.scr ext4-loads /boot/zImage (a symlink
+#           into the kernel deb payload) from the rootfs partition.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -23,9 +24,9 @@ MODE="${1:-test}"
 IMG=output/web888-debian-${MODE}.img
 # The card's real capacity comes from web888-growroot at first boot, so the
 # image only has to hold the payload: cleaned rootfs is ~540 MB (2026-08)
-# + 128 MiB FAT, leaving ~350 MB headroom at 1024. Smaller image = less dd
+# + 64 MiB FAT, leaving ~420 MB headroom at 1024. Smaller image = less dd
 # time on flash and a smaller .img.xz release asset. Grow the payload past
-# ~850 MB and this must go up.
+# ~900 MB and this must go up.
 SIZE_MB=1024
 
 [[ $MODE == test || $MODE == final || $MODE == uboot ]] || { echo "usage: $0 [test|final|uboot]" >&2; exit 1; }
@@ -33,7 +34,11 @@ SIZE_MB=1024
 DTB=output/web888.dtb
 [[ $MODE == test ]] && DTB=output/web888-test.dtb
 
-[[ -f output/zImage ]] || { echo "Error: missing output/zImage (kernel build, or install-debs-apt.sh export)" >&2; exit 1; }
+# output/zImage only feeds the stub chain (embedded into boot.bin) and the
+# QEMU -kernel modes — uboot mode boots the rootfs /boot/zImage instead.
+if [[ $MODE != uboot ]]; then
+    [[ -f output/zImage ]] || { echo "Error: missing output/zImage (kernel build, or install-debs-apt.sh export)" >&2; exit 1; }
+fi
 # uboot mode never reads output/boot-uboot.bin (the FAT boot.bin comes from
 # the deb payload below), so only test/final require output/boot-$MODE.bin.
 if [[ $MODE != uboot ]]; then
@@ -60,6 +65,10 @@ fi
 [[ -d work/rootfs/etc ]] || { echo "Error: work/rootfs not populated (run configure-rootfs.sh)" >&2; exit 1; }
 
 if [[ $MODE == uboot ]]; then
+    [[ -L work/rootfs/boot/zImage ]] || { echo "Error: work/rootfs/boot/zImage symlink missing (kernel hook did not run in chroot)" >&2; exit 1; }
+fi
+
+if [[ $MODE == uboot ]]; then
     # dtb WITHOUT bootargs (boot.scr supplies them) ships in the web888-boot
     # deb payload — use it verbatim (identical bits to what an on-device apt
     # upgrade installs) instead of recompiling against a kernel source tree.
@@ -71,8 +80,8 @@ fi
 dd if=/dev/zero of="$IMG" bs=1M count="$SIZE_MB" status=none
 parted --script "$IMG" \
     mklabel msdos \
-    mkpart primary fat32 1MiB 129MiB \
-    mkpart primary ext4 129MiB 100% \
+    mkpart primary fat32 1MiB 65MiB \
+    mkpart primary ext4 65MiB 100% \
     set 1 boot on
 
 LOOP=$(sudo -n losetup --find --show --partscan "$IMG")
@@ -104,11 +113,12 @@ if [[ $MODE == uboot ]]; then
     sudo -n cp "$PAYLOAD/boot.bin" "$MNT/boot.bin"
     sudo -n cp "$PAYLOAD/boot.scr" "$MNT/boot.scr"
     sudo -n cp "$PAYLOAD/uEnv.txt" "$MNT/uEnv.txt"
-    [[ -f output/zImage.prev ]] && sudo -n cp output/zImage.prev "$MNT/zImage.prev" || true
-else
+    else
     sudo -n cp "output/boot-${MODE}.bin" "$MNT/boot.bin"
+    # Stub chain embeds kernel+dtb inside boot.bin; the FAT zImage copy is
+    # vestigial but kept for manual recovery with a stock bootloader.
+    sudo -n cp output/zImage "$MNT/zImage"
 fi
-sudo -n cp output/zImage "$MNT/zImage"
 sudo -n cp "$DTB" "$MNT/web888.dtb"
 sudo -n umount "$MNT"
 

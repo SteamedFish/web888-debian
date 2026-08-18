@@ -21,6 +21,13 @@ this is a hard project rule).
 - `web888-boot` postinst: payload installs to `/boot/firmware`; old-layout
   devices fail the guards and no-op safely; a kernel-hook fallback covers
   the chroot install order. web888-boot deb bumped to 2026.07-3.
+- `build-image.sh` / `install-debs-apt.sh` / `test-qemu.sh`: uboot mode no
+  longer reads `output/zImage`; the image build asserts the rootfs
+  `/boot/zImage` symlink exists (kernel hook ran in the chroot).
+- FAT partition shrunk 128→64 MiB (firmware-only payload ≈3 MB, >10×
+  headroom); start offset stays 1 MiB, FAT32 unchanged; the reclaimed space
+  goes to the rootfs. web888-growroot needs no change (partition-number
+  based).
 
 ## [2026-08-18] — web888-websdr: drop broken vendored dumphfdl, use system package
 

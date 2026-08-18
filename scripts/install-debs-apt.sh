@@ -11,7 +11,9 @@
 #                          /boot write is skipped inside the chroot)
 #
 # Also exports the two output/ artifacts downstream steps consume:
-#   output/zImage     <- rootfs /boot/vmlinuz-<krel> (FAT copy, test-qemu.sh)
+#   output/zImage     <- rootfs /boot/vmlinuz-<krel> (stub chain + QEMU
+#                        -kernel modes only; the uboot chain boots the
+#                        rootfs /boot/zImage symlink instead)
 #   output/u-boot.bin <- boot payload (test-qemu.sh uboot gate loader)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -91,6 +93,13 @@ sudo -n chroot "$ROOTFS" bash -c '
         [[ -s /usr/lib/web888-boot/$f ]] || { echo "FATAL: /usr/lib/web888-boot/$f missing" >&2; exit 1; }
     done
 '
+
+echo "==> verify: /boot/zImage symlink (kernel hook ran in chroot)"
+sudo -n chroot "$ROOTFS" bash -c "
+    [[ -L /boot/zImage ]] || { echo 'FATAL: /boot/zImage symlink missing (web888-boot kernel hook did not run)' >&2; exit 1; }
+    target=\$(readlink /boot/zImage)
+    [[ \$target == vmlinuz-$KREL ]] || { echo \"FATAL: /boot/zImage -> \$target, expected vmlinuz-$KREL\" >&2; exit 1; }
+"
 
 echo "==> export output/ artifacts for build-image.sh / test-qemu.sh"
 mkdir --parents output

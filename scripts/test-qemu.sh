@@ -6,7 +6,8 @@
 #   test  — -initrd initramfs gate: must print DEBIAN_ROOTFS_MOUNTED and exec
 #   final — direct ext4 boot: must reach a login prompt on /dev/mmcblk0p2
 #   uboot — real-flow gate: QEMU direct-boots the U-Boot ELF, U-Boot runs
-#           boot.scr from the image FAT which loads zImage+dtb; must reach a
+#           boot.scr from the image FAT which ext4-loads the kernel via the
+#           rootfs /boot/zImage symlink (+ dtb from FAT); must reach a
 #           login prompt on the serial log (no ssh hostfwd: eth0 can't probe
 #           under QEMU — phy@1 mismatch, no 24c64 for the MAC either)
 set -euo pipefail
@@ -18,10 +19,17 @@ DTB=output/web888.dtb
 [[ $MODE == test ]] && DTB=output/web888-test.dtb
 
 [[ $MODE == test || $MODE == final || $MODE == uboot ]] || { echo "usage: $0 [test|final|uboot]" >&2; exit 1; }
-for f in "$IMG" output/zImage "$DTB"; do
-    [[ -f $f ]] || { echo "Error: missing $f (run build-image.sh $MODE first)" >&2; exit 1; }
-done
-[[ $MODE != uboot || -f output/u-boot.bin ]] || { echo "Error: output/u-boot.bin missing (run build-uboot.sh)" >&2; exit 1; }
+# uboot mode boots everything from the image itself (the kernel comes from
+# the rootfs /boot inside it); test/final still direct-boot output/zImage.
+if [[ $MODE == uboot ]]; then
+    for f in "$IMG" output/u-boot.bin; do
+        [[ -f $f ]] || { echo "Error: missing $f (run build-image.sh uboot / build-uboot.sh first)" >&2; exit 1; }
+    done
+else
+    for f in "$IMG" output/zImage "$DTB"; do
+        [[ -f $f ]] || { echo "Error: missing $f (run build-image.sh $MODE first)" >&2; exit 1; }
+    done
+fi
 
 # QEMU's cadence_gem PHY is fixed at MDIO address 7 and emulates no 24c64
 # EEPROM on i2c0 — so the production DTB can never probe eth0 under QEMU
