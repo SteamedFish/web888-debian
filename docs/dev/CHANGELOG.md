@@ -15,6 +15,9 @@ this is a hard project rule).
 - `config/u-boot/boot.cmd`: the kernel is now ext4-loaded from the rootfs
   partition (`/boot/zImage` symlink, fallback `/boot/zImage.prev`); dtb,
   boot.scr and uEnv.txt stay on FAT p1, which mounts at `/boot/firmware`.
+- `zz-web888-zimage` hook: manages the `/boot/zImage` + `/boot/zImage.prev`
+  symlinks instead of copying the kernel onto FAT — no copy seam, no brick
+  guard needed, and the hook now runs correctly inside the build chroot.
 
 ## [2026-08-18] — web888-websdr: drop broken vendored dumphfdl, use system package
 
