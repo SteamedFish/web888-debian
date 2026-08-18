@@ -15,6 +15,9 @@ name: build-kernel-deb
 on:
   push:
     branches: [master]
+    # Mirrored in scripts/ci/deb-trigger-paths.txt (build-image.yml preflight
+    # skips push-triggered image builds when a push hits these paths) -
+    # keep in sync when adding/removing paths.
     paths:
       - 'scripts/build-kernel-6.12.sh'
       - 'config/kernel/**'

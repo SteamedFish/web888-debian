@@ -29,10 +29,19 @@ this is a hard project rule).
   under test cannot hide behind the installer heal.
 
 ### Changed
-- `build-image.yml` concurrency now cancels in-progress runs: a push that
-  touches the image machinery and a `debs-published` dispatch commonly fire
-  for the same master sha (observed: #17 push + #18 dispatch built identical
-  inputs back-to-back), and the newer run sees an equal-or-newer APT repo.
+- **build-image trigger logic** (`.github/workflows/build-image.yml`): a
+  push-triggered run now checks whether the push also matches any deb-publishing
+  workflow's paths (union mirrored in `scripts/ci/deb-trigger-paths.txt`, matched
+  by `scripts/ci/matches-deb-triggers.sh`); if so the image build is skipped
+  and the deb publishers' `debs-published` dispatch runs it instead, against
+  debs that actually include the push. Previously the push-triggered run built
+  against the PRE-push repo and raced the dispatch-triggered run (observed:
+  #17 push + #18 dispatch for the same sha, both red because the repo deb
+  predated the scripts). Dispatch and manual runs are unaffected;
+  `workflow_dispatch` is the recovery path when a deb workflow self-skips on
+  an unchanged inputs hash. Concurrency now also cancels in-progress runs.
+  The paths union is manually mirrored — a comment above each deb workflow's
+  `paths:` block warns to keep them in sync.
 
 ## [2026-08-18] — websdr: backfill manifest/PROVENANCE docs for patches 0151/0152
 

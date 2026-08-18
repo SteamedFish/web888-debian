@@ -1,0 +1,74 @@
+# Union of the push.paths of every deb-publishing workflow:
+#   build-boot-deb.yml, build-kernel-deb.yml, build-redpitaya-deb.yml,
+#   build-websdr-deb.yml, build-thirdparty-debs.yml
+#
+# Consumed by build-image.yml's preflight job via matches-deb-triggers.sh:
+# a push touching any of these paths fires deb builds whose publish step
+# dispatches `debs-published`, so the push-triggered image build is skipped
+# (it would otherwise install the STALE published debs and test a
+# combination that never ships — the image rebuild arrives via the dispatch
+# once the fresh debs are in the APT repo).
+#
+# KEEP IN SYNC with those workflows' push.paths. Drift consequences:
+#   txt MISSING a deb path  → push fires both deb build and image build
+#                             (duplicate work, the pre-2026-08-18 behavior);
+#   txt EXTRA patterns      → image build skipped while no deb build fires
+#                             (no image validation; recover via manual
+#                             workflow_dispatch).
+#
+# Syntax mirrors GitHub Actions push.paths as used by those workflows:
+# one pattern per line — exact path, or 'dir/**' (everything under dir/).
+# Blank lines and '#' comments are ignored.
+
+# shared deb-build machinery
+scripts/fetch-upstream-src.sh
+scripts/mk-websdr-chroot.sh
+scripts/gen-kernel-lean-fragment.py
+scripts/ci/stamp-changelog.sh
+scripts/ci/qemu-smoke-deb.sh
+scripts/ci/mk-build-chroot.sh
+scripts/ci/build-thirdparty-deb.sh
+
+# build-boot-deb.yml
+scripts/build-uboot.sh
+scripts/build-fsbl.sh
+scripts/build-bootbin.sh
+scripts/build-boot-deb.sh
+scripts/write-dtb.sh
+scripts/build-kernel-6.12.sh
+config/u-boot/**
+config/web888.dts
+packaging/web888-boot/**
+resources/reference/embeddedsw-zynq-fsbl/**
+resources/reference/redpitaya-fsbl-hooks/**
+.github/workflows/build-boot-deb.yml
+
+# build-kernel-deb.yml (scripts/build-kernel-6.12.sh already listed above)
+config/kernel/**
+config/kernel-web888-6.12.fragment
+config/kernel-web888-6.12-lean.fragment
+.github/workflows/build-kernel-deb.yml
+
+# build-redpitaya-deb.yml
+scripts/build-redpitaya.sh
+scripts/build-redpitaya-deb.sh
+scripts/hw-test/si5351/**
+config/redpitaya/**
+packaging/web888-redpitaya/**
+resources/redpitaya-bits/**
+.github/workflows/build-redpitaya-deb.yml
+
+# build-websdr-deb.yml
+scripts/build-websdr-deb.sh
+config/websdr/**
+packaging/web888-websdr/**
+resources/stock-card/websdr_hf.bit
+resources/stock-card/websdr_vhf.bit
+.github/workflows/build-websdr-deb.yml
+
+# build-thirdparty-debs.yml
+packaging/libacars/**
+packaging/dumphfdl/**
+packaging/frpc/**
+packaging/noip-duc/**
+.github/workflows/build-thirdparty-debs.yml

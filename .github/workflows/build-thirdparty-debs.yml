@@ -28,6 +28,9 @@ name: build-thirdparty-debs
 on:
   push:
     branches: [master]
+    # Mirrored in scripts/ci/deb-trigger-paths.txt (build-image.yml preflight
+    # skips push-triggered image builds when a push hits these paths) -
+    # keep in sync when adding/removing paths.
     paths:
       - 'packaging/libacars/**'
       - 'packaging/dumphfdl/**'
