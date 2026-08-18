@@ -63,14 +63,16 @@ auto eth0
 iface eth0 inet dhcp
 EOF
 
-# Boot partition mounted for easy kernel/dtb updates from userspace.
+# FAT firmware partition mounted at /boot/firmware for bootloader/dtb
+# updates from userspace; kernels live in /boot on the ext4 rootfs.
 # x-systemd.growfs on /: systemd-fstab-generator turns it into
 # systemd-growfs-root.service, an online resize2fs at every boot (no-op when
 # the fs already fills the partition) — fs-layer half of first-boot growfs;
 # the partition-layer half is web888-growroot below.
+sudo -n mkdir --parents "$ROOTFS/boot/firmware"
 sudo -n tee "$ROOTFS/etc/fstab" >/dev/null <<'EOF'
 /dev/mmcblk0p2	/	ext4	defaults,noatime,x-systemd.growfs	0 1
-/dev/mmcblk0p1	/boot	vfat	defaults	0 2
+/dev/mmcblk0p1	/boot/firmware	vfat	defaults	0 2
 EOF
 
 # Device perms for the on-board GPS: ttyPS1 (ATGM336H NMEA) and pps0
