@@ -18,6 +18,14 @@
 # required on every caller job: the publish job needs the APT_REPO_GPG_*
 # secrets, and called workflows receive no secrets by default.
 #
+# Permissions: the called publisher workflows declare `contents: write` +
+# `actions: write` (their publish jobs fire repository_dispatch). Under
+# workflow_call the called workflow only ever receives the calling JOB's
+# GITHUB_TOKEN permissions (unlisted scopes default to none, and permissions
+# can only be downgraded, never elevated, downstream) — so each caller job
+# must carry the full scope the called workflow requests, scoped per job
+# here rather than workflow-wide to keep `check` at `actions: none`.
+#
 # deps-snapshot.txt lives at packaging/ root on purpose: it matches no
 # per-package push path filter (packaging/<name>/**), so watch commits never
 # cause push-trigger rebuild loops.
@@ -200,6 +208,9 @@ jobs:
   rebuild:
     needs: check
     if: needs.check.outputs.packages != 'none'
+    permissions:
+      contents: write
+      actions: write
     uses: ./.github/workflows/build-thirdparty-debs.yml
     with:
       package: ${{ needs.check.outputs.packages }}
@@ -210,11 +221,17 @@ jobs:
   websdr-rebuild:
     needs: check
     if: contains(needs.check.outputs.own, 'web888-websdr')
+    permissions:
+      contents: write
+      actions: write
     uses: ./.github/workflows/build-websdr-deb.yml
     secrets: inherit
 
   redpitaya-rebuild:
     needs: check
     if: contains(needs.check.outputs.own, 'web888-redpitaya')
+    permissions:
+      contents: write
+      actions: write
     uses: ./.github/workflows/build-redpitaya-deb.yml
     secrets: inherit

@@ -140,7 +140,13 @@ upstream change in one `check` job, then commits and triggers rebuilds.
 recursion guard) — so no watch commit can start a path-filtered build on its
 own. Every rebuild is therefore invoked via `workflow_call`, and every caller
 job carries `secrets: inherit` (the publish jobs need the `APT_REPO_GPG_*`
-secrets; called workflows receive no secrets by default).
+secrets; called workflows receive no secrets by default). The caller jobs
+also carry a job-level `permissions` block (`contents: write` +
+`actions: write`): under `workflow_call` the called workflow only receives
+the calling job's token scope, unlisted scopes default to `none`, and
+permissions can only be downgraded (never elevated) downstream — so each
+caller must match the scope its called publisher declares, scoped per job
+(not workflow-wide) to keep the `check` job at `actions: none`.
 
 ### 5.1 Upstream release watch
 

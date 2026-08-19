@@ -9,6 +9,21 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-19] — ci: fix upstream-watch workflow_call permission validation
+
+### Fixed
+- **`upstream-watch.yml` was rejected by GitHub's workflow validation**
+  ("requesting 'actions: write', but is only allowed 'actions: none'"): the
+  three `workflow_call` caller jobs (rebuild / websdr-rebuild /
+  redpitaya-rebuild) invoke publisher workflows that declare `contents:
+  write` + `actions: write` (their publish jobs fire `repository_dispatch`),
+  but the caller only granted `contents: write` at workflow level. Unlisted
+  scopes default to `none`, and under `workflow_call` permissions can only be
+  downgraded (never elevated) downstream, so GitHub statically rejected the
+  file. Each caller job now carries a matching job-level `permissions:
+  {contents: write, actions: write}` (the documented per-`uses`-job pattern),
+  keeping the `check` job at `actions: none`.
+
 ## [2026-08-18] — image build: rename first-boot preset to 80-web888.preset (networkd fix, take 2)
 
 ### Fixed
