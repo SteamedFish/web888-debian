@@ -243,16 +243,14 @@ drop `KEEP_VERSIONS` to 3 or 2 in the workflow env. Pages soft bandwidth is
 
 ## 8. Open items
 
-- **QEMU boot gate for `web888-boot` publish** (research §2.8 caveat 1): the
-  deb postinst overwrites `/boot/firmware/boot.bin` on the device; a bad payload
-  bricks until physical reflash. A `test-qemu.sh uboot` gate job should pass
-  on the exact deb payload before publish (part 2).
-- **Image build workflow** (part 2): debootstrap → add this repo →
-  `apt install` pinned versions → assemble → tag-triggered GitHub Release.
 - **`noip-duc` redistribution license**: upstream is PROPRIETARY — verify
   that rebuilding and redistributing the binary deb from our repo is
   permitted before enabling it in the thirdparty build (research §1.7
   licensing note).
+
+  Done since this list was first written: the pre-publish QEMU smoke gate
+  for `web888-boot` (§1) and the image build workflow consuming the repo
+  (§11) — both formerly listed here as part 2.
 
 ## 9. Postmortem: host /dev deletion via scratch chroot (2026-08-16)
 

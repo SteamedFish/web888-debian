@@ -87,16 +87,22 @@ everything lives on the card.
 
 ## 5. Updating an already-Debian card
 
-You normally do **not** re-flash for software updates:
+You normally do **not** re-flash for software updates — the image ships
+with this project's APT repository preconfigured, so everything
+(WebSDR, Red Pitaya apps, kernel, bootloader/dtb) arrives via:
 
-- WebSDR / Red Pitaya packages: install the rebuilt `.deb` with
-  `dpkg -i` (see `usage.md`).
-- Kernel: follow `../dev/kernel-update-sop.md` (host-built pinned deb).
-- Device-tree changes: the running DT comes from the DTB **embedded in
-  boot.bin**, not from `/boot/firmware/web888.dtb` — rebuild with
-  `scripts/build-bootbin.sh uboot`, replace `/boot/firmware/boot.bin` on the FAT
-  partition, reboot (see `../research/hardware-facts.md`, "DT deploy
-  lesson").
+```sh
+apt update && apt upgrade && reboot
+```
+
+- Kernel upgrades update the `/boot/zImage` symlink automatically (the
+  `zz-web888-zimage` hook in the kernel deb's postinst); nothing to copy.
+- Bootloader/dtb upgrades come as `web888-boot` deb updates — the postinst
+  safely rewrites `boot.bin`/`boot.scr`/`web888.dtb` on the FAT firmware
+  partition (one `.bak` generation kept, `uEnv.txt` never touched).
+- Maintainer-side builds of new pinned kernel releases follow
+  `../dev/kernel-update-sop.md`; pushing them to GitHub publishes them
+  to the APT repo via CI.
 
 Re-flash only for partition-layout or rootfs-base changes.
 

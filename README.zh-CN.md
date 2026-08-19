@@ -16,7 +16,7 @@ English documentation: [README.md](README.md).
 
 ## 亮点
 
-- 全功能 Debian 内核，基于 Debian 源码构建，配置在 Debian armmp 默认配置基础上精简（模块数减少 61%，保留 USB 外设广度）并搭配 Debian 固件 —— 大多数 Wi‑Fi 网卡开箱即用。
+- 全功能 Debian 内核，基于 Debian 源码构建，配置在 Debian armmp 默认配置基础上精简（模块数减少 61%，保留 USB 外设广度）并搭配 Debian 固件 —— 大多数 Wi‑Fi 网卡开箱即用。（注意：板上 USB‑A 口的 VBUS 供不起 RTL8188EUS 这类网卡约 500 mA 的上电浪涌，此类网卡需外接自供电 USB 集线器；见 `docs/dev/KNOWN-ISSUES.md` §8。）
 - 根分区（/）位于 ext4 TF 卡上而非全部在内存中。其容量由你的 TF 卡决定，而不是板上
   512 MB 内存，因此可以放心安装应用而无需担心空间不足。
 - 从 KiwiSDR 精心回移的最新功能与缺陷修复。
@@ -35,14 +35,15 @@ English documentation: [README.md](README.md).
 - **完整 U-Boot v2026.07** 作为 SSBL（位于**源码构建的 FSBL** 之后，
   该 FSBL 由 vendored Xilinx embeddedsw zynq_fsbl + RaspSDR hooks 构建，
   ps7_init 提取自原厂二进制并逐字节验证；`FSBL=stock` 保留为回退开关）
-  ——内核/DTB 通过 boot.scr/uEnv.txt 从 FAT 分区加载
+  ——boot.scr/uEnv.txt/DTB 位于小型 FAT 固件分区，内核通过根文件系统里的
+  `/boot/zImage` 符号链接以 ext4 方式加载
 - **Debian trixie 根文件系统**（debootstrap 构建），放在 ext4 分区
 - 每次刷硬件前必须先过 QEMU 启动测试（没有串口可用）
 
 ## 目前已实现的功能
 
 - **从 TF 卡启动 Debian trixie** —— debootstrap 构建的 ext4 根文件系统、
-  重打包 boot.bin（源码构建的 FSBL + bootgen）、busybox initramfs switch_root、
+  重打包 boot.bin（源码构建的 FSBL + bootgen）、
   DHCP + mDNS（`web888.local`）、OpenSSH、首次启动自动扩容
 - **小内存 / 闪存友好调优** —— zram swap（lzo-rle）、log2ram + journald 限额、
   TF 卡 IO 调度器 `none`、可调 ondemand cpufreq
@@ -50,8 +51,9 @@ English documentation: [README.md](README.md).
   `zynqsdr` 驱动（完整 15 个 ioctl ABI、总线主 DMA 数据面）；硬件上已验证实时
   ADC 数据
 - **Debian 上的 WebSDR**（`web888-websdr` deb）—— systemd 服务、gpsd+chrony
-  GPS 链路，音频 + 瀑布图端到端硬件验证；已与上游 KiwiSDR v1.902 对齐
-  （46 个 cherry-pick + mongoose 7.14 升级 + 管理界面再同步）
+  GPS 链路，音频 + 瀑布图端到端硬件验证；已与上游 KiwiSDR v1.902 及
+  v1.902 之后的修复对齐（cherry-pick 系列至 0153 + mongoose 5.6→7.14
+  升级 + 管理界面再同步）
 - **Red Pitaya 共存**（`web888-redpitaya` deb）—— 收录比特流 + 源码构建的应用，
   `web888-mode` 在 WebSDR 与 RP 应用之间运行时切换，无需重新刷卡
 - **6.12 内核 + 完整 U-Boot 链路** —— QEMU 门禁已通过；硬件浸泡测试事项见

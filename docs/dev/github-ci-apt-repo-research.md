@@ -1,9 +1,10 @@
 # GitHub-hosted APT repository + GitHub Actions image build — feasibility research
 
-**Status: Part 1 (deb builds + flat APT repo on gh-pages + upstream
-watch) implemented 2026-08-16** — see `github-ci-apt-repo.md` for the
-setup/usage doc. Part 2 (Actions image build consuming the repo)
-remains research only. (user request 2026-08-15).
+**Status: implemented.** Part 1 (deb builds + flat APT repo on gh-pages +
+upstream watch) went live 2026-08-16; Part 2 (Actions image build
+consuming the repo, `build-image.yml`) went live 2026-08-17 — see
+`github-ci-apt-repo.md` for the setup/usage doc. This document is the
+underlying feasibility research (user request 2026-08-15).
 
 Two questions investigated:
 

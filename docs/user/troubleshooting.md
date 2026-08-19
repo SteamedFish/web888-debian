@@ -44,7 +44,7 @@ web888-mode                                # websdr or an RP app running?
    ```
    …or check the router DHCP lease table (hostname `web888`).
 2. **Check the LEDs.** D2 stuck ON = boot failure → re-flash per
-   `flashing.md` (and re-run `scripts/test-qemu.sh final` first). D2 off but
+   `flashing.md` (and re-run `scripts/test-qemu.sh uboot` first). D2 off but
    no D0 = booted but userspace unhealthy.
 3. **Check power.** The board needs a solid 5 V / 2 A+ supply; brownouts
    cause exactly this symptom (see `quick-reference.md` §Power).
@@ -94,11 +94,13 @@ regression"). Checklist, cheapest first:
    QEMU)" messages on real hardware actually mean the hardware returned
    correct NONZERO values. Do not trust it as a hardware health check; use
    `rx-matrix`/`rx-dump`.
-5. **Stale DT after a DT change:** the running device tree comes from the
-   DTB **embedded in boot.bin**, not `/boot/firmware/web888.dtb`. If you changed
-   `config/web888.dts` and just copied the .dtb file, nothing took effect.
-   Deploy via `scripts/build-bootbin.sh final` → replace `/boot/firmware/boot.bin`
-   → reboot. Verify with `od -A d -t x1 /proc/device-tree/<node>/gpios`.
+5. **Stale DT after a DT change:** the running device tree is
+   `web888.dtb` on the FAT firmware partition, loaded by `boot.scr` —
+   it ships inside the `web888-boot` deb, whose postinst installs it to
+   `/boot/firmware/`. Hand-copying a rebuilt `.dtb` over
+   `/boot/firmware/web888.dtb` also works (boot.scr loads it by name).
+   Deploy via a rebuilt/updated `web888-boot` package → reboot. Verify
+   with `od -A d -t x1 /proc/device-tree/<node>/gpios`.
 6. **Partial FPGA wedge** (RX ring static while the waterfall ring stays
    live): only a full PL reconfiguration clears it — `web888-mode stop`
    then start, or reboot.
@@ -175,15 +177,16 @@ dpkg -L web888-websdr | grep -i <name>    # is it shipped in the deb?
 
 ## 9. Updating / recovery
 
-- **Update packages:** `dpkg -i /tmp/<pkg>.deb` (see `usage.md` §Updates).
-  Config under `/etc/web888/` is dpkg-conffile-protected.
+- **Update packages:** `apt update && apt upgrade` (the project APT repo
+  is preconfigured; see `usage.md` §Software updates). Config under
+  `/etc/web888/` is dpkg-conffile-protected.
 - **Reset WebSDR config to defaults:** stop the unit, remove the files in
   `/etc/web888/` you want regenerated, start the unit — the seeder
   recreates missing files from `/usr/share/web888/dist/config/`.
 - **Full reset:** re-flash the card (`flashing.md`). The stock card is the
   factory-firmware rollback.
 - **Kernel/device-tree work:** follow `../dev/kernel-update-sop.md`; every
-  image must pass `scripts/test-qemu.sh final` before flashing.
+  image must pass `scripts/test-qemu.sh uboot` before flashing.
 
 ## Preventive maintenance (Debian)
 

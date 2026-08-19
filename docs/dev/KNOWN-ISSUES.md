@@ -33,12 +33,6 @@ materialises:
   `ADMIN: unknown command` twice per second while an admin status tab was
   open). Patch-applies and `node --check` verified; watch the device log for
   absence of the lines after the new deb is deployed.
-- **0148 mongoose EPOLLERR fix pending hardware verification** — the
-  0148 SO_ERROR pre-check only quiets the close logging: the ~0.5 s
-  `/admin` websocket drops it addressed are now known to be *caused by
-  the frame corruption in §6* (browser kills the connection on malformed
-  frames → server sees EPOLLERR). Keep 0148, but the real fix is §6;
-  watch for real connection errors still closing/logging correctly.
 - **PSKReporter UDP path untested** — the KiwiSDR cherry-pick batch touched
   this code; autorun is off on the development unit, so it has never
   exercised the path on hardware.
@@ -93,41 +87,6 @@ These constrain what the pre-flash gate can cover:
 - QEMU masks blank-PL AXI hangs (its Zynq model returns 0 for unmapped GP
   reads) — hardware does not; see `zynqsdr-port-notes.md` §11 for the
   load-bearing probe-must-not-touch-PL rule.
-
-## 6. /admin websocket frame corruption (mongoose 7.14 send path lost its lock)
-
-**FIXED (0151)** — the fix routes every `send_msg*()` send through the
-s2c nbuf queue so only the web_server task touches `c->send`:
-`config/websdr/cherry-picks/0151-kiwi-send-msg-via-s2c-nbuf-queue.patch`,
-built as web888-websdr 2026.730-7, deployed 2026-08-14. Verified: frame
-validator 4 × 60 s clean, dual-tab `/admin` browser soak with zero
-console errors, zero `mg_error` in the server journal. Details:
-[`mongoose-websocket-frame-corruption-investigation.md`](mongoose-websocket-frame-corruption-investigation.md).
-
-Original symptom, kept for archaeology: probabilistic `/admin` disconnects
-right after opening or when clicking buttons (e.g. log), in every browser.
-Cherry-pick **0144 deleted mongoose's global `mongoose_lock`** and split
-frame writes into two unlocked iobuf appends (`mg_ws_send`), while Kiwi
-task threads still called `send_msg*()` directly — concurrent sends raced
-the web task's poll flush (`write` + `mg_iobuf_del`) and emitted
-**malformed frames**. The browser killed the connection on the protocol
-error; the server then logged `socket error 2` (EPOLLERR) and
-`ADMIN connection closed` ~0.5 s after auth. Corruption reproduced under
-concurrent admin connections at the trailing boundary of the 47 KB
-`load_dxcfg` frame. Validator: `scripts/test-websocket-frames.py`.
-
-**Regression in the 0151 fix, FIXED (0152)** — routing control messages
-through the s2c queue also gave them the stream-data drop policy:
-`nbuf_allocq()` silently frees buffers once the queue exceeds
-`ND_HIWAT=64` (latching `ovfl` until it drains below `ND_LOWAT=32`).
-The /admin startup burst (~200 entries) could overflow it and lose the
-entire `ext_call` extension-config batch → /admin Extensions tab
-rendered only Antenna Switch, intermittently per page load
-(2026.730-7 only). 0152 sends control messages via a new
-`nbuf_allocq_critical()` that bypasses the latch (hard cap 1024, loud
-log if ever hit); stream data keeps the original drop behaviour. Built
-as web888-websdr 2026.730-8, deployed and verified 2026-08-14 (7/7
-/admin reloads show all extensions).
 
 ## 7. Fresh-flash boot failures: chronyd-restricted / noip-duc / frpc / networkd-wait-online (FIXED in build scripts, pending reflash)
 

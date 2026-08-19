@@ -85,23 +85,34 @@ Clock-restore behavior on switching is controlled by
 
 ## Software updates
 
-Everything is a Debian package built on the host (see `README.md`):
+Everything is a Debian package. Images since 2026-08-16 ship with this
+project's APT repository preconfigured (`apt policy` shows
+`web888.steamedfish.org/apt`), so day-to-day updates are plain apt:
+
+```sh
+apt update && apt upgrade      # websdr, redpitaya, kernel, bootloader
+reboot                         # only needed for kernel/bootloader updates
+```
 
 | Package | Contains |
 |---|---|
 | `web888-websdr` | WebSDR server, extensions, FPGA bitstreams, systemd unit |
 | `web888-redpitaya` | Red Pitaya app ports, `web888-mode`, switch config |
-| `linux-image-6.12.100-web888` | Kernel (built per `../dev/kernel-update-sop.md`) |
+| `web888-boot` | FSBL + U-Boot + `boot.scr`/`uEnv.txt`/`web888.dtb` (postinst safely rewrites the FAT firmware partition) |
+| `linux-image-6.12.100-web888` | Kernel (new releases built per `../dev/kernel-update-sop.md`) |
 
-Update flow:
+Kernel upgrades repoint the `/boot/zImage` symlink automatically; no file
+copying is involved. Config files under `/etc/web888/` and
+`/etc/web888-redpitaya/` are conffiles — apt/dpkg will prompt before
+overwriting local changes.
+
+On images older than 2026-08-16 (no repo preconfigured) or for a
+hand-built deb, fall back to the manual flow:
 
 ```sh
 scp -P 22 web888-websdr_<version>_armhf.deb root@<device-ip>:/tmp/
 ssh -p 22 root@<device-ip> 'dpkg -i /tmp/web888-websdr_<version>_armhf.deb'
 ```
-
-Config files under `/etc/web888/` and `/etc/web888-redpitaya/` are
-conffiles — dpkg will prompt before overwriting local changes.
 
 ## Backup
 

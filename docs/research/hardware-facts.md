@@ -154,12 +154,17 @@ when they conflict.
   golden reference, Si5351 locked from boot (reg0=0x01), RX+WF rings live
   with real RF, waterfall dense with real signals, header SNR 17 dB.
   Operational lessons kept:
-  - **DT deploy lesson**: the running kernel's DT comes from the DTB
-    EMBEDDED IN boot.bin (FSBL partition #3, per `bootbin-repack-spec.md`)
-    — `/boot/firmware/web888.dtb` on the FAT partition is NOT used by the boot
-    flow. Deploy DT changes via `scripts/build-bootbin.sh final` ->
-    replace `/boot/firmware/boot.bin` -> reboot. Verify a DT change with
-    `od -A d -t x1 /proc/device-tree/<node>/gpios`, never file timestamps.
+  - **DT deploy lesson**: in the production U-Boot chain the running DT
+    comes from `web888.dtb` on the FAT firmware partition, loaded by
+    `boot.scr` (`config/u-boot/boot.cmd`) — NOT from anything embedded in
+    boot.bin (which packs FSBL + U-Boot only). The dtb ships inside the
+    `web888-boot` deb payload; deploy DT changes by rebuilding that deb
+    (`scripts/build-boot-deb.sh`) and reinstalling / `apt upgrade` — the
+    postinst writes `/boot/firmware/web888.dtb` (guarded by the
+    `d00dfeed` magic). (The stub chain `final`/`test` modes are the
+    exception: there the dtb IS embedded in boot.bin.) Verify a DT change
+    with `od -A d -t x1 /proc/device-tree/<node>/gpios`, never file
+    timestamps.
   - **`zynqsdr-smoke` is a QEMU-mode binary** — its "FAIL ... (0 under
     QEMU)" messages actually mean the hardware returned correct NONZERO
     values, and its single-shot RX read right after arm is not a health

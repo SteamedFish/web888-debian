@@ -24,10 +24,18 @@ scripts/build-all.sh           # incremental — skips steps whose outputs exist
 scripts/build-all.sh --clean   # delete work/ and output/ first (from-scratch)
 ```
 
+By default (`DEB_SOURCE=apt`) all project debs — kernel, websdr,
+redpitaya, web888-boot — are installed from the CI-published APT repo
+(`web888.steamedfish.org/apt`), so a default build needs no local deb
+builds and not even the kernel source tree. Set `DEB_SOURCE=local` to
+build every deb from source instead (the manual per-step listing below
+is that path; apt mode replaces steps 5/8b-8f/9-9c with one call to
+`scripts/install-debs-apt.sh`).
+
 The script prints each step as it runs and ends with the deliverable:
 
 ```
-== DONE: output/web888-debian-uboot.img (chain=uboot kernel=6.12 fsbl=source) ==
+== DONE: output/web888-debian-uboot.img (chain=uboot kernel=6.12 fsbl=source deb_source=apt) ==
 ```
 
 `--clean` removes `work/` and `output/` but keeps `.tmp/` (stock-firmware
@@ -44,6 +52,7 @@ All knobs are environment variables; none are required.
 | `CHAIN` | `uboot` \| `stub` | `uboot` | Boot chain to assemble (table above). `stub` maps to the legacy bootbin/image mode `final`. |
 | `KERNEL` | `6.12` \| `6.6` | `6.12` | Kernel flow: `6.12` = Debian linux-source, pinned deb `6.12.100-web888`; `6.6` = legacy linux-xlnx tree. |
 | `FSBL` | `source` \| `stock` | `source` | FSBL packed into boot.bin: `source` = built from the vendored embeddedsw zynq_fsbl tree via `build-fsbl.sh` (hardware-verified; needs `arm-none-eabi-gcc`); `stock` = blob extracted from the stock boot.bin (escape hatch). Also honored by `build-bootbin.sh` directly. |
+| `DEB_SOURCE` | `apt` \| `local` | `apt` | Where the project debs come from: `apt` installs them from the CI-published APT repo (`web888.steamedfish.org/apt`; requires `CHAIN=uboot KERNEL=6.12` — the repo only publishes that chain); `local` builds every deb from source (the manual per-step path below). |
 | `DEBIAN_MIRROR` | URL | `mirrors.tuna.tsinghua.edu.cn/debian` | debootstrap/apt mirror for the rootfs. Also consumed by `env-setup.sh`, `build-initramfs.sh`, `mk-websdr-chroot.sh`. |
 
 ### Rootfs configuration (`configure-rootfs.sh`, runs as a build-all step)
@@ -107,23 +116,27 @@ The card image is plain MBR (the Zynq BootROM cannot parse GPT): partition
 `uEnv.txt`, `web888.dtb`), partition 2 = ext4 rootfs (kernels in `/boot`,
 `zImage`/`zImage.prev` symlinks managed by the web888-boot kernel hook).
 
-## Manual per-step builds
+## Manual per-step builds (`DEB_SOURCE=local` path)
 
 `build-all.sh` simply calls these in order; any step can be rerun directly
-(steps 7–10 need sudo — run `sudo -v` first):
+(steps 7–10 need sudo — run `sudo -v` first). Under the default
+`DEB_SOURCE=apt`, steps 5, 8b–8f and 9–9c collapse into
+`scripts/install-debs-apt.sh`:
 
 ```sh
 scripts/env-setup.sh             #  1. host toolchain check
-#  2. kernel source → work/linux-xlnx (cached in .tmp/linux-xlnx)
-#  3. bootgen       → work/tools/bootgen
+#  2. kernel source (6.12: fetched inside build-kernel-6.12.sh to
+#     work/linux-debian-6.12; 6.6: work/linux-xlnx, cached in .tmp/linux-xlnx)
+#  3. bootgen       → work/tools/bootgen   (DEB_SOURCE=local only)
 #  4. stock FSBL/SSBL extracted from resources/stock/web888-boot.bin
+#     (local + CHAIN=stub or FSBL=stock only)
 scripts/build-kernel-6.12.sh     #  5. 6.12 kernel (KERNEL=6.6 → build-kernel.sh)
-scripts/build-initramfs.sh       #  6. test-mode initramfs
+scripts/build-initramfs.sh       #  6. test-mode initramfs (manual test gate only)
 #  7. debootstrap   → work/rootfs (trixie armhf)
 scripts/configure-rootfs.sh      #  8. hostname/password/network/ssh/services
-scripts/install-modules.sh       # 8b. kernel modules into rootfs
+scripts/install-kernel-deb.sh    # 8b. kernel deb into rootfs (hook makes /boot/zImage symlink)
 #       fetch-upstream-src.sh websdr|redpitaya|u-boot — auto-run by build-all.sh before
-#       8c/8e: clones the pinned upstream tree (config/<name>/upstream.pin) into
+#       8c/8e/8g: clones the pinned upstream tree (config/<name>/upstream.pin) into
 #       work/<name>-src on first run; no-op when already at the pinned commit
 scripts/build-websdr-deb.sh      # 8c. web888-websdr deb (armhf chroot)
 scripts/install-websdr.sh        # 8d. install deb into rootfs
@@ -131,6 +144,8 @@ scripts/build-redpitaya-deb.sh   # 8e. web888-redpitaya deb
 scripts/install-redpitaya.sh     # 8f. install deb (units disabled by default)
 scripts/build-uboot.sh           # 8g. U-Boot v2026.07 (CHAIN=uboot only; auto-clones work/u-boot)
 scripts/build-fsbl.sh            # 8h. source-built FSBL (FSBL=source only)
-scripts/build-bootbin.sh uboot   #  9. boot.bin assembly (+ dtb)
-scripts/build-image.sh uboot     # 10. final card image
+scripts/build-bootbin.sh uboot   #  9. boot.bin assembly
+scripts/build-boot-deb.sh        # 9b. web888-boot deb (payload = 8g/8h/9 outputs + dtb)
+scripts/install-boot-deb.sh      # 9c. install deb into rootfs (postinst skips in chroot)
+scripts/build-image.sh uboot     # 10. final card image (FAT payload from the deb)
 ```

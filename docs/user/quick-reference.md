@@ -145,7 +145,7 @@ stable prefix `ce:cf:3f:*`:
 **Solution (Debian image):**
 1. Re-flash the card per [flashing.md](flashing.md) (whole image, not files)
 2. Use a Class 10 SD/SDHC card (not SDXC)
-3. Re-run `scripts/test-qemu.sh final` before flashing to confirm the image
+3. Re-run `scripts/test-qemu.sh uboot` before flashing to confirm the image
 
 **Solution (stock firmware):** reformat to FAT32 and extract the update
 files to the card root (not a subfolder).

@@ -9,6 +9,78 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-19] — docs: post-refactor cleanup (TODO/KNOWN-ISSUES prune, stale boot-flow fixes)
+
+Documentation-only sweep: remove completed/resolved items that had
+accumulated behind the August build-out, and fix docs still describing
+pre-ext4-/boot or pre-APT-repo flows. No code changed.
+
+### Removed
+
+- **KNOWN-ISSUES §6 (/admin websocket frame corruption)** — FIXED by 0151
+  (+ the 0152 regression fix), deployed 2026-08-14 and hardware-verified
+  (frame validator 4 × 60 s clean, dual-tab admin soak, 7/7 extension
+  reloads). Per the file's policy resolved items are removed once
+  verified; history lives in the 2026-08-13/14 entries and
+  `mongoose-websocket-frame-corruption-investigation.md`. Also removed
+  the §4 0148 watchlist bullet — its watch condition ("real connection
+  errors still closing/logging correctly") was covered by those soaks
+  (zero console errors, zero `mg_error`).
+- **TODO.md completed items**: the step-6 hardware-gate checkboxes
+  (incl. "Kernel-update SOP final docs sync (P3)" — done in this sweep),
+  the web888-boot deb entry (repo live 2026-08-16, fresh-flash hardware
+  boot 2026-08-18, docs close-out done here), Red Pitaya step 4 (docs
+  already in post-execution state: coexistence doc §6 resolved, port
+  guide marked implemented), the ext4 /boot refactor section (landed
+  2026-08-18, QEMU-validated by the CI gates), and the FSBL F1 historical
+  feasibility narrative (kept as a short done entry + the one open
+  optional-provenance sub-item). All still-owed hardware checks are
+  consolidated into a single **"Fresh-image hardware validation"** item
+  (KNOWN-ISSUES §7 reflash verify, ext4-/boot hardware boot, fresh-image
+  reboot-loop/E2E, 0153 log check, §8 powered-hub rerun). Distribution
+  section updated: repo/images are live; only the `web888-repo` keyring
+  deb remains open. The "Completed feature set" gains web888-boot and
+  CI-distribution bullets and drops stale descriptions (initramfs, FAT
+  kernel, "46 cherry-picks").
+
+### Fixed (stale docs)
+
+- **`docs/dev/kernel-update-sop.md`** — rewritten for the current chain:
+  kernel boots from the rootfs `/boot/zImage` symlink (hook-managed),
+  FAT firmware at `/boot/firmware` untouched by kernel updates, QEMU
+  gate is `test-qemu.sh uboot` (the phy@7 dtb-swap procedure was the old
+  direct-kernel gate), shipping is apt/CI-first with dpkg field-update
+  fallback, rollback via the `/boot/zImage.prev` symlink. The old text
+  still described the FAT-kernel + `build-bootbin.sh uboot`-per-update
+  flow.
+- **`README.md` / `README.zh-CN.md`** — "kernel/dtb load from the FAT
+  partition" → boot.scr/uEnv/dtb on FAT + kernel ext4-loaded from rootfs;
+  dropped "busybox initramfs switch_root" from the current-chain bullets
+  (stub rollback chain only); stale cherry-pick count → "through 0153";
+  added the USB-A VBUS caveat (KNOWN-ISSUES §8) to the WiFi-dongle
+  highlight.
+- **`docs/research/hardware-facts.md` "DT deploy lesson"** — still
+  described the stub chain (dtb embedded in boot.bin, `/boot/firmware/
+  web888.dtb` "not used by the boot flow"); in the U-Boot chain
+  boot.scr loads the dtb from FAT and it ships/updates via the
+  web888-boot deb (postinst, `d00dfeed`-guarded). The 2026-08-18 path
+  sweep had only fixed the mount path, not the substance.
+- **`docs/user/flashing.md` §5, `usage.md`, `troubleshooting.md` §9** —
+  the scp + `dpkg -i` update flow replaced by the preconfigured APT
+  repo (`apt update && apt upgrade`; manual flow kept as fallback for
+  older images); stale `test-qemu.sh final` → `uboot` (flashing,
+  troubleshooting, quick-reference); troubleshooting §3.5 DT deploy and
+  flashing §5 DT bullet rewritten to the FAT-dtb/web888-boot-deb flow.
+- **`docs/user/building.md`** — documented the `DEB_SOURCE=apt|local`
+  knob (apt is the default; no local deb builds) and relabeled the
+  manual per-step listing as the `local` path, adding the missing
+  9b/9c web888-boot deb steps.
+- **`docs/dev/github-ci-apt-repo.md` §8** — dropped the two completed
+  open items (pre-publish QEMU smoke gate, image build workflow);
+  **`github-ci-apt-repo-research.md`** status header no longer says
+  "Part 2 remains research only" (live since 2026-08-17); `docs/dev/
+  README.md` index description matched up.
+
 ## [2026-08-19] — kernel/usb: validate USB-WiFi stack on the 6.12 kernel (software ready; board VBUS caps RTL8188EUS)
 
 ### Verified

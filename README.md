@@ -21,7 +21,7 @@ Pitaya applications.
 
 ## Highlights
 
-- A fully featured Debian kernel, built from Debian sources with a trimmed config derived from the Debian armmp default (61% fewer modules; USB peripheral breadth kept) plus Debian firmware – so you get out‑of‑the‑box support for most Wi‑Fi dongles.
+- A fully featured Debian kernel, built from Debian sources with a trimmed config derived from the Debian armmp default (61% fewer modules; USB peripheral breadth kept) plus Debian firmware – so you get out‑of‑the‑box support for most Wi‑Fi dongles. (Caveat: the board's USB‑A port VBUS cannot sustain the ~500 mA inrush of RTL8188EUS‑class dongles — a self‑powered USB hub is required for those; see `docs/dev/KNOWN-ISSUES.md` §8.)
 - The root partition (/) resides on an ext4 TF card rather than entirely in memory. Its size is determined by your TF card, not the onboard 512 MB memory, which means you can install applications without worrying about running out of space.
 - Carefully backported the latest features and bug fixes from KiwiSDR.
 - Tweaks and optimizations for low‑memory TF‑card‑based devices, including zram, log2ram, and more.
@@ -40,16 +40,17 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
 - **Full U-Boot v2026.07** as SSBL behind a **source-built FSBL**
   (vendored Xilinx embeddedsw zynq_fsbl + RaspSDR hooks, ps7_init
   extracted from the stock binary and byte-verified; `FSBL=stock`
-  remains as escape hatch) — kernel/dtb load
-  from the FAT partition via boot.scr/uEnv.txt
+  remains as escape hatch) — boot.scr/uEnv.txt/dtb on the small FAT
+  firmware partition, kernel ext4-loaded from the rootfs `/boot/zImage`
+  symlink
 - **Debian trixie rootfs** on an ext4 partition, built with debootstrap
 - QEMU boot test gates every hardware flash (no serial console available)
 
 ## What works today
 
 - **Debian trixie boot from the TF card** — debootstrap rootfs on ext4,
-  repacked boot.bin (source-built FSBL + bootgen), busybox initramfs switch_root,
-  DHCP + mDNS (`web888.local`), OpenSSH, first-boot growfs
+  repacked boot.bin (source-built FSBL + bootgen), DHCP + mDNS
+  (`web888.local`), OpenSSH, first-boot growfs
 - **Small-memory / flash-friendly tuning** — zram swap (lzo-rle), log2ram +
   journald cap, IO scheduler `none` for the TF card, tunable ondemand
   cpufreq
@@ -58,7 +59,8 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
   data plane); live ADC data verified on hardware
 - **WebSDR on Debian** (`web888-websdr` deb) — systemd service, gpsd+chrony
   GPS plumbing, audio + waterfall verified end-to-end; aligned with upstream
-  KiwiSDR v1.902 (46 cherry-picks + mongoose 7.14 upgrade + admin re-sync)
+  KiwiSDR v1.902 and post-v1.902 fixes (cherry-pick series through 0153,
+  mongoose 5.6→7.14 upgrade, admin re-sync)
 - **Red Pitaya coexistence** (`web888-redpitaya` deb) — vendored bitstreams
   + source-built apps, `web888-mode` runtime switching between WebSDR and RP
   apps, no reflashing
