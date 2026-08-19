@@ -9,6 +9,16 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-19] — rootfs: install usbutils by default (provides lsusb)
+
+### Added
+- **`usbutils` shipped on every image** (`scripts/configure-rootfs.sh`):
+  added to the admin-console tooling apt-get block so USB peripherals can
+  be diagnosed out of the box. Most useful when a WiFi dongle's chipset
+  is not recognised by any of the firmware packages installed above —
+  `lsusb -v` and `lsusb -t` identify the VID/PID and bus topology before
+  a manual `modprobe`. Install-only; no configuration written.
+
 ## [2026-08-19] — ci: fix upstream-watch workflow_call permission validation
 
 ### Fixed

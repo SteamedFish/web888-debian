@@ -124,11 +124,13 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
 # Admin-console tooling: the websdr admin console tab has htop/tmux
 # shortcut buttons and is generally more useful with curl/rsync around
 # (update pulls, log captures). bash-completion gives the console bash
-# --login shell tab completion. NB: no apostrophes anywhere inside this
-# single-quoted sh -c block — one here once terminated the string early,
-# ran the apt-get below on the HOST and aborted the build.
+# --login shell tab completion. usbutils provides lsusb for diagnosing
+# USB peripherals (WiFi dongle identification when none of the supported
+# firmware packages recognizes the chipset). NB: no apostrophes anywhere
+# inside this single-quoted sh -c block — one here once terminated the
+# string early, ran the apt-get below on the HOST and aborted the build.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-    htop tmux curl rsync bash-completion
+    htop tmux curl rsync bash-completion usbutils
 # Step 6: firmware for the USB WiFi adapters websdr images support
 # (rtl8xxxu/rtw88, ath9k_htc, brcmfmac) — sources.list carries
 # non-free-firmware since step 3.5.
