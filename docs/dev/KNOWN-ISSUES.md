@@ -52,6 +52,24 @@ materialises:
   probing (stock does /dev/mem writes), XADC/temperature readout,
   waterfall decimate bits 26–31 live test, PPS circuit -EBUSY-without-fix
   semantics.
+- **`ulpi-phy` NULL-deref on manual unbind** — writing
+  `e0002000.phy0` to `/sys/bus/platform/drivers/ulpi-phy/unbind`
+  (drivers/usb/phy/phy-ulpi.c, 6.12.100-web888) oopses in
+  `ulpi_phy_remove+0xc/0x14` with `PC` reading from a NULL pointer at
+  `Code: ... (e5930000)`. Reproduced live on 2026-08-19 during the
+  USB-WiFi probe; the calling shell was killed but the system stayed
+  up. The wedged driver state (platform device bound to a dead
+  driver) delayed the subsequent `reboot` by ~10 minutes (normal
+  boot is 29 s). The crash is unreachable through normal operation
+  — no internal caller unbinds the PHY — so it is a known-bad-only
+  path. The reporter of the bug is the chipidea/USB stack, not the
+  ulpi-phy driver itself; the right fix is upstream in
+  `drivers/usb/phy/phy-ulpi.c::ulpi_phy_remove` (NULL-check the
+  `uphy` pointer or guard against uninstall-mid-use). Documented
+  for the next time someone tries to hot-reset the USB controller
+  via `unbind`/`bind`; prefer a clean reboot (or temporarily
+  `echo suspend > /sys/bus/platform/devices/e0002000.usb/power/control`
+  if a soft reset is needed).
 
 ## 5. QEMU test-environment limitations (not device defects)
 
@@ -135,3 +153,65 @@ and a fresh flash kept networkd enabled; renamed to `80-web888.preset` and
 the QEMU check now asserts (any of the five printing `enabled` fails the
 gate). Remove this section once a rebuilt image is flashed and
 `systemctl --failed` comes back empty.
+
+## 8. Board USB-A port VBUS cannot sustain RTL8188EUS-class WiFi dongles
+
+Confirmed live on 2026-08-19 against an RTL8188EUS dongle (0bda:8179,
+high-speed, 480 Mb/s, `rtl8xxxu` driver) on the running dev unit. The
+DH repository side is fully ready for USB-WiFi — the kernel ships
+`rtl8xxxu.ko` and `rtl8188eufw.bin`, `wpasupplicant` / `hostapd` /
+`iw` / `rfkill` / `wireless-regdb` are all installed by `configure-rootfs.sh`
+but the host USB-A port itself cannot deliver the dongle's inrush.
+
+### Evidence (from the on-device probe, `usb-watch.log`)
+
+- `lsusb` shows only the root hub; the dongle is never enumerated.
+- When the dongle is plugged in, `PORTSC` (chipidea EHCI, read from
+  `/sys/kernel/debug/usb/ci_hdrc.0/registers`) sweeps through a 1-second
+  state change (0x8c501c00 → 0x8c501000) and settles back to the
+  "no device" state. `CCS` (bit0) is **0 throughout** — the EHCI
+  controller never confirms a connected device.
+- The kernel HUB debounce filter (100 ms minimum stable connection,
+  per USB 2.0 spec) silently discards the brief window, so the
+  ring buffer records **zero** `new XX-speed USB device` lines, zero
+  `device descriptor read/64, error`, and zero `USB disconnect` lines.
+  The session is invisible to the stack.
+- The same port enumerates a Fanxiang U 盘 (0x058f:6387) as a
+  high-speed device with a full descriptor dump — the host controller,
+  the ULPI PHY (SMSC USB3320, integrity check passes), and the
+  driver stack are all healthy.
+- `OTG Control` (ULPI reg 0x0A) reads `0x67` = `DRVVBUS=1`,
+  `DRVVBUS_EXT=1`, `VbusValid=1` — VBUS is actively driven and
+  measured valid at the PHY. The board is not simply failing to
+  power the port.
+
+### Conclusion
+
+The dongle powers up, briefly asserts its D+ pull-up, then loses
+power in <100 ms — the VBUS rail on the board's USB-A port cannot
+absorb the 8188EU's ~500 mA inrush (the U 盘 draws ~100 mA and
+survives). The host then sees a "connect → disconnect within the
+debounce window" event it is required to ignore. The same dongle
+enumerates correctly on every other host the user has tested, and
+the kernel module is loaded cleanly via `modprobe rtl8xxxu` —
+neither the driver nor the image is at fault.
+
+### Discriminating test still owed
+
+Plug the dongle through a **self-powered USB hub** (one with its
+own wall adapter) — the hub supplies the dongle's inrush from its
+own 5 V rail, the board only sees the hub's comparatively tiny
+upstream draw. Successful enumeration would confirm the power
+hypothesis and rule out the (low-probability) alternatives
+(brownout in the dongle's own LDO, marginal cable, RF-domain
+interference during the EHCI chirp). The probe was attempted on
+2026-08-19 but a powered hub was not on hand; the user owns the
+rerun.
+
+### Next steps
+
+No code change is required. If the powered-hub test confirms the
+diagnosis, the only follow-ups are user-facing: a note in the
+user docs pointing at the powering constraint, and (longer-term,
+out of repo scope) a hardware revision of the USB-A port's VBUS
+supply.

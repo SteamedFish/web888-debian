@@ -9,6 +9,54 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-19] — kernel/usb: validate USB-WiFi stack on the 6.12 kernel (software ready; board VBUS caps RTL8188EUS)
+
+### Verified
+- **WiFi stack is end-to-end present on every image** (no code change):
+  - `rtl8xxxu.ko` (RTL8188EU/EUS included in the supported chipset list)
+    is built into `6.12.100-web888` and loads cleanly with `modprobe
+    rtl8xxxu` (net deps `cfg80211` + `mac80211` resolve).
+  - Firmware `rtl8188eufw.bin` is shipped via `firmware-realtek` and
+    installed at `/lib/firmware/rtlwifi/`.
+  - `wpasupplicant`, `hostapd`, `iw`, `wireless-tools`, `rfkill`,
+    `wireless-regdb` are installed by `scripts/configure-rootfs.sh:143`.
+  - `usbwatch-style` debugging (the new `scripts/hw-test/` slot is
+    unchanged — the on-device probes below were driven by hand from the
+    console).
+- **Host controller is healthy**: hot `unbind` + `bind` of `chipidea-usb2`
+  re-establishes the SMSC USB3320 ULPI PHY (`ULPI integrity check:
+  passed`), EHCI starts cleanly; `0bda:8179` U 盘 enumerates as a
+  high-speed device with full descriptor dump; `iw dev` on the booted
+  image lists no interfaces (no WiFi present by default).
+
+### Discovered
+- **Board USB-A port VBUS cannot sustain RTL8188EUS-class WiFi dongles**
+  (`docs/dev/KNOWN-ISSUES.md` §8). A live HUD of the evidence (PORTSC
+  register, dmesg tail, `lsusb`) is captured in this probe; the smoking
+  gun is a 1-second PORTSC state change (0x8c501c00 → 0x8c501000) with
+  CCS=0 throughout and zero `new XX-speed USB device` lines printed
+  during the brief connect window — the dongle's pull-up is asserted
+  for less than the HUB debounce time (100 ms). The Fanxiang U 盘
+  enumerates at the same port because it draws under ~100 mA from
+  inrush through sustained load; the 8188EU needs a ~500 mA inrush at
+  plug-in. **No code change can fix this** — discriminating test
+  (powered hub) is queued in `TODO.md`.
+- **`ulpi-phy` driver has a NULL-deref in `ulpi_phy_remove`** that
+  fires on manual `unbind` of the PHY (`echo e0002000.phy0 >
+  /sys/bus/platform/drivers/ulpi-phy/unbind` while `chipidea-usb2` is
+  also unbound). Triggered live during the probe — the OOPS killed the
+  invoking shell but didn't crash the system; the wedged driver state
+  delayed the subsequent `reboot` recovery by ~10 minutes (normal
+  boot is 29 s). The same path is unreachable through normal operation
+  (no kernel-internal caller unbindles the PHY), so this is a
+  known-bad-only path. Documented in `KNOWN-ISSUES.md` §4 (watchlist).
+
+### Notes
+- The probe also confirmed the upstream-web `configure-rootfs.sh` change
+  was sufficient: `lsusb` was available on the device without an extra
+  `apt install` (the today's `usbutils` install landed first, helpful
+  for the read-only `lsusb` outputs above).
+
 ## [2026-08-19] — rootfs: install usbutils by default (provides lsusb)
 
 ### Added

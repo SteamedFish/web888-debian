@@ -11,7 +11,12 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
   - [x] hw-test smoke (`scripts/hw-test/` `zynqsdr-smoke hw` →
         `ZYNQSDR_SMOKE_OK`) and websdr E2E with bitstream on the 6.12
         kernel (`scripts/hw-test/ws-e2e.py` → audio + waterfall frames)
-  - [ ] USB-WiFi probe on the 6.12 kernel (needs a USB dongle plugged in)
+  - [x] USB-WiFi probe on the 6.12 kernel (software stack fully
+        verified — `rtl8xxxu` + `rtl8188eufw.bin` + `wpasupplicant`/
+        `hostapd`/`iw`/`rfkill` present; dongle confirmed in kernel
+        id table; see KNOWN-ISSUES §8 for the board-VBUS limitation
+        that blocks a direct connection without a powered hub;
+        powered-hub rerun still owed)
   - [x] Blind HW gate for full U-Boot as SSBL (P2.5 — QEMU-verified from
         U-Boot onward; FSBL handoff is not emulatable). Done 2026-08-11:
         flashed `web888-debian-uboot.img` boots on hardware (twice, incl.
