@@ -19,6 +19,14 @@
 # depth); if invoked directly it still works, but write access then depends on
 # the caller's environment.
 #
+# The transient unit runs with KillMode=process: ifup spawns long-lived
+# daemons (wpa_supplicant, dhcpcd) as children of the apply unit, and the
+# default control-group teardown would SIGTERM them when the unit
+# deactivates — killing WiFi seconds after applying. KillMode=process lets
+# them survive while --wait still returns as soon as the apply script
+# exits. (RemainAfterExit=yes was tried first: --wait then blocks until the
+# unit is stopped, hanging both the websdr boot hook and CLI callers.)
+#
 # Idempotency: phase 1 hashes (verb + rendered content) and compares against
 # $STATE/applied.key written by the last successful apply. A match means
 # "already applied" and exits 0 without touching any interface — websdr
@@ -154,7 +162,10 @@ render() { # <outdir>
             } >"$1/wlan0"
             ;;
         off)
-            : # renders nothing; apply only removes
+            # Renders no files. All removal happens in apply() (phase 2):
+            # phase 1 runs inside the websdr sandbox where /etc is read-only,
+            # and removal must be ordered AFTER ifdown anyway (see below).
+            :
             ;;
         *)
             die "internal error: bad verb $verb"
@@ -208,8 +219,13 @@ apply() {
         off)
             systemctl disable --now hostapd.service dnsmasq.service 2>/dev/null || true
             systemctl stop wpa_supplicant.service 2>/dev/null || true
+            # Tear down BEFORE deleting the drop-in: ifdown needs the iface
+            # definition to locate and kill its wpa_supplicant/dhcpcd via
+            # pidfiles — deleting first leaves the daemons orphaned.
             ifdown wlan0 2>/dev/null || true
             rm -f "$WLAN0_DROPIN" "$WPA_CONF" "$HOSTAPD_CONF" "$DNSMASQ_DROPIN"
+            ip addr flush dev wlan0 2>/dev/null || true
+            ip link set dev wlan0 down 2>/dev/null || true
             echo "web888-wificonfig: wlan0 configuration removed"
             ;;
     esac
@@ -246,9 +262,17 @@ case $verb in
             echo "web888-wificonfig: $verb already applied, nothing to do"
             exit 0
         fi
+        # Unique unit name per run: systemd-run refuses to start a unit whose
+        # name is still loaded, and units from an older helper version that
+        # used RemainAfterExit=yes stay active(exited)/loaded forever (which
+        # also defeats --collect). --collect unloads each instance once it
+        # deactivates. Tearing down the previous apply's daemons is phase 2's
+        # job (ifdown via pidfiles, works across cgroups) — there is
+        # deliberately no systemctl stop/reset-failed here.
         systemd-run --wait --pipe --collect \
-            --unit=web888-wificonfig-apply \
+            --unit="web888-wificonfig-apply-$$" \
             --description="web888 WiFi config apply ($verb)" \
+            --property KillMode=process \
             "$SELF" --apply "$verb"
         ;;
     *)

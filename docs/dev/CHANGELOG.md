@@ -52,6 +52,32 @@ Live-verified on hardware (192.168.27.5, RTL8188EUS client-mode dongle).
   `dnsmasq.service` added to the 80-web888.preset disable list so it
   only runs under `web888-wificonfig ap`.
 
+### Fixed (hardware bring-up, same-day)
+
+Four bugs found and fixed during on-device verification of the above:
+
+- **Apply unit killed its own daemons** — ifup spawns wpa_supplicant /
+  dhcpcd as children of the transient apply unit; the default
+  `KillMode=control-group` SIGTERMed the whole cgroup when the unit's
+  main process exited, so WiFi died seconds after a successful apply.
+  The unit now runs with `KillMode=process` (verified on-device that
+  `--wait` still returns immediately and the daemons survive unit
+  deactivation).
+- **`RemainAfterExit=yes` hung every caller** — the first attempt at the
+  above used a lingering oneshot unit; `systemd-run --wait` then blocked
+  until the unit became inactive, i.e. forever (websdr boot hook blocked
+  ~80 s, CLI calls hung indefinitely). Reverted in favour of
+  `KillMode=process`.
+- **Transient-unit name poisoning** — `systemd-run` refuses to start a
+  unit whose name is still loaded, and the RemainAfterExit-era unit
+  never unloaded. Unit name is now unique per run
+  (`web888-wificonfig-apply-$$`); teardown of a previous apply's daemons
+  relies on phase 2's `ifdown` (pidfile-based, works across cgroups).
+- **`off` left wpa_supplicant/dhcpcd orphaned** — phase 1 deleted the
+  interfaces.d drop-in before phase 2 ran `ifdown wlan0`, so ifdown had
+  no iface definition to tear down and the daemons survived. Removal now
+  happens entirely in phase 2, ordered ifdown → delete → flush.
+
 ### Notes
 
 - Application timing: the widgets carry `w3-restart`, so the admin page
