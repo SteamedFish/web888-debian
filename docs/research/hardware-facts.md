@@ -116,6 +116,17 @@ when they conflict.
   mainline driver reads them (dead legacy props) and this board's ULPI PHY reset
   is handled at power-up, not via GPIO. `external-drv-vbus` is the current
   binding name for stock's `drv-vbus` (`phy-ulpi.c` accepts both).
+  - **Live-verified 2026-08-19**: the direct USB-A plug is **marginal for
+    power-hungry high-speed dongles** (e.g. RTL8188EUS, 0bda:8179) — it
+    sometimes fails to enumerate (EHCI port sweeps, CCS stays 0, zero
+    `new XX-speed USB device` lines; the 100 ms HUB debounce discards the
+    window). Connecting the same dongle through a **Type-C→Type-A adapter**
+    enumerates and runs fully (high-speed, `rtl8xxxu` binds,
+    `rtlwifi/rtl8188eufw.bin` loads, `wlan0` active-scans APs). Because a
+    passive adapter adds no power, the constraint is **contact/signal
+    integrity on the direct A-plug**, not VBUS current — the earlier
+    "VBUS can't sustain ~500 mA inrush → needs a powered hub" idea was
+    superseded. See `docs/dev/KNOWN-ISSUES.md` §8.
 - ExtIO / antenna switch (per rx-888.com/web/design/pinout.html):
   an 8-pin SH1.0 connector (pin 1 = GND on the SD-card side, pin 8 = 5V) for an
   external antenna switch; pins carry 6 control signals **A1–A6**. These are
