@@ -56,10 +56,44 @@ Notes:
   size follows your browser window; tmux requires at least 80x24.
   If tmux fails with "open terminal failed: terminal too small",
   enlarge the browser window, disconnect, and reconnect.
-- **enable hotspot is a stock-firmware-only feature.** On Debian the
-  button prints "hotspot.sh not present on Debian (stock-firmware
-  only)". WiFi on the Debian image is managed via
-  ifupdown/wpasupplicant/hostapd instead (see `flashing.md`).
+- **enable hotspot** configures a WiFi AP with the stock defaults
+  (SSID `web-888`, password `88888888`, wlan0 = 192.168.42.1) via the
+  `web888-wificonfig ap-defaults` helper — see the WiFi section below.
+  It only works with an AP-capable USB WiFi dongle attached.
+
+## WiFi (USB dongle)
+
+The admin page **Network** tab has a "USB WIFI Dongle Mode" switch
+(**AP** / **Client**) plus SSID and password fields. Editing any of
+them applies on the following websdr restart (the page offers one
+automatically after an edit):
+
+- **Client** — joins the configured SSID via wpa_supplicant + DHCP
+  (`/etc/wpa_supplicant/wpa_supplicant.conf`,
+  `/etc/network/interfaces.d/wlan0`).
+- **AP** — the unit becomes an access point on wlan0
+  (192.168.42.1/24, DHCP via dnsmasq 192.168.42.20-254,
+  WPA2-PSK). Requires a dongle whose driver supports AP mode — check
+  with `iw list | grep -A4 "Supported interface modes"`. The common
+  RTL8188EUS (`rtl8xxxu`) dongle does **not** support AP; ath9k_htc /
+  mt7601u / carl9170-class dongles do (their firmware ships in the
+  image).
+- **enable hotspot** (Console tab) — one-click AP with the stock
+  defaults (SSID `web-888`, password `88888888`).
+
+By default (fresh image, never touched the WiFi controls) **nothing is
+configured** — Ethernet stays the only managed interface. NAT/internet
+forwarding for AP clients is not set up.
+
+To stop WiFi management entirely (no UI switch for this):
+
+```sh
+sudo /usr/lib/web888/root-helpers/web888-wificonfig off
+# then in /var/lib/web888/config/admin.json set "wifi_configured": false
+```
+
+Logs: `journalctl -u web888-websdr | grep WIFI` for the hook result,
+`journalctl -u web888-wificonfig-apply` for the apply run.
 
 ## Switching between WebSDR and Red Pitaya apps
 

@@ -27,6 +27,14 @@ materialises:
 
 ## 4. Minor / watchlist
 
+- **Admin-UI WiFi AP mode depends on the dongle** — the Network-tab
+  AP switch and Console-tab hotspot button (added 2026-08-20, see
+  CHANGELOG) probe `iw list` at runtime and refuse on incapable
+  hardware. The commonly shipped RTL8188EUS (`rtl8xxxu`) is
+  client-only (managed+monitor); AP needs ath9k_htc / mt7601u /
+  carl9170-class dongles (firmware shipped). Not a defect — hardware
+  capability. There is intentionally no UI "Off" option; the CLI
+  escape hatch is documented in `docs/user/usage.md`.
 - **0153 admin status-poll fix pending hardware verification** — patch 0153
   removes the 1 Hz `SET xfer_stats` / `ADM antsw_GetCurrentAnt` sends that
   0145's admin.js resync added (RaspSDR's server implements neither →

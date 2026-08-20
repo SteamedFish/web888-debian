@@ -1,0 +1,106 @@
+--- a/rx/rx_init.cpp
++++ b/rx/rx_init.cpp
+@@ -503,6 +503,7 @@ void update_vars_from_config(bool called
+     admcfg_default_int("wifi_mode", 0, &update_admcfg);
+     admcfg_default_string("wifi_ssid", "web-888", &update_admcfg);
+     admcfg_default_string("wifi_password", "88888888", &update_admcfg);
++    admcfg_default_bool("wifi_configured", false, &update_admcfg);
+ 
+     // decouple rx.kiwisdr.com and sdr.hu registration
+     bool sdr_hu_register = admcfg_bool("sdr_hu_register", NULL, CFG_REQUIRED);
+@@ -615,6 +616,44 @@ void update_vars_from_config(bool called
+     if (update_admcfg)
+         admcfg_save_json(cfg_adm.json); // during init doesn't conflict with admin cfg
+ 
++    // Debian: apply the admin console's USB-WiFi settings via the
++    // web888-wificonfig root helper. Only at init — admin-page edits carry
++    // the w3-restart class, so they take effect on the restart that the
++    // admin page itself triggers. Gated on wifi_configured because admcfg
++    // ships wifi_* defaults: without the gate every first boot would
++    // silently reconfigure the system network.
++    if (called_at_init && admcfg_bool("wifi_configured", NULL, CFG_OPTIONAL) == 1) {
++        int wifi_mode = admcfg_int("wifi_mode", NULL, CFG_OPTIONAL);
++        const char* ssid = admcfg_string("wifi_ssid", NULL, CFG_OPTIONAL);
++        const char* password = admcfg_string("wifi_password", NULL, CFG_OPTIONAL);
++        if (ssid != NULL) {
++            // staged values are URI-encoded in admcfg (w3_string_set_cfg_cb)
++            system("mkdir -p " DIR_STATE "/wificonfig");
++            FILE* fp = fopen(DIR_STATE "/wificonfig/wifi.conf", "w");
++            if (fp != NULL) {
++                char* dssid = kiwi_str_decode_inplace(strdup(ssid));
++                fprintf(fp, "SSID=%s\n", dssid);
++                free(dssid);
++                if (password != NULL) {
++                    char* dpw = kiwi_str_decode_inplace(strdup(password));
++                    fprintf(fp, "PASSWORD=%s\n", dpw);
++                    free(dpw);
++                }
++                fclose(fp);
++                const char* verb = (wifi_mode == 1)? "client" : "ap";
++                char cmd[256];
++                snprintf(cmd, sizeof(cmd),
++                    "sudo -n %s/root-helpers/web888-wificonfig %s", DIR_LIBEXEC, verb);
++                int status = system(cmd);
++                printf("WIFI: web888-wificonfig %s -> status=%d\n", verb, status);
++            } else {
++                printf("WIFI: cannot stage " DIR_STATE "/wificonfig/wifi.conf\n");
++            }
++        }
++        if (ssid) admcfg_string_free(ssid);
++        if (password) admcfg_string_free(password);
++    }
++
+ 
+     // one-time-per-run initializations
+ 
+===================================================================
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -1947,11 +1947,11 @@ function network_html()
+                   'Select lower value when <br> having connection issues <br> using mobile networks.')
+             ),
+             w3_switch_label_get_param('id-wifi-mode w3-center w3-restart', 'USB WIFI Dongle Mode',
+-               'AP', 'Client', 'adm.wifi_mode', 0, 1, 'admin_int_cb'),
++               'AP', 'Client', 'adm.wifi_mode', 0, 1, 'wifi_mode_cb'),
+ 
+             w3_divs('w3-valign w3-flex-col w3-restart/w3-tspace-6',
+-               w3_input_get('', 'SSID', 'adm.wifi_ssid', 'w3_string_set_cfg_cb'),
+-               w3_input_get('w3-encrypted', 'Wifi Password', 'adm.wifi_password', 'w3_string_set_cfg_cb')
++               w3_input_get('', 'SSID', 'adm.wifi_ssid', 'wifi_string_cb'),
++               w3_input_get('w3-encrypted', 'Wifi Password', 'adm.wifi_password', 'wifi_string_cb')
+             )
+ 			),
+ 			w3_div('id-net-ssl-container w3-restart w3-hide',
+@@ -3451,7 +3451,7 @@ function console_html()
+                'title="CAUTION: This will delete all but\n10 MB of your system log file"',
+                'clean logs', 'console_cmd_cb', 'console_input_cb|df -H /; journalctl --vacuum-size=10M; df -H /'),
+ 
+-            w3_button('w3-aqua|margin-left:16px', 'enable hotspot', 'console_cmd_cb', 'console_input_cb|test -x /root/wifi/hotspot.sh && /root/wifi/hotspot.sh || echo "hotspot.sh not present on Debian"'),
++            w3_button('w3-aqua|margin-left:16px', 'enable hotspot', 'console_cmd_cb', 'console_input_cb|sudo -n /usr/lib/web888/root-helpers/web888-wificonfig ap-defaults'),
+ 
+             w3_button('w3-blue|margin-left:16px', 'ping DNS', 'console_cmd_cb',
+                'console_input_cb|ping -c3 1.1.1.1; ping -c3 8.8.8.8'),
+@@ -5005,6 +5005,23 @@ function admin_reboot_cancel_cb()
+ 	admin_resize();
+ }
+ 
++// USB WIFI widgets: mirror the wrapped callback, and on a real user edit
++// (not the initial page-load pass) mark adm.wifi_configured so the server
++// knows the admin actually set WiFi params and may apply them at restart.
++function wifi_mode_cb(path, val, first)
++{
++	admin_int_cb(path, val, first);
++	var save = isArg(first)? (first? false : true) : true;
++	if (save) ext_set_cfg_param('adm.wifi_configured', true, true);
++}
++
++function wifi_string_cb(path, val, first)
++{
++	w3_string_set_cfg_cb(path, val, first);
++	var save = isArg(first)? (first? false : true) : true;
++	if (save) ext_set_cfg_param('adm.wifi_configured', true, true);
++}
++
+ 
+ // confirmation interface
+ 

@@ -54,6 +54,10 @@ English documentation: [README.md](README.md).
   GPS 链路，音频 + 瀑布图端到端硬件验证；已与上游 KiwiSDR v1.902 及
   v1.902 之后的修复对齐（cherry-pick 系列至 0153 + mongoose 5.6→7.14
   升级 + 管理界面再同步）
+- **管理界面直接配置 WiFi** —— 原版 Network 标签页的「USB WIFI Dongle Mode」
+  开关（Client STA / AP）与 Console 标签页的 hotspot 按钮已在 Debian 上可用，
+  经由沙箱化 root helper 实现（ifupdown + wpa_supplicant / hostapd + dnsmasq）；
+  AP 模式需要支持 AP 的网卡（见 `docs/user/usage.md`）
 - **Red Pitaya 共存**（`web888-redpitaya` deb）—— 收录比特流 + 源码构建的应用，
   `web888-mode` 在 WebSDR 与 RP 应用之间运行时切换，无需重新刷卡
 - **6.12 内核 + 完整 U-Boot 链路** —— QEMU 门禁已通过；硬件浸泡测试事项见

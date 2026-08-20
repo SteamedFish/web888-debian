@@ -61,6 +61,11 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
   GPS plumbing, audio + waterfall verified end-to-end; aligned with upstream
   KiwiSDR v1.902 and post-v1.902 fixes (cherry-pick series through 0153,
   mongoose 5.6→7.14 upgrade, admin re-sync)
+- **WiFi from the admin UI** — the stock Network-tab "USB WIFI Dongle
+  Mode" switch (Client STA / AP) and the Console-tab hotspot button work
+  on Debian via a sandboxed root helper (ifupdown + wpa_supplicant /
+  hostapd + dnsmasq); AP mode requires an AP-capable dongle
+  (see `docs/user/usage.md`)
 - **Red Pitaya coexistence** (`web888-redpitaya` deb) — vendored bitstreams
   + source-built apps, `web888-mode` runtime switching between WebSDR and RP
   apps, no reflashing

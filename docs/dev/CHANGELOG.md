@@ -9,6 +9,61 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-20] — websdr: admin-page WiFi (Client STA + AP) adapted for Debian
+
+The stock admin Network-tab "USB WIFI Dongle Mode" switch (AP/Client)
+and the Console-tab "enable hotspot" button now actually configure WiFi
+on the Debian image instead of printing "not present on Debian".
+Live-verified on hardware (192.168.27.5, RTL8188EUS client-mode dongle).
+
+### Added
+
+- **`web888-wificonfig` root helper** (`packaging/web888-websdr/debian/
+  root-helpers/`) — clones the `web888-netconfig` sudo-helper pattern.
+  Verbs: `client` (wpa_supplicant.conf + interfaces.d/wlan0, ifup wlan0),
+  `ap` (hostapd.conf + dnsmasq drop-in 192.168.42.20-254 on
+  wlan0=192.168.42.1/24), `ap-defaults` (stock hotspot semantics:
+  web-888/88888888), `off` (remove all WiFi config). The helper owns all
+  config templates; websdr only stages an SSID=/PASSWORD= file in
+  `/var/lib/web888/wificonfig/` — the helper validates (printable ASCII,
+  no quotes/backslashes, SSID 1-32, password 8-63 or empty) and renders
+  everything itself. Sandboxed execution: validation/render happens
+  inside the websdr sandbox, the system-mutating phase runs via
+  `systemd-run --wait --pipe --collect` transient unit (same escape as
+  `web888-poweroff`). Idempotent: a content key over the rendered tree
+  (`/var/lib/web888/wificonfig/applied.key`) makes restarts/crashes
+  no-ops instead of re-bouncing wlan0. AP mode probes `iw list` for the
+  AP interface mode at runtime and refuses with a clear message on
+  incapable dongles (e.g. the RTL8188EUS/rtl8xxxu shipped with many
+  units has managed+monitor only).
+- **Patch 0023** (`config/websdr/patches/0023-wifi-config-debian.patch`)
+  — `rx_init.cpp`: new `adm.wifi_configured` bool (default false) gating
+  a start-time hook that, only when the user has actually configured
+  WiFi, stages the credentials and runs
+  `sudo -n .../web888-wificonfig client|ap`; `admin.js`: the three
+  Network-tab WiFi widgets get wrapper callbacks that set
+  `wifi_configured` on real user edits (stock defaults alone never
+  trigger a reconfigure — a fresh image does not touch the network),
+  and the Console-tab "enable hotspot" button now calls
+  `web888-wificonfig ap-defaults`.
+- **`scripts/configure-rootfs.sh`** — installs `dnsmasq`,
+  `firmware-atheros`, `firmware-mediatek` (matching the kernel's
+  ATH9K_HTC/CARL9170/MT7601U=m drivers so AP-capable dongles work);
+  `dnsmasq.service` added to the 80-web888.preset disable list so it
+  only runs under `web888-wificonfig ap`.
+
+### Notes
+
+- Application timing: the widgets carry `w3-restart`, so the admin page
+  restarts websdr after an edit and the hook applies WiFi at start —
+  same model as other restart-class admin settings.
+- No UI "Off" option (stock widget is a two-state AP/Client switch);
+  to stop WiFi management: `sudo /usr/lib/web888/root-helpers/web888-wificonfig off`
+  and set `wifi_configured` false in `/var/lib/web888/config/admin.json`
+  (see `docs/user/usage.md`). NAT/forwarding for AP clients is out of
+  scope.
+- `debian/changelog`: `2026.730-10` (UNRELEASED).
+
 ## [2026-08-19] — docs: USB-A WiFi dongle recovery resolved via Type-C→Type-A adapter
 
 ### Fixed

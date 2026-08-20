@@ -156,3 +156,15 @@
 # set no_decode, so kiwi_output_msg() decodeURIComponent()d it again and failed on
 # shell output containing % (df "43%", ping "0%"). Set no_decode: true.
 0022-console-no-double-decode.patch
+
+# 0023: Debian USB-WiFi support for the admin network page. Wraps the three
+# WiFi widgets (mode/SSID/password) so real user edits set adm.wifi_configured;
+# at init (w3-restart round-trip) update_vars_from_config() stages
+# $DIR_STATE/wificonfig/wifi.conf and invokes the web888-wificonfig root
+# helper (sudo -n), which owns all config templates and does the privileged
+# apply outside the service sandbox via systemd-run. The wifi_configured gate
+# is load-bearing: admcfg ships wifi_* defaults, without it every first boot
+# would silently reconfigure the system network. Also points the console
+# "enable hotspot" button at the helper's ap-defaults verb.
+# Written against the full post-0022 series tree in a quilt workdir.
+0023-wifi-config-debian.patch

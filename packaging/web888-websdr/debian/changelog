@@ -1,5 +1,14 @@
 web888-websdr (2026.730-10) UNRELEASED; urgency=medium
 
+  * USB-WiFi support for the admin network page on Debian: new
+    /usr/lib/web888/root-helpers/web888-wificonfig (sudoers-registered,
+    verbs client|ap|ap-defaults|off) owns all config templates and applies
+    them outside the service sandbox via a systemd-run transient unit;
+    new patch 0023-wifi-config-debian.patch stages the admin console's
+    wifi_mode/wifi_ssid/wifi_password values at init (gated on the new
+    adm.wifi_configured flag set by real user edits) and invokes the
+    helper. AP mode is refused with a clear error when the attached
+    dongle/driver lacks AP support (the stock RTL8188EUS/rtl8xxxu does).
   * Stop shipping the vendored dumphfdl at /usr/lib/web888/dumphfdl: its
     library linkage (built from the externals/ submodule) does not match
     the Debian trixie runtime, so it cannot run. The system dumphfdl

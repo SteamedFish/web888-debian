@@ -128,6 +128,14 @@ stable prefix `ce:cf:3f:*`:
 2. `ip neigh | grep -i ce:cf:3f` after any contact attempt
 3. Check the router DHCP client list (hostname `web888`)
 
+### WiFi (USB dongle)
+
+Configured from the admin UI: **Network** tab → "USB WIFI Dongle Mode"
+switch (AP/Client) + SSID/password, or **Console** tab →
+`enable hotspot` (AP with stock defaults web-888/88888888). Changes
+apply on websdr restart. See `usage.md` → "WiFi (USB dongle)" for
+details, AP-capable dongles, and how to turn WiFi management off.
+
 ## Common Issues Quick Fix
 
 ### Issue: Cannot Access Web Interface

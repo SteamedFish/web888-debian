@@ -188,6 +188,31 @@ dpkg -L web888-websdr | grep -i <name>    # is it shipped in the deb?
 - **Kernel/device-tree work:** follow `../dev/kernel-update-sop.md`; every
   image must pass `scripts/test-qemu.sh uboot` before flashing.
 
+## 10. WiFi (USB dongle)
+
+Admin-UI WiFi config lives in the Network tab ("USB WIFI Dongle Mode"
+switch + SSID/password) and applies on websdr restart
+(`usage.md` → "WiFi (USB dongle)").
+
+- **Dongle not detected at all** — the board's USB-A port is marginal
+  for some dongles; a Type-C→Type-A adapter fixes enumeration
+  (`../dev/KNOWN-ISSUES.md` §8). Check `lsusb` and `ip link show wlan0`.
+- **AP mode refuses to start** ("WiFi hardware/driver does not support
+  AP mode") — the dongle's driver has no AP capability. Verify with
+  `iw list | grep -A4 "Supported interface modes"` (must list `AP`).
+  The common RTL8188EUS (`rtl8xxxu`) is client-only; use an
+  ath9k_htc / mt7601u / carl9170 dongle for AP (firmware included).
+- **Client mode set but no connection** — the apply log shows the
+  DHCP/association outcome: `journalctl -u web888-wificonfig-apply`.
+  Check SSID/password; a wrong password just leaves wlan0 up but
+  unassociated (`iw dev wlan0 link`).
+- **Where did my Ethernet go?** It didn't — WiFi setup never touches
+  eth0/dhcpcd. If the unit is unreachable after switching modes, both
+  interfaces may be up; find it via mDNS (`web888.local`) or the
+  `ce:cf:3f:*` MAC (see `quick-reference.md` → Finding the IP Address).
+- **Undo WiFi entirely** — `sudo /usr/lib/web888/root-helpers/web888-wificonfig off`,
+  then set `"wifi_configured": false` in `/var/lib/web888/config/admin.json`.
+
 ## Preventive maintenance (Debian)
 
 ```sh

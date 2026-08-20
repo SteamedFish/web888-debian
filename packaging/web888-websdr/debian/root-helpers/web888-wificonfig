@@ -1,0 +1,257 @@
+#!/bin/sh
+# web888-wificonfig <client|ap|ap-defaults|off> — apply the admin console's
+# USB-WiFi settings (stock: /root/wifi/{client,hotspot}.sh on Alpine/OpenRC)
+# to the Debian network stack. Runs as root via sudo (see
+# /etc/sudoers.d/web888); the web888 user only ever writes the staging file.
+#
+# Why this exists: the stock scripts drive OpenRC (rc-update/service) and
+# rewrite dhcpcd.conf — none of that exists on Debian. Here the websdr service
+# stages a single $STATE/wifi.conf (SSID=/PASSWORD= lines) and this helper
+# validates it, renders the real configs from its own templates, and installs
+# them. The main /etc/network/interfaces file is NEVER touched — only the
+# interfaces.d/wlan0 drop-in.
+#
+# Two phases: the outer verb (run inside the websdr service sandbox, where
+# /etc and /run are read-only) validates and renders, then re-executes itself
+# as "--apply <verb>" through systemd-run — a transient service started by
+# PID 1 OUTSIDE the sandbox — which installs the files and bounces
+# interfaces/services. Phase 2 re-validates the staging file (defense in
+# depth); if invoked directly it still works, but write access then depends on
+# the caller's environment.
+#
+# Idempotency: phase 1 hashes (verb + rendered content) and compares against
+# $STATE/applied.key written by the last successful apply. A match means
+# "already applied" and exits 0 without touching any interface — websdr
+# restart-loops therefore never bounce wlan0.
+#
+# Security contract: fixed verbs only, no eval anywhere, staged values are
+# restricted to printable ASCII excluding '"' and '\' (SSID 1-32 chars,
+# password 0 or 8-63) so template rendering needs no escaping. AP mode is
+# refused when `iw list` shows no AP support in "Supported interface modes"
+# (e.g. rtl8xxxu: managed+monitor only). Open (password-less) AP is refused.
+#
+# Path overrides (WEB888_WIFICONFIG_*) exist for scratch-rootfs testing;
+# sudo's env_reset strips them in production, so the real paths always apply.
+set -eu
+
+STATE=${WEB888_WIFICONFIG_STATE:-/var/lib/web888/wificonfig}
+SELF=${WEB888_WIFICONFIG_SELF:-/usr/lib/web888/root-helpers/web888-wificonfig}
+STAGED="$STATE/wifi.conf"
+KEYFILE="$STATE/applied.key"
+
+IFD=/etc/network/interfaces.d
+WLAN0_DROPIN="$IFD/wlan0"
+WPA_CONF=/etc/wpa_supplicant/wpa_supplicant.conf
+HOSTAPD_CONF=/etc/hostapd/hostapd.conf
+DNSMASQ_DROPIN=/etc/dnsmasq.d/50-web888-ap.conf
+
+AP_ADDR=192.168.42.1
+DHCP_RANGE="192.168.42.20,192.168.42.254,12h"
+DEFAULT_AP_SSID=web-888
+DEFAULT_AP_PASSWORD=88888888
+
+die() { echo "web888-wificonfig: $*" >&2; exit 1; }
+
+# Reject anything outside printable ASCII (0x20-0x7E) and the two characters
+# that would need escaping in hostapd/wpa_supplicant config syntax.
+check_value() { # <value> <name> <minlen> <maxlen>
+    if printf '%s' "$1" | LC_ALL=C grep -q '[^ -~]'; then
+        echo "web888-wificonfig: $2 contains non-printable-ASCII characters" >&2
+        return 1
+    fi
+    case $1 in
+        *[\"\\]*)
+            echo "web888-wificonfig: $2 must not contain quotes or backslashes" >&2
+            return 1
+            ;;
+    esac
+    [ "${#1}" -ge "$3" ] && [ "${#1}" -le "$4" ] && return 0
+    echo "web888-wificonfig: $2 length must be $3-$4 characters" >&2
+    return 1
+}
+
+# Parse $STAGED into $ssid/$password. Grammar: exactly "SSID=<v>" and
+# optionally "PASSWORD=<v>", one per line, no other content.
+validate_staged() {
+    [ -f "$STAGED" ] || die "no staged wifi.conf in $STATE"
+    ssid=
+    password=
+    have_ssid=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in
+            SSID=*) ssid=${line#SSID=}; have_ssid=1 ;;
+            PASSWORD=*) password=${line#PASSWORD=} ;;
+            '') ;;
+            *)
+                echo "web888-wificonfig: rejected line in wifi.conf: $line" >&2
+                return 1
+                ;;
+        esac
+    done <"$STAGED"
+    [ "$have_ssid" -eq 1 ] || { echo "web888-wificonfig: wifi.conf has no SSID= line" >&2; return 1; }
+    check_value "$ssid" SSID 1 32
+    check_value "$password" password 0 63
+}
+
+# True if the wireless hardware supports AP mode.
+hw_supports_ap() {
+    iw list 2>/dev/null | awk '
+        /Supported interface modes/ { inmodes=1; next }
+        inmodes && /^\t[A-Z]/ { inmodes=0 }
+        inmodes && /\* AP/ { found=1 }
+        END { exit(found ? 0 : 1) }
+    '
+}
+
+# Render the verb's config files into directory $1 (must exist).
+render() { # <outdir>
+    case $verb in
+        client)
+            {
+                echo 'ctrl_interface=DIR=/run/wpa_supplicant GROUP=netdev'
+                echo 'update_config=1'
+                echo
+                echo 'network={'
+                printf '\tssid="%s"\n' "$ssid"
+                if [ -n "$password" ]; then
+                    printf '\tpsk="%s"\n' "$password"
+                else
+                    echo '\tkey_mgmt=NONE'
+                fi
+                echo '}'
+            } >"$1/wpa_supplicant.conf"
+            {
+                echo 'allow-hotplug wlan0'
+                echo 'iface wlan0 inet dhcp'
+                echo '    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf'
+            } >"$1/wlan0"
+            ;;
+        ap | ap-defaults)
+            [ -n "$password" ] || die "AP mode requires a WPA2 password (open AP refused)"
+            [ "${#password}" -ge 8 ] || die "WPA2 password must be at least 8 characters"
+            hw_supports_ap || die "WiFi hardware/driver does not support AP mode (iw: no AP in supported interface modes)"
+            {
+                echo 'interface=wlan0'
+                echo 'driver=nl80211'
+                printf 'ssid=%s\n' "$ssid"
+                echo 'hw_mode=g'
+                echo 'channel=6'
+                echo 'auth_algs=1'
+                echo 'wpa=2'
+                printf 'wpa_passphrase=%s\n' "$password"
+                echo 'wpa_key_mgmt=WPA-PSK'
+                echo 'rsn_pairwise=CCMP'
+            } >"$1/hostapd.conf"
+            {
+                echo 'interface=wlan0'
+                echo 'bind-dynamic'
+                printf 'dhcp-range=%s\n' "$DHCP_RANGE"
+            } >"$1/dnsmasq-ap.conf"
+            {
+                echo 'allow-hotplug wlan0'
+                echo 'iface wlan0 inet static'
+                printf '    address %s/24\n' "$AP_ADDR"
+            } >"$1/wlan0"
+            ;;
+        off)
+            : # renders nothing; apply only removes
+            ;;
+        *)
+            die "internal error: bad verb $verb"
+            ;;
+    esac
+}
+
+# Content key for idempotency: verb + rendered files. Hash from inside the
+# directory so the key does not depend on the (different) phase-1/phase-2
+# staging paths.
+content_key() { # <dir>
+    { echo "verb=$verb"; (cd "$1" && sha256sum ./* 2>/dev/null); } | sha256sum | cut -d' ' -f1
+}
+
+# Atomic install: tmp file in the same directory, then rename.
+# NOTE: POSIX sh has no function-local variables — use a uniquely-named
+# variable here, otherwise we clobber apply()'s global "$tmp" staging dir.
+install_file() { # <src> <dst> <mode>
+    _if_tmp="$2.web888-tmp"
+    install -m "$3" -o root -g root "$1" "$_if_tmp"
+    mv "$_if_tmp" "$2"
+}
+
+# --- phase 2: apply (full privileges via systemd-run transient service) ---
+apply() {
+    tmp=$(mktemp -d /tmp/web888-wificonfig.XXXXXX)
+    trap 'rm -rf "$tmp"' EXIT
+    render "$tmp"
+    case $verb in
+        client)
+            install_file "$tmp/wpa_supplicant.conf" "$WPA_CONF" 0600
+            install_file "$tmp/wlan0" "$WLAN0_DROPIN" 0644
+            rm -f "$HOSTAPD_CONF" "$DNSMASQ_DROPIN"
+            systemctl disable --now hostapd.service dnsmasq.service 2>/dev/null || true
+            ifdown wlan0 2>/dev/null || true
+            ifup wlan0
+            echo "web888-wificonfig: client mode applied (SSID \"$ssid\")"
+            ;;
+        ap | ap-defaults)
+            install_file "$tmp/hostapd.conf" "$HOSTAPD_CONF" 0600
+            install_file "$tmp/dnsmasq-ap.conf" "$DNSMASQ_DROPIN" 0644
+            install_file "$tmp/wlan0" "$WLAN0_DROPIN" 0644
+            rm -f "$WPA_CONF"
+            systemctl stop wpa_supplicant.service 2>/dev/null || true
+            ifdown wlan0 2>/dev/null || true
+            ifup wlan0
+            systemctl enable --now hostapd.service
+            systemctl enable --now dnsmasq.service
+            echo "web888-wificonfig: AP mode applied (SSID \"$ssid\", $AP_ADDR)"
+            ;;
+        off)
+            systemctl disable --now hostapd.service dnsmasq.service 2>/dev/null || true
+            systemctl stop wpa_supplicant.service 2>/dev/null || true
+            ifdown wlan0 2>/dev/null || true
+            rm -f "$WLAN0_DROPIN" "$WPA_CONF" "$HOSTAPD_CONF" "$DNSMASQ_DROPIN"
+            echo "web888-wificonfig: wlan0 configuration removed"
+            ;;
+    esac
+    mkdir -p "$STATE"
+    content_key "$tmp" >"$KEYFILE"
+    chmod 0644 "$KEYFILE"
+}
+
+verb=${1:-}
+case $verb in
+    --apply)
+        verb=${2:-}
+        case $verb in client | ap | ap-defaults | off) ;; *) die "usage: web888-wificonfig --apply <client|ap|ap-defaults|off>" ;; esac
+        if [ "$verb" = ap-defaults ]; then
+            ssid=$DEFAULT_AP_SSID
+            password=$DEFAULT_AP_PASSWORD
+        elif [ "$verb" != off ]; then
+            validate_staged
+        fi
+        apply
+        ;;
+    client | ap | ap-defaults | off)
+        if [ "$verb" = ap-defaults ]; then
+            ssid=$DEFAULT_AP_SSID
+            password=$DEFAULT_AP_PASSWORD
+        elif [ "$verb" != off ]; then
+            validate_staged
+        fi
+        mkdir -p "$STATE/render"
+        rm -f "$STATE/render"/*
+        render "$STATE/render"
+        key=$(content_key "$STATE/render")
+        if [ -f "$KEYFILE" ] && [ "$(cat "$KEYFILE")" = "$key" ]; then
+            echo "web888-wificonfig: $verb already applied, nothing to do"
+            exit 0
+        fi
+        systemd-run --wait --pipe --collect \
+            --unit=web888-wificonfig-apply \
+            --description="web888 WiFi config apply ($verb)" \
+            "$SELF" --apply "$verb"
+        ;;
+    *)
+        die "usage: web888-wificonfig <client|ap|ap-defaults|off>"
+        ;;
+esac

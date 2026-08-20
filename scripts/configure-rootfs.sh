@@ -132,17 +132,20 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     htop tmux curl rsync bash-completion usbutils
 # Step 6: firmware for the USB WiFi adapters websdr images support
-# (rtl8xxxu/rtw88, ath9k_htc, brcmfmac) — sources.list carries
-# non-free-firmware since step 3.5.
+# (rtl8xxxu/rtw88, ath9k_htc/carl9170, brcmfmac, mt7601u) — sources.list
+# carries non-free-firmware since step 3.5.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     firmware-linux-free firmware-brcm80211 firmware-realtek firmware-misc-nonfree \
+    firmware-atheros firmware-mediatek \
     wireless-regdb
 # WiFi tooling: wpasupplicant (client; integrates with ifupdown wpa-* options),
-# hostapd (create an AP), iw (modern nl80211 config), wireless-tools (legacy
-# iwconfig helpers used by many SDR/websdr scripts), rfkill (unblock radios).
+# hostapd (create an AP), dnsmasq (DHCP server for the AP subnet; the unit is
+# preset-disabled at first boot — web888-wificonfig enables it only in AP
+# mode), iw (modern nl80211 config), wireless-tools (legacy iwconfig helpers
+# used by many SDR/websdr scripts), rfkill (unblock radios).
 # Install-only per user request — no config written here.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-    wpasupplicant hostapd iw wireless-tools rfkill
+    wpasupplicant hostapd dnsmasq iw wireless-tools rfkill
 # gpsd runs as user gpsd; make sure it can open the serial + PPS devices
 # (the udev rule below assigns them to dialout; the gpsd Debian postinst
 # adds user gpsd to dialout — re-add here in case of ordering).
@@ -201,12 +204,16 @@ systemctl disable systemd-networkd.service systemd-networkd-wait-online.service 
 #     installed unconfigured (no /etc/default/noip-duc, no frpc.ini) →
 #     guaranteed start failure (frpc crash-loops on RestartSec=5s). Users who
 #     configure them can `systemctl enable --now noip-duc` / `frpc`.
+#   dnsmasq.service: installed for the admin-console WiFi AP mode; must not
+#     run by default (it would bind :53 on every interface). The
+#     web888-wificonfig helper enables it only while AP mode is active.
 sudo mkdir -p "$ROOTFS/etc/systemd/system-preset"
 sudo rm -f "$ROOTFS/etc/systemd/system-preset/99-web888.preset"
 sudo tee "$ROOTFS/etc/systemd/system-preset/80-web888.preset" >/dev/null <<'PRESET'
 disable chronyd-restricted.service
 disable noip-duc.service
 disable frpc.service
+disable dnsmasq.service
 disable systemd-networkd.service
 disable systemd-networkd-wait-online.service
 PRESET
