@@ -121,42 +121,76 @@ the QEMU check now asserts (any of the five printing `enabled` fails the
 gate). Remove this section once a rebuilt image is flashed and
 `systemctl --failed` comes back empty.
 
-## 8. Board USB-A host port is marginal for RTL8188EUS-class WiFi dongles (RESOLVED via Type-C→Type-A adapter)
+## 8. The board has no USB-A socket — only two Type-C ports, and adapter quality matters
 
-The direct USB-A plug on the board could not reliably enumerate an
-RTL8188EUS dongle (0bda:8179, high-speed, 480 Mb/s, `rtl8xxxu` driver)
-on the dev unit. **RESOLVED live on 2026-08-19**: connecting the same
-dongle through a **Type-C→Type-A adapter** makes it enumerate and work
-fully (high-speed, `rtl8xxxu` binds, `wlan0` comes up and actively scans
-APs). No code or device-tree change was needed.
+The board physically has **two USB Type-C receptacles and no USB
+Type-A connector at all**. One of the Type-C ports is the USB data
+port (driven by `e0002000` / ULPI / SMSC USB3320, see
+`docs/research/hardware-facts.md`); the other Type-C is **power-only**
+(no USB data lines wired — it is only a 5 V charging input). Any
+USB-A peripheral — including the RTL8188EUS WiFi dongle that
+triggered the original 2026-08-19 investigation — therefore has to
+go through a USB **Type-C→Type-A adapter** on the data Type-C. There
+is no "direct USB-A plug" on this board.
 
-The fix being a *passive* adapter (no added power) **superseded the
-original "USB-A VBUS cannot sustain ~500 mA inrush / needs a powered
-hub" hypothesis** — a weak-induction VBUS-inrush failure could not be
-cured by a connector adapter. The real constraint is marginal
-**contact / signal integrity on the board's direct USB-A plug** for
-this power-hungry class of dongle; a good adapter gives a more reliable
-physical/signal path. The `self-powered hub` advice is still a valid
-belt-and-braces workaround, but it is not the required fix.
+Because the connector path always involves an adapter, **adapter
+quality / power draw is the discriminating variable**. On the dev
+unit, repeated on-device tests of the same RTL8188EUS dongle
+(0bda:8179, high-speed, 480 Mb/s, `rtl8xxxu` driver) on the same
+data Type-C port showed that **one** Type-C→Type-A adapter let it
+enumerate and work fully (`rtl8xxxu` binds `rtlwifi/rtl8188eufw.bin`,
+`wlan0` comes up, active scan finds APs), while a **different,
+higher-power-draw** adapter prevented enumeration entirely (EHCI
+`PORTSC` sweeps a 1-second state change with `CCS` (bit0) **0
+throughout**; the 100 ms HUB debounce filter discards the brief
+window, so **zero** `new XX-speed USB device` / descriptor /
+disconnect lines are printed). No code or device-tree change was
+needed either time — only the adapter was swapped.
 
 ### Evidence
 
-- Direct A-plug (earlier probe): `lsusb` shows only the root hub;
-  `PORTSC` (chipidea EHCI) sweeps a 1-second state change with `CCS`
-  (bit0) **0 throughout**; the 100 ms HUB debounce filter discards the
-  brief window so **zero** `new XX-speed USB device` / descriptor /
-  disconnect lines are printed. The same port enumerates a Fanxiang
-  U 盘 (0x058f:6387) as high-speed with a full descriptor dump — host
-  controller, SMSC USB3320 ULPI PHY, and driver stack are all healthy.
-  Reference: `docs/dev/CHANGELOG.md` 2026-08-19 kernel/usb entry.
-- Adapter fix (live 2026-08-19): with the Type-C→Type-A adapter the
-  dongle enumerates as `0bda:8179` high-speed, `rtl8xxxu` loads
-  `rtlwifi/rtl8188eufw.bin`, `wlan0` is created, and an active scan
-  returns APs — WiFi fully operational.
+- Same port, two adapters (the live-verified 2026-08-20 test):
+  - **Adapter X (low-draw):** RTL8188EUS enumerates as `0bda:8179`
+    high-speed, `rtl8xxxu` loads `rtlwifi/rtl8188eufw.bin`, `wlan0`
+    is created, and an active scan returns APs — WiFi fully
+    operational.
+  - **Adapter Y (higher-draw):** `lsusb` shows only the root hub;
+    the chipidea EHCI port sweeps `PORTSC` but `CCS` stays 0
+    throughout the 1-second window, so the 100 ms HUB debounce
+    filter discards it. No `new XX-speed USB device` / descriptor /
+    disconnect lines. The host controller, SMSC USB3320 ULPI PHY,
+    and driver stack are otherwise healthy — the same data port
+    enumerates a Fanxiang U 盘 (0x058f:6387) as high-speed with a
+    full descriptor dump when the test dongle is unplugged. The
+    raw `lsusb`, `dmesg`, and `/sys/.../PORTSC` traces from the
+    2026-08-19 failure investigation (under the now-superseded
+    "direct USB-A VBUS inrush" framing) all still apply, verbatim —
+    the diagnosis was wrong, not the measurements.
+    Reference: `docs/dev/CHANGELOG.md` 2026-08-19 kernel/usb
+    entry.
+- The data Type-C port is single, fixed, and not multiplexed — only
+  one Type-C on the chassis is wired to USB; **the other Type-C is
+  power-only**. There is no second data port to fall back to.
 
 ### User-facing note
 
-If an RTL8188EUS-class dongle fails to enumerate on the USB-A port,
-try it through a **good USB Type-C→Type-A adapter** (or a powered
-hub) before suspecting the image/kernel — the DH repository kernel
-and driver stack already support it.
+The hardware data path is fine — the chipidea USB host controller,
+SMSC USB3320 ULPI PHY, drivers, kernel modules, and firmware are
+all present and working. If a USB-A peripheral fails to enumerate
+on the data Type-C port, the fix is to **swap to a different USB
+Type-C→Type-A adapter** (low-draw preferred). Do **not** assume a
+hardware fault on the board; do **not** keep retrying the same
+adapter. A self-powered hub is still a valid belt-and-braces
+workaround if no working adapter is available, but it is not the
+required fix.
+
+> **History note:** the earlier framing of this section (pre-2026-08-20,
+> `git log docs/dev/KNOWN-ISSUES.md` shows the 2026-08-19 commits
+> `85f762b`, `2b0a619`, `e8d5cd6`) described a "direct USB-A plug" and
+> explained the working adapter as a contact-integrity fix on that
+> non-existent plug. The underlying evidence — host controller /
+> PHY / driver-stack health, an adapter that works — is still true;
+> only the identifying hypothesis ("the USB-A plug is the marginal
+> element") is wrong, because the board has no USB-A plug at all.
+> The disciminating 2026-08-20 test is adapter-X vs adapter-Y on the
+> **same** data Type-C: working vs failing with no other change.

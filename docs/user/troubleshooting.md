@@ -194,9 +194,18 @@ Admin-UI WiFi config lives in the Network tab ("USB WIFI Dongle Mode"
 switch + SSID/password) and applies on websdr restart
 (`usage.md` → "WiFi (USB dongle)").
 
-- **Dongle not detected at all** — the board's USB-A port is marginal
-  for some dongles; a Type-C→Type-A adapter fixes enumeration
-  (`../dev/KNOWN-ISSUES.md` §8). Check `lsusb` and `ip link show wlan0`.
+- **Dongle not detected at all** — the board has **no USB-A socket**;
+  the only USB data connector is one of the two Type-C ports (the
+  other Type-C is power-only). A USB WiFi dongle therefore always
+  needs a USB **Type-C→Type-A adapter** — and **adapter power draw
+  matters**: same dongle, same data Type-C port, but a different
+  adapter can change the result from "enumerates as high-speed,
+  `wlan0` comes up" to "nothing — no `new XX-speed USB device`
+  line, `lsusb` only shows the root hub" (live-verified 2026-08-20).
+  First action is to **swap the Type-C→Type-A adapter** — do not
+  keep retrying the same adapter. Reference:
+  `../dev/KNOWN-ISSUES.md` §8. Then check `lsusb` and
+  `ip link show wlan0`.
 - **AP mode refuses to start** ("WiFi hardware/driver does not support
   AP mode") — the dongle's driver has no AP capability. Verify with
   `iw list | grep -A4 "Supported interface modes"` (must list `AP`).

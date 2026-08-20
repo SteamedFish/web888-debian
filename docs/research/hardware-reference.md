@@ -289,14 +289,25 @@ set_property PACKAGE_PIN F16 [get_ports led_o]             ;# Status LED
 ### Lower side (I/O side)
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  [ETHERNET]  [USB HOST]  [EXTIO]  [USB-C PWR]  [TF CARD]    │
-│   (RJ-45)     (USB-A)    (8-pin)   (Type-C)    (Micro SD)   │
+│  [ETHERNET]  [USB-C DATA]  [EXTIO]  [USB-C PWR]  [TF CARD]  │
+│   (RJ-45)    (Type-C)    (8-pin)   (Type-C)    (Micro SD)   │
 └──────────────────────────────────────────────────────────────┘
 ```
 - **Ethernet (RJ45):** 10/100/1000 auto-neg; Cat 5e+ recommended.
-- **USB Host (USB-A):** USB 2.0, 5 V; Wi-Fi dongles, UART/CAT, hubs.
+- **USB-C data port (Type-C):** USB 2.0, 5 V. This is the **only**
+  on-board USB data connector — the board has **no USB-A socket**.
+  For USB-A peripherals (Wi-Fi dongles, UART/CAT, hubs) use a good
+  USB Type-C→Type-A adapter on this port. **Adapter power draw
+  matters** — the same dongle enumerates as high-speed through one
+  adapter and fails entirely (no `new XX-speed USB device`,
+  EHCI CCS stays 0) through a higher-draw adapter (live-verified
+  2026-08-20, see `docs/research/hardware-facts.md`).
 - **EXTIO (SH 1.0, 8-pin male):** pin1=GND (TF-card side), pin2–7=GPIO_0–5 (3.3 V, direct to FPGA — add isolation/ESD for external use), pin8=+5V out.
-- **USB-C power:** 5 V, min 2 A; over-voltage + reverse-polarity protection.
+- **USB-C power-only port (Type-C):** this receptacle is **power
+  only** — no USB data lines wired, just a 5 V input with
+  over-voltage + reverse-polarity protection. Do **not** confuse it
+  with the data Type-C port above; power here does **not** turn the
+  board on independently of the data Type-C's VBUS.
 - **TF card (Micro SD):** insert **upside down** (label down, contacts up); SD/SDHC only (NOT SDXC, max 32 GB), Class 10, FAT32/FAT16.
 
 ### Serial console (header J3)

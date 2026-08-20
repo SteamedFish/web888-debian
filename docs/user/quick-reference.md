@@ -136,6 +136,17 @@ switch (AP/Client) + SSID/password, or **Console** tab →
 apply on websdr restart. See `usage.md` → "WiFi (USB dongle)" for
 details, AP-capable dongles, and how to turn WiFi management off.
 
+> **USB connector note:** the Web-888 board has **no USB-A socket**;
+> the only USB data connector is one of the two Type-C ports (the
+> other Type-C on the board is power-only). Plug the dongle in via a
+> **USB Type-C→Type-A adapter** on that data Type-C — and if a
+> dongle fails to enumerate, swap to a different adapter: on this
+> board adapter power draw matters more than VBUS current, and
+> swapping adapters on the same port flips the dongle from "no
+> enumeration at all" to "high-speed, `wlan0` up" with no image,
+> kernel, or DT changes. See [`docs/dev/KNOWN-ISSUES.md`
+> §8](../dev/KNOWN-ISSUES.md).
+
 ## Common Issues Quick Fix
 
 ### Issue: Cannot Access Web Interface

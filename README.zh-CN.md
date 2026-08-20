@@ -16,7 +16,7 @@ English documentation: [README.md](README.md).
 
 ## 亮点
 
-- 全功能 Debian 内核，基于 Debian 源码构建，配置在 Debian armmp 默认配置基础上精简（模块数减少 61%，保留 USB 外设广度）并搭配 Debian 固件 —— 大多数 Wi‑Fi 网卡开箱即用。（注意：板上的 USB‑A 直插口对 RTL8188EUS 这类高功率高速网卡接触/信号完整性欠佳；若无法枚举，可改用优质的 USB Type‑C→Type‑A 转接器（或自供电 USB 集线器）；见 `docs/dev/KNOWN-ISSUES.md` §8。）
+- 全功能 Debian 内核，基于 Debian 源码构建，配置在 Debian armmp 默认配置基础上精简（模块数减少 61%，保留 USB 外设广度）并搭配 Debian 固件 —— 大多数 Wi‑Fi 网卡开箱即用。（注意：板上**完全没有** USB Type‑A 口 —— 板上两个 Type‑C 口，其中只有一个是 USB **数据**口，另一个只能充电。USB‑A 设备因此需要通过 **USB Type‑C→Type‑A 转接器**接到数据 Type‑C；实测 2026‑08‑20：转接器本身的耗电差异比 VBUS 电流更重要 —— 同一网卡、同一数据口，换一个转接器就可能从「根本无法枚举」变成「高速上线、`wlan0` 出现」。见 `docs/dev/KNOWN-ISSUES.md` §8。）
 - 根分区（/）位于 ext4 TF 卡上而非全部在内存中。其容量由你的 TF 卡决定，而不是板上
   512 MB 内存，因此可以放心安装应用而无需担心空间不足。
 - 从 KiwiSDR 精心回移的最新功能与缺陷修复。

@@ -105,28 +105,46 @@ when they conflict.
   almanac *and* a position, which gpsd's SiRF-hairball check then discards —
   so no skyview anywhere before the first fix. Management tool:
   `scripts/hw-test/atgm336h-fix.py`.
-- USB host port: a USB-A host connector on the board, driven by usb0
-  (`e0002000`, MIO 28-39 USB0 controller) through a ULPI PHY. Stock DTB enables
-  it (`status="okay"; dr_mode="host"`). Our `config/web888.dts` matches: `&usb0`
-  override + a top-level `phy0@e0002000` node (`compatible="ulpi-phy"`,
-  `view-port=<0x0170>`, `external-drv-vbus`). The phandle binding is `usb-phy`
-  (not `phys`): that is the property the `ci_hdrc_usb2` glue reads for
-  `xlnx,zynq-usb-2.20a` (`drivers/usb/chipidea/ci_hdrc_usb2.c`). Stock's
-  `xlnx,phy-reset-gpio`/`usb-reset` (gpio0 pin 48) are NOT in our DTB — no
-  mainline driver reads them (dead legacy props) and this board's ULPI PHY reset
-  is handled at power-up, not via GPIO. `external-drv-vbus` is the current
-  binding name for stock's `drv-vbus` (`phy-ulpi.c` accepts both).
-  - **Live-verified 2026-08-19**: the direct USB-A plug is **marginal for
-    power-hungry high-speed dongles** (e.g. RTL8188EUS, 0bda:8179) — it
-    sometimes fails to enumerate (EHCI port sweeps, CCS stays 0, zero
-    `new XX-speed USB device` lines; the 100 ms HUB debounce discards the
-    window). Connecting the same dongle through a **Type-C→Type-A adapter**
-    enumerates and runs fully (high-speed, `rtl8xxxu` binds,
-    `rtlwifi/rtl8188eufw.bin` loads, `wlan0` active-scans APs). Because a
-    passive adapter adds no power, the constraint is **contact/signal
-    integrity on the direct A-plug**, not VBUS current — the earlier
-    "VBUS can't sustain ~500 mA inrush → needs a powered hub" idea was
-    superseded. See `docs/dev/KNOWN-ISSUES.md` §8.
+- **USB: two Type-C receptacles, NO Type-A**. The board physically has
+  two USB Type-C connectors and **no USB Type-A socket at all**. Only
+  one of the two Type-C ports is wired to USB data; the second is
+  **power-only** (5 V charging input, no USB data lines run to it).
+  The data Type-C is driven by usb0 (`e0002000`, MIO 28-39 USB0
+  controller) through a ULPI PHY. Stock DTB enables it
+  (`status="okay"; dr_mode="host"`). Our `config/web888.dts` matches:
+  `&usb0` override + a top-level `phy0@e0002000` node
+  (`compatible="ulpi-phy"`, `view-port=<0x0170>`, `external-drv-vbus`).
+  The phandle binding is `usb-phy` (not `phys`): that is the property
+  the `ci_hdrc_usb2` glue reads for `xlnx,zynq-usb-2.20a`
+  (`drivers/usb/chipidea/ci_hdrc_usb2.c`). Stock's
+  `xlnx,phy-reset-gpio`/`usb-reset` (gpio0 pin 48) are NOT in our DTB
+  — no mainline driver reads them (dead legacy props) and this
+  board's ULPI PHY reset is handled at power-up, not via GPIO.
+  `external-drv-vbus` is the current binding name for stock's
+  `drv-vbus` (`phy-ulpi.c` accepts both).
+  - **Live-verified 2026-08-20**: because there is no on-board USB-A
+    plug, USB-A peripherals (e.g. an RTL8188EUS / 0bda:8179 WiFi
+    dongle) **must** be plugged into the data Type-C port through a
+    USB Type-C→Type-A adapter — and the adapter matters. In repeated
+    on-device tests of the same dongle on the same data Type-C port,
+    one low-power-draw adapter let it enumerate as high-speed
+    (`rtl8xxxu` binds, `rtlwifi/rtl8188eufw.bin` loads, `wlan0`
+    active-scans APs), while a different higher-power-draw adapter
+    prevented enumeration altogether (EHCI `PORTSC` sweeps a 1-second
+    state change with `CCS` (bit0) **0 throughout**; the 100 ms HUB
+    debounce filter discards the brief window, so **zero**
+    `new XX-speed USB device` / descriptor / disconnect lines are
+    printed). The earlier "direct USB-A VBUS cannot sustain ~500 mA
+    inrush / contact integrity on a non-existent A-plug" diagnosis
+    (`docs/dev/KNOWN-ISSUES.md` §8, 2026-08-19 entry) was based on the
+    wrong assumption that the board had a USB-A plug; the real
+    constraint is **adapter power draw on the only data port**. If a
+    USB-A peripheral fails to enumerate, **swap to a different
+    Type-C→Type-A adapter** before suspecting the image or kernel.
+    The same data port enumerates a Fanxiang U 盘 (0x058f:6387) as
+    high-speed with a full descriptor dump, so the host controller,
+    SMSC USB3320 ULPI PHY, and driver stack are healthy. See
+    `docs/dev/KNOWN-ISSUES.md` §8.
 - ExtIO / antenna switch (per rx-888.com/web/design/pinout.html):
   an 8-pin SH1.0 connector (pin 1 = GND on the SD-card side, pin 8 = 5V) for an
   external antenna switch; pins carry 6 control signals **A1–A6**. These are

@@ -9,6 +9,71 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-20] — docs: correct USB connector facts — no USB-A on board, two Type-C ports, adapter power-draw matters
+
+Earlier docs (including the 2026-08-19 entry below) framed the
+Web-888 as having a marginal direct USB-A plug, and recommended a
+Type-C→Type-A adapter as a workaround for power-hungry dongles. The
+premise was wrong: **the board has no USB Type-A socket at all** —
+it has two USB Type-C receptacles, of which one is the USB data
+port (driven by the usual `e0002000` / ULPI / SMSC USB3320 stack)
+and the other is **power-only**. USB-A peripherals therefore always
+require a Type-C→Type-A adapter on the data Type-C; the question
+then becomes which adapter itself enumerates the peripheral.
+Live-verified 2026-08-20 on the dev unit, same RTL8188EUS dongle
+(0bda:8179) on the same data Type-C port: **one** Type-C→Type-A
+adapter lets it enumerate as high-speed (`rtl8xxxu` binds,
+`wlan0` active-scans APs), and a **different, higher-power-draw**
+adapter prevents enumeration (EHCI `PORTSC` sweep over the 1-second
+window, `CCS` stays 0, no `new XX-speed USB device` line). The
+hardware is fine; **adapter choice is the discriminating variable**.
+
+### Fixed
+
+- **`docs/research/hardware-facts.md`** — USB host port bullet
+  rewritten: board has no USB-A socket; one of the two Type-C
+  ports is the USB data port, the other is power-only; USB-A
+  peripherals must use a Type-C→Type-A adapter on the data Type-C,
+  and adapter power draw matters. The 2026-08-19 "live-verified"
+  sub-bullet replaced with the 2026-08-20 adapter-vs-adapter test.
+- **`docs/research/hardware-reference.md`** — physical connector
+  diagram corrected: `[USB HOST] (USB-A)` → `[USB-C DATA] (Type-C)`;
+  bullet rewritten to spell out the data Type-C vs the power-only
+  Type-C and the adapter caveat.
+- **`docs/user/troubleshooting.md`** §10 — WiFi troubleshooting
+  now opens with "the board has no USB-A socket; the only USB data
+  connector is one of the two Type-C ports" and tells the user to
+  swap adapters, not to keep retrying the same one.
+- **`docs/user/quick-reference.md`** — `WiFi (USB dongle)` section
+  gains a `USB connector note` block summarising the same caveat.
+- **`docs/dev/KNOWN-ISSUES.md`** §8 — entire section rewritten in
+  the corrected framing; the 2026-08-19 "USB-A plug is marginal /
+  contact integrity on the A-plug" diagnosis collapsed (it was
+  based on a non-existent connector), and the live evidence
+  reframed as an adapter-vs-adapter power-draw test.
+- **`README.md` / `README.zh-CN.md`** — Highlights bullet: USB-A
+  caveat → "the board has no USB Type-A port; one of the two
+  Type-C ports is data, the other is power-only; USB-A peripherals
+  need a Type-C→Type-A adapter, and adapter power draw matters".
+
+### Notes
+
+- The 2026-08-19 `kernel/usb: validate USB-WiFi stack on the 6.12
+  kernel (software ready; board VBUS caps RTL8188EUS)` entry and the
+  same-day `docs: USB-A WiFi dongle recovery resolved via
+  Type-C→Type-A adapter` entry are NOT rolled back — the
+  underlying evidence (host controller / PHY / driver-stack health,
+  the failure-mode traces, and the working-adapter enumeration) is
+  all still true; only the identifying hypothesis ("the USB-A plug
+  on the board is the marginal element") is wrong, because the
+  board has no USB-A plug. The good adapter from the 2026-08-19
+  test still enumerates the dongle today.
+- Earlier versions of the affected docs (hardware-facts.md,
+  hardware-reference.md, troubleshooting.md, quick-reference.md,
+  KNOWN-ISSUES.md §8, README.md, README.zh-CN.md) are reachable
+  via `git log` / `git checkout` for archaeology if anyone needs to
+  cite the mistaken framing directly.
+
 ## [2026-08-20] — websdr: admin-page WiFi (Client STA + AP) adapted for Debian
 
 The stock admin Network-tab "USB WIFI Dongle Mode" switch (AP/Client)

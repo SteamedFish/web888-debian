@@ -21,7 +21,7 @@ Pitaya applications.
 
 ## Highlights
 
-- A fully featured Debian kernel, built from Debian sources with a trimmed config derived from the Debian armmp default (61% fewer modules; USB peripheral breadth kept) plus Debian firmware – so you get out‑of‑the‑box support for most Wi‑Fi dongles. (Note: the board's direct USB‑A plug is marginal for power‑hungry high‑speed dongles such as RTL8188EUS — if one fails to enumerate, run it through a good USB Type‑C→Type‑A adapter (or a powered hub); see `docs/dev/KNOWN-ISSUES.md` §8.)
+- A fully featured Debian kernel, built from Debian sources with a trimmed config derived from the Debian armmp default (61% fewer modules; USB peripheral breadth kept) plus Debian firmware – so you get out‑of‑the‑box support for most Wi‑Fi dongles. (Note: the board has **no USB Type‑A socket at all** — the only USB data connector is one of the two Type‑C ports (the other Type‑C on the board is power‑only). USB‑A peripherals therefore need a **USB Type‑C→Type‑A adapter** on that data Type‑C; live‑verified 2026‑08‑20 — adapter power draw matters more than VBUS current: same dongle, same port, swap the adapter and the result flips from "no enumeration" to "high‑speed, `wlan0` up". See `docs/dev/KNOWN-ISSUES.md` §8.)
 - The root partition (/) resides on an ext4 TF card rather than entirely in memory. Its size is determined by your TF card, not the onboard 512 MB memory, which means you can install applications without worrying about running out of space.
 - Carefully backported the latest features and bug fixes from KiwiSDR.
 - Tweaks and optimizations for low‑memory TF‑card‑based devices, including zram, log2ram, and more.
