@@ -9,6 +9,27 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-19] — docs: USB-A WiFi dongle recovery resolved via Type-C→Type-A adapter
+
+### Fixed
+- **Board USB-A port reliably enumerating an RTL8188EUS dongle**
+  (`docs/dev/KNOWN-ISSUES.md` §8) — the earlier diagnosis ("USB-A VBUS
+  cannot sustain the ~500 mA inrush → needs a self-powered hub") was
+  **superseded**: connecting the same dongle through a **Type-C→Type-A
+  adapter** makes it enumerate and work with zero code/DT change. A
+  passive adapter adds no power, so the real constraint was marginal
+  **contact / signal integrity on the direct USB-A plug**, not VBUS
+  current. Live-verified 2026-08-19: dongle enumerates as `0bda:8179`
+  high-speed, `rtl8xxxu` loads `rtlwifi/rtl8188eufw.bin`, `wlan0` comes
+  up, active scan finds APs. KNOWN-ISSUES §8 rewritten to a resolved
+  note + user-facing adapter suggestion; the `self-powered hub` advice
+  is retained as an optional belt-and-braces workaround. TODO's
+  "powered-hub USB-WiFi rerun" under the fresh-image hardware gate is
+  dropped (the discriminating test is done — it was the adapter, not a
+  hub).
+- **`docs/research/hardware-facts.md`** — appended the live-verified
+  adapter finding to the USB host port bullet.
+
 ## [2026-08-19] — docs: post-refactor cleanup (TODO/KNOWN-ISSUES prune, stale boot-flow fixes)
 
 Documentation-only sweep: remove completed/resolved items that had
