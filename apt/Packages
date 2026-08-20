@@ -1191,16 +1191,16 @@ Description: WebSDR server for Web-888 (RX-888) SDR - Debian build
  reboot/halt/poweroff); openssh-server stays an image-level package.
 
 Package: web888-websdr
-Version: 2026.730-9+ci10
+Version: 2026.730-10+ci13
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
-Installed-Size: 47989
-Depends: libc6 (>= 2.38), libconfig++11 (>= 1.7.3), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libsqlite3-0 (>= 3.5.9), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.1.4), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc
-Filename: ./web888-websdr_2026.730-9+ci10_armhf.deb
-Size: 30888544
-MD5sum: 035d5d034b12c544a882d672a18d8e67
-SHA1: 22767d45b00f1454cc0e37e677bbc9bffb1bdbb4
-SHA256: f01a021266468d7c92a38e4676de9e3b5aa2fc234f4b816aba2cfebe2002d6ef
+Installed-Size: 46420
+Depends: libc6 (>= 2.38), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.1.4), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc
+Filename: ./web888-websdr_2026.730-10+ci13_armhf.deb
+Size: 30662888
+MD5sum: 203566a3f864610f5e7e5e663d67c295
+SHA1: af52af9ed921b4c1f965b3512263f574e45dd2f0
+SHA256: 5b9a4fa2f29b17186fdb8a15085470d640137e35c6d39d073d3fd143068562d5
 Section: hamradio
 Priority: optional
 Homepage: https://github.com/RaspSDR/server
@@ -1214,16 +1214,16 @@ Description: WebSDR server for Web-888 (RX-888) SDR - Debian build
  reboot/halt/poweroff); openssh-server stays an image-level package.
 
 Package: web888-websdr
-Version: 2026.730-9+ci9
+Version: 2026.730-9+ci10
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
 Installed-Size: 47989
 Depends: libc6 (>= 2.38), libconfig++11 (>= 1.7.3), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libsqlite3-0 (>= 3.5.9), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.1.4), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc
-Filename: ./web888-websdr_2026.730-9+ci9_armhf.deb
-Size: 30846028
-MD5sum: d6e5817529fc1f6925ee12a404ab9b50
-SHA1: 5ace8fdfbedd52f3db348a00911a7e5a4c1f9b10
-SHA256: e46285d3573618bf9e94268717f03b51201e7d20baa8f47764b7f5e714365ff3
+Filename: ./web888-websdr_2026.730-9+ci10_armhf.deb
+Size: 30888544
+MD5sum: 035d5d034b12c544a882d672a18d8e67
+SHA1: 22767d45b00f1454cc0e37e677bbc9bffb1bdbb4
+SHA256: f01a021266468d7c92a38e4676de9e3b5aa2fc234f4b816aba2cfebe2002d6ef
 Section: hamradio
 Priority: optional
 Homepage: https://github.com/RaspSDR/server
