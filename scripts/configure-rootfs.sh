@@ -63,6 +63,27 @@ auto eth0
 iface eth0 inet dhcp
 EOF
 
+# ARP flux suppression. Both NICs (eth0 + USB wlan0) usually share one L2 via
+# the user's bridged AP/router, and kernel defaults (arp_ignore=0 /
+# arp_announce=0) make the box answer ARP for ANY local address on EVERY
+# interface. Clients then bind the wlan0 IPv4 to eth0's MAC: pulling the
+# ethernet cable instantly blackholes the WiFi path (observed on stock
+# firmware too), and dhcpcd's RFC 5227 defence sees the other interface's
+# replies as hostile claims and delete/re-DHCP-loops its lease every ~15 s.
+# ignore=1 + announce=2 restrict replies/announcements to the interface that
+# owns the address. The kernel combines per-interface values as max(all,
+# dev), so the all/default pairs also cover interfaces that appear after
+# boot (hotplug USB wifi).
+sudo -n tee "$ROOTFS/etc/sysctl.d/70-web888-arp-flux.conf" >/dev/null <<'EOF'
+# Managed by web888-debian image build (configure-rootfs.sh).
+net.ipv4.conf.all.arp_ignore = 1
+net.ipv4.conf.default.arp_ignore = 1
+net.ipv4.conf.lo.arp_ignore = 1
+net.ipv4.conf.all.arp_announce = 2
+net.ipv4.conf.default.arp_announce = 2
+net.ipv4.conf.lo.arp_announce = 2
+EOF
+
 # FAT firmware partition mounted at /boot/firmware for bootloader/dtb
 # updates from userspace; kernels live in /boot on the ext4 rootfs.
 # x-systemd.growfs on /: systemd-fstab-generator turns it into

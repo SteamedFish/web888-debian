@@ -16,7 +16,12 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       websdr E2E gates (`scripts/hw-test/hw-reboot-loop.sh`,
       `ws-e2e.py`) should then be re-run on the fresh image. While on the
       device, also check the 0153 fix (KNOWN-ISSUES §4: no 1 Hz
-      `ADMIN: unknown command` spam with an admin status tab open).
+      `ADMIN: unknown command` spam with an admin status tab open), the
+      KNOWN-ISSUES §8 powered-hub USB-WiFi rerun, and the ARP-flux fix
+      (CHANGELOG 2026-08-23): confirm `70-web888-arp-flux.conf` lands and a
+      **no-cable boot** brings wlan0 up via `ifup@wlan0` alone (~2 s to
+      associate, ~8 s to lease) and stays pingable/mDNS-resolvable with eth0
+      never linking.
 
 ## KiwiSDR upstream alignment (step 5)
 

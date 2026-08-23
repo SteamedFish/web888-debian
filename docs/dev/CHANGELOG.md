@@ -9,6 +9,29 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-23] — rootfs: suppress ARP flux between eth0 and wlan0
+
+### Fixed
+
+- **WiFi unreachable whenever the ethernet cable was pulled** (reproduced on
+  the stock firmware too): with eth0 + USB wlan0 sharing one bridged L2,
+  kernel ARP defaults (`arp_ignore=0` / `arp_announce=0`) made the board
+  answer ARP for *any* local address on *every* interface, so clients bound
+  the wlan0 IPv4 to **eth0's MAC**; pulling the cable then blackholed the
+  WiFi path instantly (replugging revived it). Secondary fallout of the same
+  flux: dhcpcd's RFC 5227 defence saw the other interface's replies as
+  hostile claims and delete/re-DHCP-looped the eth0 lease every ~15 s, and
+  avahi kept renaming `web888` → `web888-N` chasing the phantom conflicts.
+  Root cause captured live on hardware (tcpdump dual-reply evidence +
+  client neigh-table poisoning reproduced twice); fix verified on hardware:
+  correct MAC learned immediately after setting `arp_ignore=1` /
+  `arp_announce=2`, 30/30 packets with zero loss while unplugged, claim loop
+  silent. Shipped as the `70-web888-arp-flux.conf` sysctl drop-in in
+  `configure-rootfs.sh` (all/default/lo pairs; kernel combines per-interface
+  values as max(all, dev) so hotplug USB wifi is covered); the dev unit runs
+  the same values hand-applied until its next reflash (verification folded
+  into the TODO fresh-image hardware gate).
+
 ## [2026-08-20] — docs: correct USB connector facts — no USB-A on board, two Type-C ports, adapter power-draw matters
 
 Earlier docs (including the 2026-08-19 entry below) framed the
