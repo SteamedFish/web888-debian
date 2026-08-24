@@ -9,6 +9,35 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-24] — websdr: USB-WiFi AP mode live-verified on MT7612U; two wificonfig fixes
+
+### Fixed
+
+- **`web888-wificonfig`: AP→AP reconfiguration never took effect.** The
+  apply path used `systemctl enable --now hostapd/dnsmasq`, which is a no-op
+  while the units are already running — changing SSID/password in the admin
+  UI rewrote `/etc/hostapd/hostapd.conf` on disk but the running daemon kept
+  its stale in-memory config until reboot. Now `systemctl enable` +
+  `systemctl restart` (restart starts when stopped, reloads when up).
+- **`web888-wificonfig`: mode switches left residue behind.** `ifdown wlan0`
+  ran *after* overwriting the interfaces.d drop-in, so it executed against
+  the new definition and could not release the old mode's state — switching
+  AP→client left the static 192.168.42.1/24 on wlan0 (and vice versa for
+  daemon pidfiles). Both branches now tear down under the previous
+  definition first (the rule the `off` branch already documented), then
+  install, then `ip addr flush dev wlan0` as belt-and-braces before ifup.
+
+### Verified
+
+- Full hardware E2E of the existing console WiFi feature with an **MT7612U**
+  dongle (`0e8d:7612`, mt76x2u, AP-capable per `iw list`) and a real client:
+  hotspot button (`ap-defaults` → SSID `web-888`), staged custom SSID via the
+  Network-tab path (`ap` verb), WPA2-PSK association (`wpa_state=COMPLETED`,
+  RSN pairwise handshake on the hostapd side), dnsmasq DHCP
+  (DISCOVER→OFFER→REQUEST→ACK, lease recorded), and L3 connectivity
+  (3/3 ping to 192.168.42.1). AP↔client round trip leaves no address or
+  service residue; device restored to client-on-DLINK steady state.
+
 ## [2026-08-24] — rootfs: complete USB WiFi firmware coverage
 
 ### Added

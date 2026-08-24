@@ -196,24 +196,37 @@ apply() {
     render "$tmp"
     case $verb in
         client)
+            # Tear down BEFORE overwriting the drop-in (same rule as the off
+            # branch): ifdown must see the PREVIOUS definition to locate and
+            # kill its daemons via pidfiles and release its addresses. Then
+            # flush anything left over from an older mode (e.g. the AP
+            # static address survives a plain ifdown otherwise).
+            ifdown wlan0 2>/dev/null || true
             install_file "$tmp/wpa_supplicant.conf" "$WPA_CONF" 0600
             install_file "$tmp/wlan0" "$WLAN0_DROPIN" 0644
             rm -f "$HOSTAPD_CONF" "$DNSMASQ_DROPIN"
             systemctl disable --now hostapd.service dnsmasq.service 2>/dev/null || true
-            ifdown wlan0 2>/dev/null || true
+            systemctl stop wpa_supplicant.service 2>/dev/null || true
+            ip addr flush dev wlan0 2>/dev/null || true
             ifup wlan0
             echo "web888-wificonfig: client mode applied (SSID \"$ssid\")"
             ;;
         ap | ap-defaults)
+            # Same teardown-before-overwrite rule as the client branch.
+            ifdown wlan0 2>/dev/null || true
             install_file "$tmp/hostapd.conf" "$HOSTAPD_CONF" 0600
             install_file "$tmp/dnsmasq-ap.conf" "$DNSMASQ_DROPIN" 0644
             install_file "$tmp/wlan0" "$WLAN0_DROPIN" 0644
             rm -f "$WPA_CONF"
             systemctl stop wpa_supplicant.service 2>/dev/null || true
-            ifdown wlan0 2>/dev/null || true
+            ip addr flush dev wlan0 2>/dev/null || true
             ifup wlan0
-            systemctl enable --now hostapd.service
-            systemctl enable --now dnsmasq.service
+            # restart (not enable --now): when switching AP->AP with new
+            # SSID/password while hostapd/dnsmasq are already running,
+            # "enable --now" would leave the old daemons running with stale
+            # in-memory config. restart starts them if stopped, reloads if up.
+            systemctl enable hostapd.service dnsmasq.service
+            systemctl restart hostapd.service dnsmasq.service
             echo "web888-wificonfig: AP mode applied (SSID \"$ssid\", $AP_ADDR)"
             ;;
         off)

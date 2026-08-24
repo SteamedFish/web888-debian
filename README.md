@@ -65,7 +65,8 @@ stack without reflashing. This project rebuilds the boot chain from scratch:
   Mode" switch (Client STA / AP) and the Console-tab hotspot button work
   on Debian via a sandboxed root helper (ifupdown + wpa_supplicant /
   hostapd + dnsmasq); AP mode requires an AP-capable dongle
-  (see `docs/user/usage.md`)
+  (see `docs/user/usage.md`) and is live-verified end-to-end with an
+  MT7612U dongle.
 - **Red Pitaya coexistence** (`web888-redpitaya` deb) — vendored bitstreams
   + source-built apps, `web888-mode` runtime switching between WebSDR and RP
   apps, no reflashing

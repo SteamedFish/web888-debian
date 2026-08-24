@@ -77,7 +77,8 @@ automatically after an edit):
   with `iw list | grep -A4 "Supported interface modes"`. The common
   RTL8188EUS (`rtl8xxxu`) dongle does **not** support AP; ath9k_htc /
   mt7601u / carl9170-class dongles do (their firmware ships in the
-  image).
+  image). The MediaTek MT7612U (`0e8d:7612`, mt76x2u) is live-verified
+  end-to-end (association + DHCP + gateway ping) as of 2026-08-24.
 - **enable hotspot** (Console tab) — one-click AP with the stock
   defaults (SSID `web-888`, password `88888888`).
 
