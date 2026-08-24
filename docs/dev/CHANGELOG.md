@@ -9,6 +9,32 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-24] — rootfs: complete USB WiFi firmware coverage
+
+### Added
+
+- **Full USB-WiFi firmware set** in `configure-rootfs.sh` step 6: added
+  `firmware-carl9170`, `firmware-libertas`, `firmware-ti-connectivity`,
+  `firmware-zd1211` alongside the existing six packages so that every USB
+  WiFi adapter class the 6.12 kernel supports works out of the box
+  (carl9170 was already named as a supported chipset in the comment, but
+  its firmware package was never actually installed). x86/server-only
+  firmware (iwlwifi, intel/amd/nvidia graphics, qlogic/bnx2/netxen, …)
+  stays deliberately excluded — dead weight on armhf.
+
+### Fixed
+
+- **Dev unit shipped a stale firmware set**: its image predates the
+  `firmware-atheros` / `firmware-mediatek` additions, so an MT7612U dongle
+  (`0e8d:7612`) failed probe with `-ENOENT` on `mt7662_rom_patch.bin` and
+  no `wlan0` ever appeared. Installed live over SSH
+  (`firmware-mediatek` + the four new packages): `modprobe -r mt76x2u &&
+  modprobe mt76x2u` re-probed cleanly (ROM patch + firmware loaded,
+  Firmware Version 0.0.00) → `wlan0` up immediately, no reboot needed.
+  Fresh images now carry the complete set from step 6 automatically;
+  live-sync of already-flashed units is folded into the next reflash gate
+  (TODO fresh-image hardware verification).
+
 ## [2026-08-23] — rootfs: suppress ARP flux between eth0 and wlan0
 
 ### Fixed

@@ -152,12 +152,19 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
 # string early, ran the apt-get below on the HOST and aborted the build.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     htop tmux curl rsync bash-completion usbutils
-# Step 6: firmware for the USB WiFi adapters websdr images support
-# (rtl8xxxu/rtw88, ath9k_htc/carl9170, brcmfmac, mt7601u) — sources.list
-# carries non-free-firmware since step 3.5.
+# Step 6: firmware for every USB WiFi adapter class the kernel supports,
+# so any dongle works out of the box: rtl8xxxu/rtw88 → firmware-realtek,
+# ath9k_htc/ar5523 → firmware-atheros, carl9170 → firmware-carl9170,
+# brcmfmac/b43 → firmware-brcm80211, mt7601u → firmware-misc-nonfree,
+# MT76xx series → firmware-mediatek, libertas/mwl8k → firmware-libertas,
+# TI wl12xx/wl18xx → firmware-ti-connectivity, ZD1211 → firmware-zd1211.
+# Sources.list carries non-free-firmware since step 3.5. Deliberately NOT
+# shipped: x86/server-only blobs (iwlwifi, intel/amd/nvidia graphics,
+# qlogic/bnx2/netxen/...) — dead weight on armhf.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     firmware-linux-free firmware-brcm80211 firmware-realtek firmware-misc-nonfree \
-    firmware-atheros firmware-mediatek \
+    firmware-atheros firmware-mediatek firmware-carl9170 firmware-libertas \
+    firmware-ti-connectivity firmware-zd1211 \
     wireless-regdb
 # WiFi tooling: wpasupplicant (client; integrates with ifupdown wpa-* options),
 # hostapd (create an AP), dnsmasq (DHCP server for the AP subnet; the unit is
