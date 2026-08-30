@@ -7,6 +7,8 @@ debian/web888-websdr-seed-defaults usr/lib/web888/
 debian/root-helpers/web888-netconfig usr/lib/web888/root-helpers/
 debian/root-helpers/web888-wificonfig usr/lib/web888/root-helpers/
 debian/root-helpers/web888-poweroff usr/lib/web888/root-helpers/
+debian/root-helpers/web888-duc usr/lib/web888/root-helpers/
+debian/root-helpers/web888-frpc usr/lib/web888/root-helpers/
 debian/60-web888.rules usr/lib/udev/rules.d/
 debian/default/admin.json usr/share/web888/dist/config/
 debian/default/websdr.json usr/share/web888/dist/config/

@@ -11,7 +11,11 @@ SupplementaryGroups=i2c
 WorkingDirectory=/var/lib/web888
 ExecStartPre=/usr/lib/web888/web888-websdr-seed-defaults
 ExecStart=/usr/bin/websdr.bin
-ExecStopPost=/bin/sh -c 'if [ -f /etc/web888/frpc.toml ] && command -v frpc >/dev/null; then frpc -c /etc/web888/frpc.toml stop || true; fi'
+# No frpc ExecStopPost hook: an earlier draft tested /etc/web888/frpc.toml,
+# a path nothing ever wrote, so it never ran. Making it live would be a
+# regression — `frpc stop` exits cleanly, which frpc.service's
+# Restart=on-failure does not revive, so every websdr restart would
+# permanently drop the reverse-proxy tunnel.
 Restart=always
 RestartSec=5
 Environment=LD_LIBRARY_PATH=/usr/lib/web888
@@ -32,7 +36,7 @@ MemoryMax=420M
 # scripts (/usr/lib/web888/root-helpers/*), and sudo is setuid-root — NNP
 # blocks every setuid/file-cap privilege transition, making the approved
 # mechanism impossible. Mitigations instead: the sudoers surface is exactly
-# two validated root-owned helpers (/etc/sudoers.d/web888), and
+# the validated root-owned helpers (/etc/sudoers.d/web888), and
 # ProtectSystem=strict + DevicePolicy=closed below stay in force.
 ProtectSystem=strict
 # Helpers run in this service's mount namespace, which is read-only under

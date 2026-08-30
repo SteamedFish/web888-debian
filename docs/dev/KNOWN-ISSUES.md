@@ -12,18 +12,37 @@ at removed entries.
 
 ---
 
-## 3. noip2 DDNS and frpc reverse proxy unavailable
+## 3. Admin-console DUC / reverse proxy — implemented; minor intentional divergences
 
-The stock firmware's `noip2` (dynamic DNS) and `frpc` (FRP reverse-proxy
-client) features have no Debian packages in any release, so the WebSDR
-admin pages for them are non-functional on Debian. Candidates if demand
-materialises:
+RESOLVED 2026-08-30 (websdr 2026.730-11): the stock `noip2`/`frpc` admin
+Network-tab pages are wired to the packaged `noip-duc` / `frpc` services
+via the new `web888-duc` / `web888-frpc` root helpers (patch 0024;
+sudoers + two-phase systemd-run sandbox escape mirror the 0023
+wificonfig pattern; services stay disabled until the first successful
+configure). Divergences from stock, all intentional:
 
-- noip2 → port the DUC to the ddclient protocol, or build noip2 from
-  upstream source.
-- frpc → vendor the upstream static arm binary as `/usr/local/bin/frpc`
-  with its upstream unit (the WebSDR ExecStopPost already guards with
-  `command -v frpc`).
+- The DUC validates with a real No-IP `nic/update` probe (helper exit
+  code = the form's status map). The stock "No hosts defined on your
+  account" status (101) is unreachable — the protocol cannot enumerate
+  an account's hosts, so a bogus host surfaces as 103 instead. Stock's
+  300 ("DUC start failed") is a websdr-internal pclose code that a
+  child process cannot produce (exit codes wrap at 255); helper-side
+  failures surface as "DUC internal error: 1" with the reason in the
+  websdr log.
+- The DUC updates exactly the host in the form's Host field, which the
+  form now sends (`-H`) — stock never passed it to noip2, and noip-duc
+  requires an explicit hostname.
+- Public-IP discovery is server-side (No-IP dns/http) instead of the
+  stock `-I eth0` interface address — correct behind NAT, where stock
+  reported an RFC1918 address.
+- The reverse-proxy register reply still carries upstream's stale
+  `status` variable (the UI shows "Existing account, registration
+  successful" regardless of the tunnel's actual state) and
+  `rev_status_query` still always answers 201 ("pending") — stock UI
+  semantics, deliberately untouched; judge the tunnel via
+  `systemctl status frpc` / `journalctl -u frpc`.
+- Passwords containing a single quote break the form's `sq()` shell
+  quoting upstream of the helper (stock limitation, unchanged).
 
 ## 4. Minor / watchlist
 

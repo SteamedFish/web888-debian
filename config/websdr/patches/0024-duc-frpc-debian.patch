@@ -1,0 +1,63 @@
+--- a/ui/admin.cpp
++++ b/ui/admin.cpp
+@@ -427,12 +427,19 @@
+                 continue;
+             }
+ 
+-            // FIXME: hardwired to eth0 -- needs to support wlans
++            // Debian (0024): stock ran "/usr/bin/noip2 -C -c <conf> <args> -I eth0"
++            // here, but noip2 has no Debian build and the -I eth0 hardwire is
++            // moot: the web888-duc root helper (sudoers whitelist, mirrors
++            // web888-wificonfig) validates the credentials against the No-IP
++            // update protocol and renders /etc/default/noip-duc for the
++            // noip-duc package. noip-duc discovers the public IP server-side
++            // (dns/http), which is NAT-correct. The exit code keeps the UI
++            // status contract (0/100/102/103/300, admin.js DUC status map).
+             char* args_m = NULL;
+             n = sscanf(cmd, "SET DUC_start args=%256ms", &args_m);
+             if (n == 1) {
+                 kiwi_str_decode_inplace(args_m);
+-                asprintf(&cmd_p, "/usr/bin/noip2 -C -c " DIR_CFG "/noip2.conf %s -I eth0 2>&1", args_m);
++                asprintf(&cmd_p, "sudo -n " DIR_LIBEXEC "/root-helpers/web888-duc %s 2>&1", args_m);
+                 kiwi_asfree(args_m);
+                 printf("DUC: %s\n", cmd_p);
+                 char* reply;
+@@ -454,7 +461,9 @@
+                 if (status != 0) continue;
+                 DUC_enable_start = true;
+ 
+-                system("/etc/init.d/noip2 restart");
++                // Debian (0024): was "/etc/init.d/noip2 restart" (OpenRC);
++                // the helper's start verb enables+restarts the noip-duc unit.
++                system("sudo -n " DIR_LIBEXEC "/root-helpers/web888-duc start");
+ 
+                 continue;
+             }
+@@ -489,7 +498,11 @@
+                 // Debian: snapshot config into the state backup dir (was: copy to FAT partition)
+                 system("cp -u " DIR_CFG "/* " DIR_STATE "/backup/ 2>/dev/null || true");
+ 
+-                system("/etc/init.d/frpc restart");
++                // Debian (0024): was "/etc/init.d/frpc restart" (OpenRC); the
++                // web888-frpc root helper verifies the DIR_CFG/frpc.toml the
++                // sed above rendered, installs it as /etc/frp/frpc.toml (the
++                // path our frpc unit runs with) and enables+restarts the unit.
++                system("sudo -n " DIR_LIBEXEC "/root-helpers/web888-frpc restart");
+ 
+                 continue;
+             }
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -1257,8 +1257,11 @@
+ function connect_DUC_start_cb(id, idx)
+ {
+ 	// decode stored json values because we recode below to encode spaces of composite string
++	// Debian (0024): stock sent only -u/-p/-U; also pass the form's host so
++	// the DUC helper validates and configures exactly this hostname.
+ 	var s = '-u '+ sq(decodeURIComponent(adm.duc_user)) +' -p '+ sq(decodeURIComponent(adm.duc_pass)) +
+-	   ' -U '+ duc_update_v[adm.duc_update];
++	   ' -U '+ duc_update_v[adm.duc_update] +
++	   ' -H '+ sq(decodeURIComponent(adm.duc_host || ''));
+ 	console.log('start DUC: '+ s);
+ 	w3_innerHTML('id-net-duc-status', w3_icon('', 'fa-refresh fa-spin', 24) + '&nbsp; Getting status from DUC server...');
+ 	ext_send('SET DUC_start args='+ encodeURIComponent(s));

@@ -58,9 +58,13 @@ for attempt in $(seq 1 20); do
 done
 
 echo "==> apt install web888 debs from the repo"
+# --force-confnew (via dpkg options): image build, not a device upgrade — a
+# persistent work/rootfs from an older run must take the packaged conffiles
+# (e.g. /etc/sudoers.d/web888) instead of prompting on non-interactive stdin.
 sudo -n chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
     PATH=/usr/sbin:/usr/bin:/sbin:/bin \
     apt-get install -y --no-install-recommends \
+    -o Dpkg::Options::=--force-confnew \
         linux-image-${KREL} web888-websdr web888-redpitaya web888-boot
 
 # noip-duc + frpc (web888-websdr Depends) postinsts self-enable, but both

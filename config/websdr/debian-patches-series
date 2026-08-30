@@ -168,3 +168,20 @@
 # "enable hotspot" button at the helper's ap-defaults verb.
 # Written against the full post-0022 series tree in a quilt workdir.
 0023-wifi-config-debian.patch
+
+# 0024: Debian support for the admin Network tab's Dynamic DNS (DUC) and
+# reverse-proxy features. Stock ran /usr/bin/noip2 -C + /etc/init.d/noip2
+# restart (Alpine/OpenRC, no Debian builds) for the DUC form, and
+# /etc/init.d/frpc restart for reverse-proxy registration; the DUC form's
+# status contract (noip2 exit code 0/100/102/103/300) is preserved. The DUC
+# flow goes to the web888-duc root helper (sudoers whitelist, two-phase
+# systemd-run apply like 0023): a real nic/update probe against
+# dynupdate.no-ip.com validates credentials+host, then it renders
+# /etc/default/noip-duc for the packaged noip-duc.service. The form now also
+# sends its Host field (-H), which stock dropped on the floor. The register
+# flow's rendered DIR_CFG/frpc.toml is verified and installed as
+# /etc/frp/frpc.toml (the path frpc.service runs with) by the web888-frpc
+# helper. noip-duc/frpc stay disabled until the first successful configure
+# (stock parity: they sat in the stock default runlevel). The stale
+# FIXME at the DUC call site (eth0 hardwire) is retired with the flag.
+0024-duc-frpc-debian.patch

@@ -96,6 +96,60 @@ sudo /usr/lib/web888/root-helpers/web888-wificonfig off
 Logs: `journalctl -u web888-websdr | grep WIFI` for the hook result,
 `journalctl -u web888-wificonfig-apply` for the apply run.
 
+## Dynamic DNS (No-IP) and reverse proxy (FRP)
+
+The admin page **Network** tab's two remote-access features work on
+Debian using the packaged `noip-duc` / `frpc`. Both services stay
+**disabled until you configure them** here — nothing runs or contacts
+any server before that.
+
+**Dynamic DNS (DUC)** — gives the box a stable name like
+`myradio.ddns.net` that follows its home IP:
+
+1. Create the host on your No-IP account (no-ip.com; free hosts need
+   re-confirming there every 30 days).
+2. Fill the DUC form (username, password, update interval, and the
+   **Host** field — e.g. `myradio.ddns.net`) and click **Click to
+   (re)start DUC**. The helper validates the credentials against the
+   real No-IP update service and only then renders
+   `/etc/default/noip-duc` and enables + starts `noip-duc.service`.
+3. The status box shows the outcome: *DUC started successfully*,
+   *Incorrect username or password*, *Please specify a host*, or
+   *Host given isn't defined on your account*. Any other code
+   (*DUC internal error: N*) means the helper refused the input or the
+   probe could not reach No-IP — the reason is in
+   `journalctl -u web888-websdr | grep 'web888-duc:'`.
+
+The form can be re-submitted any time to change credentials, interval
+or host. To take manual control of the daemon instead, edit
+`/etc/default/noip-duc` (`NOIP_*` variables) and
+`systemctl enable --now noip-duc`; note the admin form overwrites that
+file whenever it is used again. The public IP is discovered by the
+No-IP service itself (dns/http), so it is correct behind NAT.
+
+**Reverse proxy (FRP)** — reaches the WebSDR through the public
+`proxy.rx-888.com` relay with your Web-888 user key, useful when the
+box sits behind CGNAT or a firewall you cannot open:
+
+1. Fill in the **User key** (from your Web-888 vendor registration)
+   and a **Host name** (`a-z 0-9 -`), optionally a different proxy
+   server, and click **Click to (re)register**. The helper verifies
+   the generated config (`frpc verify`), installs it as
+   `/etc/frp/frpc.toml` and enables + starts `frpc.service`; the
+   receiver is then reachable at the URL the admin page displays
+   (`<host name>.proxy.rx-888.com` with the default server).
+2. The proxy server field defaults to `proxy.rx-888.com`; pointing it
+   at your own `frps` instance works the same way.
+
+For manual (non-admin-UI) use, edit `/etc/frp/frpc.toml` and
+`systemctl enable --now frpc` — same file, same unit; the admin form
+overwrites that file whenever it registers again. The WebSDR does not
+need restarting for either feature.
+
+Logs: `journalctl -u web888-websdr | grep -E 'DUC:|proxy register'`
+(helper + config render), `journalctl -u noip-duc` / `journalctl -u
+frpc` (the daemons themselves).
+
 ## Switching between WebSDR and Red Pitaya apps
 
 If the `web888-redpitaya` package is installed, the unit can run either

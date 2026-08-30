@@ -21,8 +21,13 @@ check() { # name, expected-nonempty?, command...
 check "units active" 'systemctl is-active ssh; systemctl --failed --no-legend | head'
 check "packages present" 'dpkg -l iptables miniupnpc netcat-openbsd sudo openssh-server 2>/dev/null | grep "^ii" | awk "{print \$2}"'
 check "dropbear gone" 'dpkg -l 2>/dev/null | grep -c dropbear || echo 0'
-check "sudoers + helpers perms" 'stat -c "%a %U:%G %n" /etc/sudoers.d/web888 /usr/lib/web888/root-helpers/web888-netconfig /usr/lib/web888/root-helpers/web888-poweroff'
+check "sudoers + helpers perms" 'stat -c "%a %U:%G %n" /etc/sudoers.d/web888 /usr/lib/web888/root-helpers/web888-netconfig /usr/lib/web888/root-helpers/web888-poweroff /usr/lib/web888/root-helpers/web888-duc /usr/lib/web888/root-helpers/web888-frpc'
 check "sudo -n -l as web888" 'sudo -u web888 sudo -n -l 2>&1 | grep -A3 "may run"'
+# DUC/frpc helpers (2026.730-11): sudoers must accept them (helper usage
+# message proves the sudo call went through; a denial would not reach the
+# helper), and both units must still be disabled pre-configure.
+check "duc/frpc helpers callable via sudo" 'sudo -u web888 sudo -n /usr/lib/web888/root-helpers/web888-duc 2>&1 | grep -o "usage: web888-duc.*"; sudo -u web888 sudo -n /usr/lib/web888/root-helpers/web888-frpc restart 2>&1 | grep -o "frpc.toml not rendered yet.*"'
+check "duc/frpc units disabled pre-configure" 'systemctl is-enabled noip-duc.service frpc.service; test ! -e /etc/default/noip-duc && echo "/etc/default/noip-duc absent (good)"'
 check "nft kernel backend" 'iptables -L -n 2>&1 | head -6; lsmod | grep -E "nf_tables|nft_compat" || modprobe nft_compat && lsmod | grep -E "nf_tables|nft_compat"'
 
 # websdr itself cannot run under QEMU: the startup probe of the Si5351 clock

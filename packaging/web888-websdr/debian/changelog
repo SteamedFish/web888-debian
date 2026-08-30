@@ -1,3 +1,32 @@
+web888-websdr (2026.730-11) UNRELEASED; urgency=medium
+
+  * The admin console's Dynamic DNS (DUC) and reverse-proxy features now
+    work on Debian, driven by the noip-duc and frpc packages the image
+    already ships (previously installed-but-disabled placeholders):
+    - new patch 0024-duc-frpc-debian.patch routes the admin Network tab's
+      DUC form to a web888-duc root helper and the reverse-proxy register
+      flow to a web888-frpc root helper (both sudoers-registered, two-phase
+      systemd-run apply like web888-wificonfig); the DUC form now also
+      sends its Host field, which stock dropped on the floor.
+    - web888-duc validates the No-IP credentials with a real nic/update
+      probe whose exit code keeps the form's status contract (0/100/102/
+      103/300), renders /etc/default/noip-duc (NOIP_* env for the packaged
+      noip-duc.service) and enables+starts the unit. Public-IP discovery is
+      server-side (No-IP dns/http), so NAT setups get the correct address —
+      stock noip2 -I eth0 reported the RFC1918 address instead.
+    - web888-frpc verifies the sed-rendered /var/lib/web888/config/frpc.toml
+      with `frpc verify`, installs it as /etc/frp/frpc.toml (0600, the path
+      frpc.service runs with and the file manual frpc users edit) and
+      enables+restarts frpc.service.
+    - both services become enabled only after a successful configure from
+      the admin console (stock parity: frpc/noip2 sat in the stock default
+      runlevel); until then they stay disabled exactly as before.
+  * web888-websdr.service: drop the ExecStopPost frpc-stop hook — it tested
+    /etc/web888/frpc.toml, a path nothing ever wrote, so it never ran.
+    Making it live would be a regression: `frpc stop` exits cleanly, which
+    Restart=on-failure does not revive, so every websdr restart would
+    permanently drop the reverse-proxy tunnel.
+
 web888-websdr (2026.730-10) UNRELEASED; urgency=medium
 
   * USB-WiFi support for the admin network page on Debian: new

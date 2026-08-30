@@ -222,6 +222,38 @@ switch + SSID/password) and applies on websdr restart
 - **Undo WiFi entirely** — `sudo /usr/lib/web888/root-helpers/web888-wificonfig off`,
   then set `"wifi_configured": false` in `/var/lib/web888/config/admin.json`.
 
+## 11. Dynamic DNS / reverse proxy
+
+Both features are wired to the packaged `noip-duc` / `frpc` services
+(`usage.md` → "Dynamic DNS (No-IP) and reverse proxy (FRP)"); both stay
+disabled until configured from the admin Network tab.
+
+- **DUC status shows "DUC internal error: 1"** — the helper refused the
+  input or the probe failed. The reason is in the websdr log:
+  `journalctl -u web888-websdr | grep 'web888-duc:'` (control
+  characters in a form field, dynupdate.no-ip.com unreachable, ...).
+- **DUC status shows "Incorrect username or password"** — a real No-IP
+  answer (`badauth`): check the account. Repeated failures can trigger
+  a temporary No-IP block — wait a little, and verify the credentials
+  on the no-ip.com site.
+- **DUC says "Host given isn't defined on your account"** — the Host
+  field does not match a host created at no-ip.com. Create the host
+  there first; free No-IP hosts also expire after 30 days without a
+  confirmation.
+- **DDNS name resolves but the UI is unreachable from outside** — the
+  name tracks your IP, but the port still has to be reachable (router
+  port forward or the Network tab's UPnP/NAT toggle) — unless the
+  reverse proxy below is in use.
+- **Reverse proxy status stays "enabled and pending"** — stock UI
+  semantics: that box polls nothing. Judge the tunnel itself:
+  `systemctl status frpc` and `journalctl -u frpc` (auth failures or
+  "host already in use" come from the proxy server, not this device).
+- **frpc not running after registering** — re-register from the admin
+  form (it re-verifies and restarts the unit), or check the installed
+  config manually: `frpc verify -c /etc/frp/frpc.toml`.
+- **Undo both** — `systemctl disable --now noip-duc frpc`; the admin
+  forms re-enable whichever is used again.
+
 ## Preventive maintenance (Debian)
 
 ```sh

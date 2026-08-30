@@ -58,6 +58,9 @@ English documentation: [README.md](README.md).
   开关（Client STA / AP）与 Console 标签页的 hotspot 按钮已在 Debian 上可用，
   经由沙箱化 root helper 实现（ifupdown + wpa_supplicant / hostapd + dnsmasq）；
   AP 模式需要支持 AP 的网卡，已用 MT7612U 端到端实测验证（见 `docs/user/usage.md`）
+- **管理界面直接配置动态域名 + 反向代理** —— 原版 Network 标签页的 No-IP DUC
+  与 FRP 反向代理表单已接通镜像内置的 `noip-duc` / `frpc` 服务，经由沙箱化
+  root helper 校验配置；首次配置前服务保持关闭（见 `docs/user/usage.md`）
 - **Red Pitaya 共存**（`web888-redpitaya` deb）—— 收录比特流 + 源码构建的应用，
   `web888-mode` 在 WebSDR 与 RP 应用之间运行时切换，无需重新刷卡
 - **6.12 内核 + 完整 U-Boot 链路** —— QEMU 门禁已通过；硬件浸泡测试事项见

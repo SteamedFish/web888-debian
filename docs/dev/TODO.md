@@ -22,6 +22,15 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       **no-cable boot** brings wlan0 up via `ifup@wlan0` alone (~2 s to
       associate, ~8 s to lease) and stays pingable/mDNS-resolvable with eth0
       never linking.
+- [ ] **Admin-console DUC + reverse-proxy live verification** — offline
+      gates done (helper unit tests, real `frpc verify`, deb build, QEMU
+      boot); still needs one hardware pass: submit the DUC form with real
+      No-IP credentials (expect "DUC started successfully" +
+      `noip-duc.service` active + the record actually updated), and
+      register the reverse proxy (default `proxy.rx-888.com` with a
+      vendor user key, or a local `frps` round trip: proxy_server → host
+      IP, expect the subdomain URL to serve the receiver). Then check
+      `systemctl is-enabled noip-duc frpc` survives a reboot.
 
 ## KiwiSDR upstream alignment (step 5)
 
@@ -105,6 +114,14 @@ pre-cleanup archive branch.
   network writer via sudo root helpers, sudo poweroff, openssh-server,
   nft/iptables support; audio + waterfall verified end-to-end on
   hardware; Leaflet bundled locally (no CDN).
+- **Admin-console DUC + reverse proxy (2026-08-30)** — the Network tab's
+  No-IP DUC and FRP reverse-proxy forms wired to the packaged
+  `noip-duc`/`frpc` via the `web888-duc`/`web888-frpc` root helpers
+  (patch 0024; sudoers + two-phase systemd-run apply, services stay off
+  until first configure). Helper unit tests (`scripts/test-duc-frpc-helpers.sh`),
+  real `frpc verify`, deb build, rootfs step-3.5 checks and the QEMU
+  uboot boot gate pass; on-device live verification with real No-IP
+  credentials / an frps round trip is tracked under Hardware gates.
 - **KiwiSDR upstream alignment (step 5)** — cherry-picks through 0153
   (`config/websdr/cherry-picks/`, incl. security fixes), mongoose
   5.6→7.14 wholesale upgrade (B.1), admin stack re-sync to KiwiSDR

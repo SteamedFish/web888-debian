@@ -1,0 +1,211 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# web888-duc [-u USER -p PASS -U MINS -H HOST | start] — bridge the admin
+# console's stock noip2 DUC flow (ui/admin.cpp SET DUC_start, patch 0024) to
+# the Debian noip-duc package. Runs as root via sudo (see
+# /etc/sudoers.d/web888).
+#
+# Why this exists: the stock flow calls /usr/bin/noip2 -C (not in Debian)
+# followed by /etc/init.d/noip2 restart (OpenRC, not in Debian). This helper
+# takes over both steps: it validates the credentials against the No-IP
+# update protocol exactly as the form's status map expects (exit code =
+# UI status: 0 ok, 100 bad credentials, 102 no host given, 103 host not on
+# account; any other code shows as "DUC internal error: N" with this
+# helper's stderr in the websdr log — stock's 300 is a websdr-internal
+# pclose code and cannot be produced by a child process, since exit codes
+# wrap at 255) and renders /etc/default/noip-duc, the
+# EnvironmentFile the packaged noip-duc.service already reads.
+#
+# Two phases, mirroring web888-wificonfig: the outer verb (run inside the
+# websdr service sandbox, where /etc is read-only) validates and renders,
+# then re-executes itself through systemd-run — a transient service started
+# by PID 1 OUTSIDE the sandbox — which installs the env file / bounces the
+# unit (systemctl enable edits /etc itself and therefore also needs the
+# escape). Phase 2 re-validates the staged file (defense in depth).
+#
+# Exit-code notes: the UI's 101 ("No hosts defined on your account") is
+# unreachable — the nic/update protocol cannot enumerate the hosts on an
+# account, so a bogus host surfaces as 103 instead. Passwords containing a
+# single quote break the admin form's sq() shell quoting upstream of this
+# helper (stock limitation, unchanged).
+#
+# Path overrides (WEB888_DUC_*) exist for scratch/host testing; sudo's
+# env_reset strips them in production, so the real paths always apply.
+# WEB888_DUC_DIRECT=1 additionally skips the systemd-run escape (host tests
+# only — never set in production).
+set -eu
+umask 077
+
+STATE=${WEB888_DUC_STATE:-/var/lib/web888/duc}
+SELF=${WEB888_DUC_SELF:-/usr/lib/web888/root-helpers/web888-duc}
+ENVFILE=${WEB888_DUC_ENVFILE:-/etc/default/noip-duc}
+STAGED="$STATE/noip-duc.env"
+DIRECT=${WEB888_DUC_DIRECT:-0}
+
+CURL=${WEB888_DUC_CURL:-curl}
+SYSTEMCTL=${WEB888_DUC_SYSTEMCTL:-systemctl}
+NOIP_UPDATE_URL=${WEB888_DUC_UPDATE_URL:-https://dynupdate.no-ip.com/nic/update}
+
+die() { rc=$1; shift; echo "web888-duc: $*" >&2; exit "$rc"; }
+
+# Reject control characters — they cannot live in a one-line EnvironmentFile
+# value. Printable ASCII and UTF-8 continuation bytes pass (curl basic auth
+# and the single-quoted env file both carry them byte-transparently).
+check_value() { # <value> <name>
+    if printf '%s' "$1" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+        die 1 "$2 contains control characters"
+    fi
+}
+
+check_host() { # <host>
+    case $1 in
+        ''|*[!a-zA-Z0-9.-]*)
+            die 102 "host must be a DNS name (letters, digits, dots, dashes)"
+            ;;
+    esac
+}
+
+# No-IP update protocol probe: authenticates and verifies the host is on the
+# account. Omitting myip makes the server use the request's source IP, so the
+# probe IS a regular update — the same one the daemon would send anyway.
+# Responses: "good <ip>" / "nochg <ip>" / "nohost" / "badauth" / "911" /
+# "!donator" / "abuse" / "badagent".
+duc_probe() { # <user> <pass> <host> -> exits with the UI status code
+    resp=$($CURL -sS --max-time 10 -w '\n%{http_code}' -u "$1:$2" \
+        "$NOIP_UPDATE_URL?hostname=$3" 2>&1) || { echo "web888-duc: probe: $resp" >&2; return 1; }
+    code=$(printf '%s\n' "$resp" | tail -n 1)
+    body=$(printf '%s\n' "$resp" | head -n 1)
+    word=${body%% *}
+    echo "web888-duc: probe: http=$code body=<$body>" >&2
+    case $word in
+        good | nochg) return 0 ;;
+        badauth) return 100 ;;
+        nohost) return 103 ;;
+        *) return 1 ;; # 911, !donator, abuse, badagent, HTML error pages...
+    esac
+}
+
+# Single-quote for systemd EnvironmentFile (sh-style quoting per systemd.exec).
+env_quote() { # <value> on stdout
+    printf "'"
+    printf '%s' "$1" | sed "s/'/'\\\\''/g"
+    printf "'"
+}
+
+# Grammar check for the staged file: only the four NOIP_ keys, comments and
+# blank lines (defense in depth for phase 2).
+validate_staged() {
+    [ -f "$STAGED" ] || die 1 "no staged env file in $STATE"
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in
+            NOIP_USERNAME=* | NOIP_PASSWORD=* | NOIP_HOSTNAMES=* | NOIP_CHECK_INTERVAL=*) ;;
+            '#'*) ;;
+            '') ;;
+            *) die 1 "rejected line in staged env file" ;;
+        esac
+    done <"$STAGED"
+}
+
+render() { # <user> <pass> <mins> <host>
+    mins=$3
+    [ "$mins" -ge 2 ] || mins=2 # noip-duc minimum check interval
+    {
+        echo "# Rendered by web888-duc (WebSDR admin Network tab, DUC form)."
+        echo "# Overwritten on the next configure from the admin form;"
+        echo "# edit here only after taking the form out of use."
+        printf 'NOIP_USERNAME=%s\n' "$(env_quote "$1")"
+        printf 'NOIP_PASSWORD=%s\n' "$(env_quote "$2")"
+        printf 'NOIP_HOSTNAMES=%s\n' "$(env_quote "$4")"
+        printf 'NOIP_CHECK_INTERVAL=%sm\n' "$mins"
+    } >"$STAGED"
+}
+
+configure() { # called with the stock noip2 -C argv (JS sq()-quoted, sh-parsed)
+    user=
+    pass=
+    mins=
+    host=
+    while getopts :u:p:U:H: opt; do
+        case $opt in
+            u) user=$OPTARG ;;
+            p) pass=$OPTARG ;;
+            U) mins=$OPTARG ;;
+            H) host=$OPTARG ;;
+            *) die 1 "usage: web888-duc [-u USER -p PASS -U MINS -H HOST] | start" ;;
+        esac
+    done
+    # Empty credentials/host map onto the form's status codes; anything
+    # structurally invalid is rejected (exit 1).
+    [ -n "$user" ] && [ -n "$pass" ] || die 100 "empty username or password"
+    [ -n "$host" ] || die 102 "no host given (admin form Host field)"
+    check_value "$user" username
+    check_value "$pass" password
+    case $mins in
+        ''|*[!0-9]*) die 1 "update interval must be an integer (minutes)" ;;
+    esac
+    [ "$mins" -ge 1 ] && [ "$mins" -le 1440 ] || die 1 "update interval out of range"
+    check_host "$host"
+    host=$(printf '%s' "$host" | tr 'A-Z' 'a-z')
+
+    duc_probe "$user" "$pass" "$host" || die $? "probe failed"
+
+    mkdir -p "$STATE"
+    render "$user" "$pass" "$mins" "$host"
+    apply configure
+}
+
+start() {
+    [ -f "$ENVFILE" ] || die 1 "no $ENVFILE — configure the DUC first"
+    apply start
+}
+
+apply() { # <configure|start> — phase 1 entry: escape the sandbox via systemd-run
+    verb=$1
+    if [ "$DIRECT" = 1 ]; then
+        apply_run "$verb"
+    else
+        systemd-run --wait --pipe --collect \
+            --unit="web888-duc-apply-$$" \
+            --description="web888 DUC apply ($verb)" \
+            "$SELF" --apply "$verb"
+    fi
+}
+
+apply_run() { # <configure|start> — phase 2: full privileges, outside the sandbox
+    verb=$1
+    case $verb in
+        configure)
+            validate_staged
+            mkdir -p "$(dirname "$ENVFILE")"
+            # Atomic install: tmp file in the same directory, then rename.
+            install -m 0600 "$STAGED" "$ENVFILE.web888-tmp"
+            mv "$ENVFILE.web888-tmp" "$ENVFILE"
+            echo "web888-duc: $ENVFILE installed (host $(sed -n 's/^NOIP_HOSTNAMES=//p' "$ENVFILE"))"
+            ;;
+        start)
+            $SYSTEMCTL enable noip-duc.service
+            $SYSTEMCTL restart noip-duc.service
+            echo "web888-duc: noip-duc.service enabled and restarted"
+            ;;
+        *)
+            die 1 "internal error: bad apply verb $verb"
+            ;;
+    esac
+}
+
+case ${1:-} in
+    start)
+        start
+        ;;
+    --apply)
+        verb=${2:-}
+        case $verb in configure | start) ;; *) die 1 "usage: web888-duc --apply <configure|start>" ;; esac
+        apply_run "$verb"
+        ;;
+    -u | -p | -U | -H)
+        configure "$@"
+        ;;
+    *)
+        die 1 "usage: web888-duc [-u USER -p PASS -U MINS -H HOST] | start"
+        ;;
+esac

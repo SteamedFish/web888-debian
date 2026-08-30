@@ -1,0 +1,81 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# web888-frpc [restart] — bridge the admin console's stock reverse-proxy flow
+# (ui/admin.cpp SET rev_register, patch 0024) to the Debian frpc package.
+# Runs as root via sudo (see /etc/sudoers.d/web888).
+#
+# Why this exists: the stock flow ends in /etc/init.d/frpc restart (OpenRC,
+# not in Debian) and points the daemon at /root/config/frpc.toml. Here the
+# websdr service renders /var/lib/web888/config/frpc.toml itself (sed over
+# frpc.template.ini — unprivileged, works unchanged); this helper takes that
+# rendered config, validates it, installs it as /etc/frp/frpc.toml — the path
+# the packaged frpc.service runs with, and the file manual (non-admin-UI)
+# frpc users edit — and enables+restarts the unit. Overwriting that conffile
+# is intended: when the admin console is in use it is the config's authority.
+#
+# Two phases, mirroring web888-wificonfig: the outer verb (run inside the
+# websdr service sandbox, where /etc is read-only) validates and stages, then
+# re-executes itself through systemd-run — a transient service started by
+# PID 1 OUTSIDE the sandbox — which installs and bounces the unit. Phase 2
+# re-validates the staged file (defense in depth).
+#
+# Path overrides (WEB888_FRPC_*) exist for scratch/host testing; sudo's
+# env_reset strips them in production, so the real paths always apply.
+# WEB888_FRPC_DIRECT=1 additionally skips the systemd-run escape (host tests
+# only — never set in production).
+set -eu
+umask 077
+
+STATE=${WEB888_FRPC_STATE:-/var/lib/web888/frpc}
+SELF=${WEB888_FRPC_SELF:-/usr/lib/web888/root-helpers/web888-frpc}
+CONFIG=${WEB888_FRPC_CONFIG:-/var/lib/web888/config/frpc.toml}
+INSTALLED=${WEB888_FRPC_INSTALLED:-/etc/frp/frpc.toml}
+STAGED="$STATE/frpc.toml"
+DIRECT=${WEB888_FRPC_DIRECT:-0}
+
+FRPC=${WEB888_FRPC_FRPC:-frpc}
+SYSTEMCTL=${WEB888_FRPC_SYSTEMCTL:-systemctl}
+
+die() { echo "web888-frpc: $*" >&2; exit "$1"; }
+
+# Schema sanity on top of frpc's own TOML validation: the admin console's
+# sed template always produces these two tokens, so their absence means the
+# file was hand-made or truncated — refuse to install it over /etc/frp.
+validate_config() { # <path>
+    [ -f "$1" ] || die 1 "$CONFIG not rendered yet — register from the admin console Network tab first"
+    grep -q 'serverAddr' "$1" || die 1 "$1 has no serverAddr — not a rendered admin console config"
+    grep -q '\[\[proxies\]\]' "$1" || die 1 "$1 has no [[proxies]] section — not a rendered admin console config"
+    $FRPC verify -c "$1" >/dev/null || die 1 "frpc verify rejected $1"
+}
+
+apply_run() { # phase 2: full privileges, outside the sandbox
+    validate_config "$STAGED"
+    # Atomic install: tmp file in the same directory, then rename.
+    install -m 0600 "$STAGED" "$INSTALLED.web888-tmp"
+    mv "$INSTALLED.web888-tmp" "$INSTALLED"
+    $SYSTEMCTL enable frpc.service
+    $SYSTEMCTL restart frpc.service
+    echo "web888-frpc: $INSTALLED installed, frpc.service enabled and restarted"
+}
+
+case ${1:-restart} in
+    restart)
+        validate_config "$CONFIG"
+        mkdir -p "$STATE"
+        cp "$CONFIG" "$STAGED"
+        if [ "$DIRECT" = 1 ]; then
+            apply_run
+        else
+            systemd-run --wait --pipe --collect \
+                --unit="web888-frpc-apply-$$" \
+                --description="web888 frpc config apply" \
+                "$SELF" --apply
+        fi
+        ;;
+    --apply)
+        apply_run
+        ;;
+    *)
+        die 1 "usage: web888-frpc [restart]"
+        ;;
+esac

@@ -29,10 +29,15 @@ sudo chmod +x "$ROOTFS"/usr/sbin/policy-rc.d
 # (deb mtimes are SOURCE_DATE_EPOCH-normalized, version rarely bumps), which
 # left a stale websdr.bin in the persistent work/rootfs — images built after
 # a WF fix still shipped the older binary.
+# --force-confnew: this is the IMAGE build, not a device upgrade — the rootfs
+# must track the packaged conffiles (e.g. /etc/sudoers.d/web888 gains helpers
+# across releases); a persistent work/rootfs from an older run would
+# otherwise hit a conffile prompt and die on non-interactive stdin. On-device
+# apt upgrades keep dpkg's default keep-local policy, unchanged.
 echo "==> dpkg install (deps fixed via apt-get -f if needed)"
 sudo chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
   PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-  bash -c 'dpkg -i /tmp/debs/web888-websdr_*_armhf.deb || { apt-get update -qq && apt-get install -f -y; }'
+  bash -c 'dpkg -i --force-confnew /tmp/debs/web888-websdr_*_armhf.deb || { apt-get update -qq && apt-get install -f -y; }'
 
 # noip-duc + frpc (web888-websdr Depends) postinsts self-enable, but both
 # packages are unconfigured (no /etc/default/noip-duc, no frpc.ini) →

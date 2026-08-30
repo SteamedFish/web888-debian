@@ -9,6 +9,89 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-08-30] — websdr: admin-console DUC (No-IP) and reverse-proxy (frpc) wired up on Debian
+
+### Added
+
+- **Admin-console Dynamic DNS and reverse-proxy support** (websdr
+  2026.730-11): the Network tab's stock `noip2` DUC and `frpc`
+  reverse-proxy forms now drive the packaged `noip-duc` / `frpc`
+  services (installed-but-disabled placeholders until now). New quilt
+  patch `0024-duc-frpc-debian.patch` routes the DUC form's
+  `/usr/bin/noip2 -C` + `/etc/init.d/noip2 restart` calls and the
+  register flow's `/etc/init.d/frpc restart` to two new
+  sudoers-registered root helpers (`web888-duc`, `web888-frpc`;
+  two-phase systemd-run apply like `web888-wificonfig`), and the DUC
+  form now also sends its Host field (`-H`), which stock dropped on
+  the floor. KNOWN-ISSUES §3 rewritten accordingly.
+- **`web888-duc`** validates credentials with a real No-IP `nic/update`
+  probe — helper exit code = the form's status map (0 ok / 100 bad
+  credentials / 102 no host / 103 host not on account; stock's 300 is a
+  websdr-internal pclose code a child cannot produce, exit codes wrap
+  at 255, so helper-side failures surface as "DUC internal error: 1"
+  with the reason in the websdr log) — then renders
+  `/etc/default/noip-duc` (the packaged unit's EnvironmentFile, `NOIP_*`
+  variables, 0600); the `start` verb enables+restarts
+  `noip-duc.service`. Public-IP discovery is server-side (No-IP
+  dns/http) — correct behind NAT, where the stock `-I eth0` reported an
+  RFC1918 address. The form's Host field is what gets updated; stock
+  never passed it to noip2, and noip-duc requires an explicit hostname.
+- **`web888-frpc`** validates the admin-rendered
+  `/var/lib/web888/config/frpc.toml` (schema sanity + `frpc verify`),
+  installs it as `/etc/frp/frpc.toml` (0600 — the path the packaged
+  frpc.service runs with, and the file manual frpc users edit) and
+  enables+restarts `frpc.service`.
+- `scripts/test-duc-frpc-helpers.sh` — host-side unit tests for both
+  helpers (mocked curl/systemctl/frpc): the exit-code contract, quoting
+  round-trips through the EnvironmentFile, staged-file re-validation,
+  and "failed probes leave nothing behind".
+
+### Changed
+
+- `noip-duc.service` / `frpc.service` become enabled only after the
+  first successful configure from the admin console (stock parity:
+  `frpc`/`noip2` sat in the stock default runlevel). Until then they
+  stay disabled exactly as before — the build-time disable and
+  `80-web888.preset` are untouched, so the step-3.5 QEMU gate is
+  unaffected.
+
+### Fixed
+
+- **web888-websdr.service**: dropped the ExecStopPost frpc-stop hook —
+  it tested `/etc/web888/frpc.toml`, a path nothing ever wrote, so it
+  never ran. Making it live would have been a regression: `frpc stop`
+  exits cleanly, which `Restart=on-failure` does not revive, so every
+  websdr restart would permanently drop the reverse-proxy tunnel.
+
+### Verified
+
+- `scripts/test-duc-frpc-helpers.sh`: 33/33 on the host (mocked).
+- The rendered frpc template passes real `frpc verify` (frp 0.71.0).
+- `web888-websdr_2026.730-11_armhf.deb` built in the armhf chroot; deb
+  content sentinels passed (both helpers 0755 under
+  /usr/lib/web888/root-helpers/, sudoers 0440 with all five helpers,
+  unit without the dead ExecStopPost).
+- Rootfs install + step-3.5 checks: seed-defaults intact, `visudo -c`
+  clean, `/etc/systemd/system-preset/80-web888.preset` in place,
+  `noip-duc.service`/`frpc.service` disabled pre-configure,
+  `/etc/default/noip-duc` absent.
+- QEMU boot gate: `build-image.sh uboot` + `test-qemu.sh uboot` reached
+  the serial login prompt with local-fs.target healthy; the only failed
+  unit is networking.service (documented QEMU cadence-GEM PHY
+  limitation, same as the 2026-08-18 reference log). The step-3.5
+  additions to `qemu-verify-step35.sh` (helper presence/perms, sudoers
+  callability, disabled pre-configure) run in CI's final-image pass.
+- On-device live verification (real No-IP credentials / frps round
+  trip): pending — tracked in `docs/dev/TODO.md`.
+
+### Build-infra fixes hit along the way
+
+- `install-websdr.sh` / `install-debs-apt.sh`: `--force-confnew` for the
+  image-build rootfs (a persistent work/rootfs from an older run must
+  take the packaged conffiles — e.g. the sudoers drop-in — instead of
+  dying on a conffile prompt under non-interactive stdin). On-device
+  apt upgrades keep dpkg's default keep-local policy, unchanged.
+
 ## [2026-08-24] — websdr: USB-WiFi AP mode live-verified on MT7612U; two wificonfig fixes
 
 ### Fixed

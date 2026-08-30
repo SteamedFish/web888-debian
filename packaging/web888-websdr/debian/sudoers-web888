@@ -1,8 +1,9 @@
 # Shipped by the web888-websdr deb (postinst validates with visudo -c).
-# The unprivileged websdr service (user web888) may run ONLY these three
+# The unprivileged websdr service (user web888) may run ONLY these five
 # root-owned helper scripts — the network drop-in installer, the USB-WiFi
-# config installer, and the power action wrapper — and nothing else.
+# config installer, the power action wrapper, the DUC (No-IP dynamic DNS)
+# configurer, and the frpc reverse-proxy configurer — and nothing else.
 # NOPASSWD: the service has no tty.
 # Helper scripts live in /usr/lib/web888/root-helpers/ (root-owned, not
 # writable by web888) and validate all staged input; never eval.
-web888 ALL=(root) NOPASSWD: /usr/lib/web888/root-helpers/web888-netconfig, /usr/lib/web888/root-helpers/web888-wificonfig, /usr/lib/web888/root-helpers/web888-poweroff
+web888 ALL=(root) NOPASSWD: /usr/lib/web888/root-helpers/web888-netconfig, /usr/lib/web888/root-helpers/web888-wificonfig, /usr/lib/web888/root-helpers/web888-poweroff, /usr/lib/web888/root-helpers/web888-duc, /usr/lib/web888/root-helpers/web888-frpc
