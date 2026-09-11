@@ -13,22 +13,24 @@ keep it as the known-good rollback.**
 - A DHCP-served Ethernet network for the Web-888 (there is no serial
   console and no WiFi onboarding — first contact is always via Ethernet).
 
-## 1. Build the image
+## 1. Get the image
 
-See the **Building** section of the top-level `README.md` for prerequisites
-and the full build; every configurable knob (boot chain, kernel, mirrors) is
-documented in [building.md](building.md). The short form:
+**Most users:** download the latest prebuilt image and decompress it:
+
+```sh
+curl -LO https://github.com/SteamedFish/web888-debian/releases/latest/download/web888-debian-uboot.img.xz
+xz -d web888-debian-uboot.img.xz      # -> web888-debian-uboot.img
+```
+
+**Building from source** (Arch Linux host): see the **Building** section of
+the top-level `README.md`; all knobs are in
+[`../dev/building.md`](../dev/building.md). Always run the QEMU gate before
+flashing a self-built image:
 
 ```sh
 scripts/build-all.sh           # incremental build, U-Boot chain (default)
-scripts/test-qemu.sh uboot     # QEMU boot gate — ALWAYS run before flashing
+scripts/test-qemu.sh uboot     # QEMU boot gate
 ```
-
-The QEMU gate boots the exact image in an emulated Zynq and verifies the
-boot chain end-to-end. Never flash an image that has not passed it (there
-is no serial adapter on this board — QEMU is the only pre-hardware test).
-
-Output: `output/web888-debian-uboot.img`.
 
 ## 2. Flash
 
@@ -36,7 +38,7 @@ Insert the TF card into a **USB** card reader and identify it (`lsblk` —
 it must show transport `usb` and appear as `/dev/sdX`):
 
 ```sh
-scripts/flash-image.sh /dev/sdX output/web888-debian-uboot.img
+scripts/flash-image.sh /dev/sdX web888-debian-uboot.img   # or output/… for a self-built image
 ```
 
 The script enforces, in order:
@@ -87,24 +89,18 @@ everything lives on the card.
 
 ## 5. Updating an already-Debian card
 
-You normally do **not** re-flash for software updates — the image ships
-with this project's APT repository preconfigured, so everything
-(WebSDR, Red Pitaya apps, kernel, bootloader/dtb) arrives via:
+You normally do **not** re-flash for software updates — the image ships with
+this project's APT repository preconfigured, so WebSDR, Red Pitaya apps, the
+kernel, and the bootloader all arrive via:
 
 ```sh
 apt update && apt upgrade && reboot
 ```
 
-- Kernel upgrades update the `/boot/zImage` symlink automatically (the
-  `zz-web888-zimage` hook in the kernel deb's postinst); nothing to copy.
-- Bootloader/dtb upgrades come as `web888-boot` deb updates — the postinst
-  safely rewrites `boot.bin`/`boot.scr`/`web888.dtb` on the FAT firmware
-  partition (one `.bak` generation kept, `uEnv.txt` never touched).
-- Maintainer-side builds of new pinned kernel releases follow
-  `../dev/kernel-update-sop.md`; pushing them to GitHub publishes them
-  to the APT repo via CI.
-
-Re-flash only for partition-layout or rootfs-base changes.
+Kernel upgrades repoint the `/boot/zImage` symlink automatically; bootloader
+and DTB upgrades come as `web888-boot` deb updates, which rewrite the FAT
+firmware partition safely (`uEnv.txt` is never touched, one `.bak` generation
+is kept). Re-flash only for partition-layout or rootfs-base changes.
 
 ## Troubleshooting
 

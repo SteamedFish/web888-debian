@@ -145,6 +145,13 @@ when they conflict.
     high-speed with a full descriptor dump, so the host controller,
     SMSC USB3320 ULPI PHY, and driver stack are healthy. See
     `docs/dev/KNOWN-ISSUES.md` §8.
+- **USB WiFi dongles (live-verified 2026-09)**: several dongles have been
+  tested on the data Type-C port and all worked. An RTL8812BU/8822BU
+  (AC1200, `rtw88`) is the best value — cheap, dual-band, and supports
+  5 GHz client **and** AP mode (`iw list` reports IBSS/managed/AP/AP-VLAN/
+  monitor). The port is USB 2.0 (480 Mbit/s), so faster AC cards give no
+  benefit; cheaper single-band dongles are weaker in low signal and may
+  lack 5 GHz or AP mode.
 - ExtIO / antenna switch (per rx-888.com/web/design/pinout.html):
   an 8-pin SH1.0 connector (pin 1 = GND on the SD-card side, pin 8 = 5V) for an
   external antenna switch; pins carry 6 control signals **A1–A6**. These are

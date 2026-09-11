@@ -90,21 +90,12 @@ regression"). Checklist, cheapest first:
    ```sh
    rx-matrix 0 20 40     # polls RX health properly
    ```
-   Note: `zynqsdr-smoke` is a **QEMU-mode** binary — its "FAIL … (0 under
-   QEMU)" messages on real hardware actually mean the hardware returned
-   correct NONZERO values. Do not trust it as a hardware health check; use
-   `rx-matrix`/`rx-dump`.
-5. **Stale DT after a DT change:** the running device tree is
-   `web888.dtb` on the FAT firmware partition, loaded by `boot.scr` —
-   it ships inside the `web888-boot` deb, whose postinst installs it to
-   `/boot/firmware/`. Hand-copying a rebuilt `.dtb` over
-   `/boot/firmware/web888.dtb` also works (boot.scr loads it by name).
-   Deploy via a rebuilt/updated `web888-boot` package → reboot. Verify
-   with `od -A d -t x1 /proc/device-tree/<node>/gpios`.
-6. **Partial FPGA wedge** (RX ring static while the waterfall ring stays
+   Use `rx-matrix`/`rx-dump`, not `zynqsdr-smoke` (a QEMU-mode binary whose
+   results are meaningless on real hardware).
+5. **Partial FPGA wedge** (RX ring static while the waterfall ring stays
    live): only a full PL reconfiguration clears it — `web888-mode stop`
    then start, or reboot.
-7. **Journal clock illusion:** journald rate-limiting can flush suppressed
+6. **Journal clock illusion:** journald rate-limiting can flush suppressed
    lines much later with old timestamps — a "frozen" websdr clock in the
    journal is NOT evidence of a wedge. Grep with absolute `--since`
    windows instead of judging by the last line's timestamp.
@@ -129,12 +120,10 @@ Server side is almost never the problem; check in order:
    shows satellite/lock status. Note: the satellite list stays empty until
    the *first* fix — the ATGM336H only reports elevation/azimuth once it
    knows its position, and gpsd hides zero-azimuth satellite sets.
-3. Images built before 2026-08-06 had gpsd switching the GPS chip to
-   UBX-only output (no NMEA), breaking the admin GPS page — fixed in
-   current images. On an older install, apply the one-line fix: in
-   `/etc/default/gpsd` set `GPSD_OPTIONS="-n -b -s 9600"`, then
-   `systemctl restart gpsd`. Details in `../dev/CHANGELOG.md`
-   (2026-08-06 GPS entry).
+3. Older images had gpsd switch the GPS chip to UBX-only output (no NMEA),
+   breaking the admin GPS page — fixed in current images. If you run an
+   older image, set `GPSD_OPTIONS="-n -b -s 9600"` in `/etc/default/gpsd`
+   and restart gpsd.
 
 ## 6. Poor reception / high noise floor
 
@@ -159,9 +148,8 @@ ping -c 10 <device-ip> # network latency/loss
 
 - Reduce connected users and running extensions; lower the waterfall rate.
 - Browser side: close other tabs, try another browser, clear cache.
-- On 512 MB there is little headroom — see
-  `../dev/armbian-optimizations.md` for the small-memory tuning research
-  (zram etc.) if you want to experiment.
+- On 512 MB there is little headroom; reduce connected users, running
+  extensions, or the waterfall rate.
 
 ## 8. Extensions not working
 
@@ -185,8 +173,6 @@ dpkg -L web888-websdr | grep -i <name>    # is it shipped in the deb?
   recreates missing files from `/usr/share/web888/dist/config/`.
 - **Full reset:** re-flash the card (`flashing.md`). The stock card is the
   factory-firmware rollback.
-- **Kernel/device-tree work:** follow `../dev/kernel-update-sop.md`; every
-  image must pass `scripts/test-qemu.sh uboot` before flashing.
 
 ## 10. WiFi (USB dongle)
 
@@ -194,23 +180,19 @@ Admin-UI WiFi config lives in the Network tab ("USB WIFI Dongle Mode"
 switch + SSID/password) and applies on websdr restart
 (`usage.md` → "WiFi (USB dongle)").
 
-- **Dongle not detected at all** — the board has **no USB-A socket**;
-  the only USB data connector is one of the two Type-C ports (the
-  other Type-C is power-only). A USB WiFi dongle therefore always
-  needs a USB **Type-C→Type-A adapter** — and **adapter power draw
-  matters**: same dongle, same data Type-C port, but a different
-  adapter can change the result from "enumerates as high-speed,
-  `wlan0` comes up" to "nothing — no `new XX-speed USB device`
-  line, `lsusb` only shows the root hub" (live-verified 2026-08-20).
-  First action is to **swap the Type-C→Type-A adapter** — do not
-  keep retrying the same adapter. Reference:
-  `../dev/KNOWN-ISSUES.md` §8. Then check `lsusb` and
-  `ip link show wlan0`.
+- **Dongle not detected at all** — the board has **no USB-A socket**, so a
+  dongle always needs a USB **Type-C→Type-A adapter** on the data port. If it
+  does not come up, **swap the adapter first** — adapter quality matters on
+  this board, and a different adapter can make the same dongle enumerate as
+  `wlan0`. Then check `lsusb` and `ip link show wlan0`. Reference:
+  [`../dev/KNOWN-ISSUES.md` §8](../dev/KNOWN-ISSUES.md).
 - **AP mode refuses to start** ("WiFi hardware/driver does not support
   AP mode") — the dongle's driver has no AP capability. Verify with
   `iw list | grep -A4 "Supported interface modes"` (must list `AP`).
   The common RTL8188EUS (`rtl8xxxu`) is client-only; use an
-  ath9k_htc / mt7601u / carl9170 dongle for AP (firmware included).
+  ath9k_htc / mt7601u / carl9170 dongle for AP (firmware included). For a
+  new buy, an RTL8812BU/8822BU (AC1200) is the best value (dual-band,
+  5 GHz + AP).
 - **Client mode set but no connection** — the apply log shows the
   DHCP/association outcome: `journalctl -u web888-wificonfig-apply`.
   Check SSID/password; a wrong password just leaves wlan0 up but

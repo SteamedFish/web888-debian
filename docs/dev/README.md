@@ -16,6 +16,7 @@ documentation lives in `../user/`; reverse-engineering facts live in
 
 | Document | Contents |
 |---|---|
+| [building.md](building.md) | Build system: boot chains, all configurable knobs, QEMU gate modes, artifacts, manual per-step builds |
 | [kernel-update-sop.md](kernel-update-sop.md) | Kernel update SOP (Debian-source 6.12 pinned deb, QEMU gate) |
 | [debian-kernel-options-research.md](debian-kernel-options-research.md) | Research behind the kernel choice (options compared, community projects assessed) |
 | [redpitaya-port-guide.md](redpitaya-port-guide.md) | Red Pitaya software port to Web-888 (implemented and hardware-verified) |

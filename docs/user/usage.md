@@ -75,12 +75,17 @@ automatically after an edit):
   (192.168.42.1/24, DHCP via dnsmasq 192.168.42.20-254,
   WPA2-PSK). Requires a dongle whose driver supports AP mode — check
   with `iw list | grep -A4 "Supported interface modes"`. The common
-  RTL8188EUS (`rtl8xxxu`) dongle does **not** support AP; ath9k_htc /
-  mt7601u / carl9170-class dongles do (their firmware ships in the
-  image). The MediaTek MT7612U (`0e8d:7612`, mt76x2u) is live-verified
-  end-to-end (association + DHCP + gateway ping) as of 2026-08-24.
+  RTL8188EUS (`rtl8xxxu`) is client-only; ath9k_htc / mt7601u /
+  carl9170-class and the MediaTek MT7612U dongles support AP (their
+  firmware ships in the image).
 - **enable hotspot** (Console tab) — one-click AP with the stock
   defaults (SSID `web-888`, password `88888888`).
+
+**Choosing a dongle.** Several dongles have been tested and all work. For a
+new buy, an **RTL8812BU/8822BU (AC1200)** is the best value — dual-band,
+5 GHz + AP capable. Faster cards only exceed the board's USB 2.0 bandwidth;
+cheaper ones underperform in low signal and may lack 5 GHz or AP mode. If
+you already have a working dongle, keep it.
 
 By default (fresh image, never touched the WiFi controls) **nothing is
 configured** — Ethernet stays the only managed interface. NAT/internet
@@ -174,9 +179,9 @@ Clock-restore behavior on switching is controlled by
 
 ## Software updates
 
-Everything is a Debian package. Images since 2026-08-16 ship with this
-project's APT repository preconfigured (`apt policy` shows
-`web888.steamedfish.org/apt`), so day-to-day updates are plain apt:
+Everything is a Debian package. The image ships with this project's APT
+repository preconfigured (`apt policy` shows `web888.steamedfish.org/apt`),
+so day-to-day updates are plain apt:
 
 ```sh
 apt update && apt upgrade      # websdr, redpitaya, kernel, bootloader
@@ -188,15 +193,15 @@ reboot                         # only needed for kernel/bootloader updates
 | `web888-websdr` | WebSDR server, extensions, FPGA bitstreams, systemd unit |
 | `web888-redpitaya` | Red Pitaya app ports, `web888-mode`, switch config |
 | `web888-boot` | FSBL + U-Boot + `boot.scr`/`uEnv.txt`/`web888.dtb` (postinst safely rewrites the FAT firmware partition) |
-| `linux-image-6.12.100-web888` | Kernel (new releases built per `../dev/kernel-update-sop.md`) |
+| `linux-image-6.12.100-web888` | Kernel |
 
 Kernel upgrades repoint the `/boot/zImage` symlink automatically; no file
 copying is involved. Config files under `/etc/web888/` and
-`/etc/web888-redpitaya/` are conffiles — apt/dpkg will prompt before
-overwriting local changes.
+`/etc/web888-redpitaya/` are conffiles — apt/dpkg prompts before overwriting
+local changes.
 
-On images older than 2026-08-16 (no repo preconfigured) or for a
-hand-built deb, fall back to the manual flow:
+If the APT repo is not preconfigured (or you built the deb yourself), use the
+manual flow:
 
 ```sh
 scp -P 22 web888-websdr_<version>_armhf.deb root@<device-ip>:/tmp/
@@ -216,18 +221,11 @@ For a full system backup, image the whole TF card on a PC (`dd` /
 
 ## Reference clock override (EEPROM `refclock=`)
 
-The board EEPROM (24c64 @0x50, offset 0x1800) holds a U-Boot-style env
-with factory metadata (`hw_rev`, `serial`, `prod_date`, …) including
-`refclock=24576000` — the Si5351 reference (TCXO) frequency in Hz.
-
-Images since 2026-08-15 boot a **source-built FSBL** whose Red Pitaya
-hooks read this env at boot and honor `refclock=` as the Si5351
-reference-frequency override (the stock FSBL ignored it). This only
-matters for boards retrofitted with a non-24.576 MHz TCXO — with the
-factory clock no action is needed. The hooks also drive MIO49 HIGH
-(internal TCXO select) and MIO10 LOW at boot; on the stock firmware
-those lines were left floating. Details:
-`docs/research/hardware-facts.md`.
+The board EEPROM stores factory metadata including the Si5351 reference
+(TCXO) frequency, `refclock=24576000`. Current images honor `refclock=` as a
+reference-frequency override at boot, so a board retrofitted with a
+non-24.576 MHz TCXO works without further changes; factory-clock boards need
+nothing. Details: [`../research/hardware-facts.md`](../research/hardware-facts.md).
 
 ## GPS
 

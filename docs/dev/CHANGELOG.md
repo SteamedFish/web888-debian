@@ -9,6 +9,49 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-09-11] — docs: stable-operation statement, WiFi dongle guidance, conciseness cleanup
+
+### Added
+
+- **`docs/research/hardware-facts.md`** — live-verified dongle facts (best-value
+  chip class, USB 2.0 ceiling, AP support).
+
+### Changed
+
+- **README (en + zh-CN)** — state that this port backports the latest upstream
+  KiwiSDR features and bug fixes (the stock Web-888 software is maintained, but
+  not very actively), as a headline feature.
+- **Documentation conciseness pass** — README (en + zh-CN) and all `docs/user/`
+  docs trimmed, dev material relocated, user-meaningless `live-verified <date>`
+  stamps and stale migration dates removed. Both README languages kept in sync.
+  - **README** rewritten user-forward and much shorter: boot-chain minutiae,
+    cherry-pick counts, postinst/hook internals and QEMU mechanics dropped or
+    delegated to dev docs; the dongle recommendation and the "no USB-A socket"
+    note condensed to one line each.
+  - **`docs/user/building.md` → `docs/dev/building.md`** (it was 100% developer
+    content — boot chains, knobs, QEMU gates, manual per-step builds). Links in
+    README (en/zh), `flashing.md` and `docs/user/README.md` updated; indexed in
+    `docs/dev/README.md`.
+  - **`docs/user/usage.md`** — removed stale dates (`2026-08-16`/`2026-08-15`/
+    `2026-08-24`), the kernel-SOP pointer, and the device-internal EEPROM
+    `refclock=` write-up (address/offset, MIO lines: developer material already
+    in `docs/research/hardware-facts.md`); replaced by a short user note.
+  - **`docs/user/quick-reference.md`** — condensed USB-adapter note; dropped the
+    `test-qemu.sh` build step from the user boot-failure fix.
+  - **`docs/user/troubleshooting.md`** — removed the stale GPS date + CHANGELOG
+    pointer, the `armbian-optimizations.md` pointer, the developer device-tree
+    rebuild procedure and `zynqsdr-smoke` QEMU detail.
+  - **`docs/user/flashing.md`** — added the prebuilt-image download path
+    (GitHub Releases, `xz -d`); dropped kernel-postinst hook names and the
+    maintainer SOP pointer from the user update flow.
+- **README (en + zh-CN), `docs/user/usage.md`, `docs/user/quick-reference.md`,
+  `docs/user/troubleshooting.md`, `docs/dev/KNOWN-ISSUES.md`** — record that the
+  image has been running for weeks on real hardware with the documented features
+  verified stable, and add USB WiFi dongle guidance: several dongles tested and
+  all worked; an RTL8812BU/8822BU (AC1200) is the best value (dual-band 5 GHz +
+  AP), faster cards only exceed the USB 2.0 port bandwidth, and cheaper ones
+  underperform in low signal / may lack 5 GHz or AP.
+
 ## [2026-08-30] — websdr: admin-console DUC (No-IP) and reverse-proxy (frpc) wired up on Debian
 
 ### Added

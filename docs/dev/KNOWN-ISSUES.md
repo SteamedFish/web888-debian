@@ -51,8 +51,9 @@ configure). Divergences from stock, all intentional:
   CHANGELOG) probe `iw list` at runtime and refuse on incapable
   hardware. The commonly shipped RTL8188EUS (`rtl8xxxu`) is
   client-only (managed+monitor); AP needs ath9k_htc / mt7601u /
-  carl9170-class dongles (firmware shipped). Not a defect — hardware
-  capability. There is intentionally no UI "Off" option; the CLI
+  carl9170-class dongles (firmware shipped). For a new buy, an
+  RTL8812BU/8822BU (AC1200) is the best value (dual-band 5 GHz + AP).
+  Not a defect — hardware capability. There is intentionally no UI "Off" option; the CLI
   escape hatch is documented in `docs/user/usage.md`.
 - **0153 admin status-poll fix pending hardware verification** — patch 0153
   removes the 1 Hz `SET xfer_stats` / `ADM antsw_GetCurrentAnt` sends that
