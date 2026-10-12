@@ -179,3 +179,4 @@
 # (stock parity: they sat in the stock default runlevel). The stale
 # FIXME at the DUC call site (eth0 hardwire) is retired with the flag.
 0024-duc-frpc-debian.patch
+0025-acarsdec-external.patch

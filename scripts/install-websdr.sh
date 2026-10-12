@@ -21,6 +21,12 @@ echo "==> staging deb into rootfs"
 sudo mkdir -p "$ROOTFS"/tmp/debs
 sudo cp "$DEB" "$ROOTFS"/tmp/debs/
 
+# acarsdec (web888-websdr Depends) is our own third-party package; stage the
+# locally built deb too when present so images work before/without the APT
+# repo carrying it (fresh repo bootstrap, local-only builds).
+ACARS_DEB=$(find output/thirdparty -maxdepth 1 -name 'acarsdec_*_armhf.deb' 2>/dev/null | sort --version-sort | tail --lines=1)
+[[ -n $ACARS_DEB ]] && sudo cp "$ACARS_DEB" "$ROOTFS"/tmp/debs/
+
 # suppress service start/restart inside the chroot, keep enablement
 echo -e '#!/bin/sh\nexit 101' | sudo tee "$ROOTFS"/usr/sbin/policy-rc.d >/dev/null
 sudo chmod +x "$ROOTFS"/usr/sbin/policy-rc.d
@@ -37,7 +43,7 @@ sudo chmod +x "$ROOTFS"/usr/sbin/policy-rc.d
 echo "==> dpkg install (deps fixed via apt-get -f if needed)"
 sudo chroot "$ROOTFS" /usr/bin/env DEBIAN_FRONTEND=noninteractive \
   PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-  bash -c 'dpkg -i --force-confnew /tmp/debs/web888-websdr_*_armhf.deb || { apt-get update -qq && apt-get install -f -y; }'
+  bash -c 'dpkg -i --force-confnew /tmp/debs/*_armhf.deb || { apt-get update -qq && apt-get install -f -y; }'
 
 # noip-duc + frpc (web888-websdr Depends) postinsts self-enable, but both
 # packages are unconfigured (no /etc/default/noip-duc, no frpc.ini) →

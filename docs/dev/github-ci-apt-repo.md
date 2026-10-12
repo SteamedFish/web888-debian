@@ -17,7 +17,7 @@ forgejo primary remote has no CI.
 | `build-websdr-deb.yml` | push paths (`config/websdr/**`, `packaging/web888-websdr/**`, scripts) | preflight → build → publish |
 | `build-redpitaya-deb.yml` | push paths (`config/redpitaya/**`, `packaging/web888-redpitaya/**`, scripts, `scripts/hw-test/si5351/**`) | preflight → build → publish |
 | `build-boot-deb.yml` | push paths (`config/u-boot/**`, `packaging/web888-boot/**`, FSBL reference trees, scripts) | preflight → build → smoke → publish |
-| `build-thirdparty-debs.yml` | push paths (`packaging/{libacars,dumphfdl,frpc,noip-duc}/**`), dispatch, `workflow_call` | detect → select → build → publish |
+| `build-thirdparty-debs.yml` | push paths (`packaging/{libacars,dumphfdl,frpc,noip-duc,acarsdec}/**`), dispatch, `workflow_call` | detect → select → build → publish |
 | `upstream-watch.yml` | daily cron `37 5 * * *`, dispatch | check (upstream pins + trixie lib watch) → rebuild / websdr-rebuild / redpitaya-rebuild (`workflow_call`) |
 | `build-image.yml` | `repository_dispatch` (debs-published, fired by every publish job), push paths (image machinery only — deb inputs `write-dtb.sh` / `build-kernel-6.12.sh` / `config/web888.dts` are excluded; their changes arrive via dispatch, so one push never queues two image builds), dispatch | image (build-all DEB_SOURCE=apt → QEMU uboot gate → xz) → timestamped `img-*` Release (keep 5) |
 
@@ -125,7 +125,7 @@ the flat-repo marker — there is no `dists/` tree.
 | `web888-websdr` | RaspSDR/server pinned in `config/websdr/upstream.pin` | `config/websdr/**`, `packaging/web888-websdr/**`, websdr scripts, stock bitstreams, `scripts/ci/**` | changelog version `+ci<N>` (stamp, not committed) |
 | `web888-redpitaya` | RaspSDR/red-pitaya-notes pinned in `config/redpitaya/upstream.pin` | `config/redpitaya/**`, `packaging/web888-redpitaya/**`, redpitaya scripts, `scripts/hw-test/si5351/**`, `resources/redpitaya-bits/**`, `scripts/ci/**` | changelog version `+ci<N>` |
 | `web888-boot` | vendored embeddedsw FSBL + mainline U-Boot v2026.07 (`config/u-boot/**`) | u-boot/fsbl/bootbin/boot-deb scripts, `config/u-boot/**`, `packaging/web888-boot/**`, `resources/reference/{embeddedsw-zynq-fsbl,redpitaya-fsbl-hooks}/**`, `scripts/ci/**` | changelog version `+ci<N>` |
-| `libacars`, `dumphfdl`, `frpc`, `noip-duc` | pinned upstream tags in `packaging/<name>/upstream.pin` | `packaging/<name>/**`, `scripts/ci/**`, thirdparty workflow | `<pin version>-<pkgrev>` (+ CI run number inside `build-thirdparty-deb.sh`) |
+| `libacars`, `dumphfdl`, `frpc`, `noip-duc`, `acarsdec` | pinned upstream tags in `packaging/<name>/upstream.pin` | `packaging/<name>/**`, `scripts/ci/**`, thirdparty workflow | `<pin version>-<pkgrev>` (+ CI run number inside `build-thirdparty-deb.sh`) |
 
 `<N>` = `GITHUB_RUN_NUMBER`. Stamping happens in the CI checkout only via
 `scripts/ci/stamp-changelog.sh` (rewrites just the first changelog line's
@@ -184,7 +184,7 @@ our packages link against**:
 
 When the freshly resolved versions differ from the state file:
 
-- **third-party package** (`libacars`, `dumphfdl`): `pkgrev:` in its
+- **third-party package** (`libacars`, `dumphfdl`, `acarsdec`): `pkgrev:` in its
   `upstream.pin` is bumped by 1 (packaging revision = "rebuilt against newer
   libs"), the package joins the `rebuild` job's package list (union with the
   upstream-bumped list).

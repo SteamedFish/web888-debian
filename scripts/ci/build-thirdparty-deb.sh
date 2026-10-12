@@ -4,9 +4,9 @@
 # build-thirdparty-deb.sh — build one third-party package into armhf .deb(s)
 # for the Web-888 flat APT repo (Debian trixie).
 #
-# Usage: build-thirdparty-deb.sh <libacars|dumphfdl|frpc|noip-duc> <OUTDIR>
+# Usage: build-thirdparty-deb.sh <libacars|dumphfdl|frpc|noip-duc|acarsdec> <OUTDIR>
 #
-#   libacars / dumphfdl : source builds inside the armhf qemu chroot created
+#   libacars / dumphfdl / acarsdec : source builds inside the armhf qemu chroot created
 #                         by mk-build-chroot.sh (dpkg-buildpackage -us -uc -b).
 #                         dumphfdl additionally installs the libacars2 debs
 #                         found in DEP_DEBS_DIR (default: OUTDIR) first —
@@ -36,10 +36,10 @@ die() { echo "[build-thirdparty] ERROR: $*" >&2; exit 1; }
 NAME=${1:-}
 OUTDIR=${2:-}
 case "$NAME" in
-    libacars|dumphfdl|frpc|noip-duc) ;;
-    *) die "usage: $0 <libacars|dumphfdl|frpc|noip-duc> <OUTDIR>" ;;
+    libacars|dumphfdl|frpc|noip-duc|acarsdec) ;;
+    *) die "usage: $0 <libacars|dumphfdl|frpc|noip-duc|acarsdec> <OUTDIR>" ;;
 esac
-[ -n "$OUTDIR" ] || die "usage: $0 <libacars|dumphfdl|frpc|noip-duc> <OUTDIR>"
+[ -n "$OUTDIR" ] || die "usage: $0 <libacars|dumphfdl|frpc|noip-duc|acarsdec> <OUTDIR>"
 mkdir -p "$OUTDIR"
 OUTDIR=$(readlink -f "$OUTDIR")
 
@@ -101,7 +101,7 @@ chroot_run() { # chroot_run <command-string>
         PATH=/usr/sbin:/usr/bin:/sbin:/bin bash -c "$1"
 }
 
-# ---------------------------------------------------------------- source builds (libacars, dumphfdl)
+# ------------------------------------------------- source builds (libacars, dumphfdl, acarsdec)
 
 build_src_pkg() { # build_src_pkg <tarball-url> <extra-apt-deps...>
     local url=$1
@@ -142,6 +142,12 @@ build_src_pkg() { # build_src_pkg <tarball-url> <extra-apt-deps...>
     sudo rm -rf "$CHROOT/root/build"
     sudo mkdir -p "$CHROOT/root/build"
     sudo cp -a "$srcdir" "$CHROOT/root/build/"
+    # 3.0 (quilt) packages need the pristine upstream tarball next to the
+    # source tree so dpkg-source can apply debian/patches (3.0 (native)
+    # ignores debian/patches entirely).
+    if grep -q '3.0 (quilt)' "$srcdir/debian/source/format" 2>/dev/null; then
+        sudo cp "$WORK/src.tar.gz" "$CHROOT/root/build/${NAME}_${VER}.orig.tar.gz"
+    fi
 
     mount_chroot
     local bname
@@ -224,6 +230,10 @@ case "$NAME" in
     dumphfdl)
         build_src_pkg "https://github.com/szpajder/dumphfdl/archive/refs/tags/${PIN_VERSION}.tar.gz" \
             libfftw3-dev libglib2.0-dev libconfig++-dev libsoapysdr-dev libzmq3-dev librdkafka-dev libliquid-dev libsqlite3-dev
+        ;;
+    acarsdec)
+        build_src_pkg "https://github.com/f00b4r0/acarsdec/archive/refs/tags/${PIN_VERSION}.tar.gz" \
+            libsndfile1-dev
         ;;
     frpc)     build_frpc ;;
     noip-duc) build_noip_duc ;;

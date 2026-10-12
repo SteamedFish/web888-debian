@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+%:
+	dh $@
+
+# Web-888 uses acarsdec only as a raw-PCM stdin decoder helper for the
+# WebSDR ACARS extension: keep the libsndfile input, disable every
+# SDR/audio/network backend so the binary depends on libsndfile1 + libc only.
+override_dh_auto_configure:
+	dh_auto_configure -- -DCJSON=OFF -DALSA=OFF -DLIBACARS=OFF -DSNDFILE=ON \
+		-DRTLSDR=OFF -DAIRSPY=OFF -DSDRPLAY=OFF -DSOAPYSDR=OFF

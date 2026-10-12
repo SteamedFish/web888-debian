@@ -1,0 +1,21 @@
+Debian (0025): run the distro-packaged acarsdec (Depends: acarsdec) instead
+of a vendored no-arg build. Vanilla f00b4r0/acarsdec natively supports
+decoding raw 12 kHz mono S16LE PCM from stdin via libsndfile
+(--sndfile file=/dev/stdin,subtype=0x02); the "full:file:path=-" output
+spec reproduces the exact text format the ACARS.js parser expects (inmode
+== IN_SNDFILE: no F:/date header fields — ACARS.js falls back to "live").
+All SDR/audio/network backends are compiled out in the Debian package.
+diff --git a/extensions/ACARS/ACARS.cpp b/extensions/ACARS/ACARS.cpp
+index 9f97b5c..4a43b22 100644
+--- a/extensions/ACARS/ACARS.cpp
++++ b/extensions/ACARS/ACARS.cpp
+@@ -78,7 +78,8 @@ static bool acars_process_start(acars_chan_t *e)
+         dup2(out_pipe[1], STDOUT_FILENO);
+         close(out_pipe[1]);
+ 
+-        execl(ACARSDEC_BIN, ACARSDEC_BIN, NULL);
++        execl(ACARSDEC_BIN, ACARSDEC_BIN,
++            "--sndfile", "file=/dev/stdin,subtype=0x02", "--output", "full:file:path=-", (char *) NULL);
+         _exit(127);
+     }
+ 

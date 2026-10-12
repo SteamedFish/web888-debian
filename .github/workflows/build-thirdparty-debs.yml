@@ -1,5 +1,5 @@
 # build-thirdparty-debs.yml — build the third-party deb sets (libacars,
-# dumphfdl, frpc, noip-duc) from their pinned upstreams and publish them to
+# dumphfdl, frpc, noip-duc, acarsdec) from their pinned upstreams and publish them to
 # the flat gh-pages APT repo.
 #
 # Each package is built by scripts/ci/build-thirdparty-deb.sh <name> out/
@@ -13,7 +13,7 @@
 #                              only touches scripts/ci/** or this workflow
 #                              builds ALL packages (shared build code changed)
 #   workflow_dispatch        — input `package`: all/libacars/dumphfdl/frpc/
-#                              noip-duc ('dumphfdl' implies libacars)
+#                              noip-duc/acarsdec ('dumphfdl' implies libacars)
 #   workflow_call            — same input as a plain string; ALSO accepts a
 #                              comma-separated list (e.g. "libacars,dumphfdl")
 #                              so upstream-watch.yml can rebuild exactly the
@@ -36,6 +36,7 @@ on:
       - 'packaging/dumphfdl/**'
       - 'packaging/frpc/**'
       - 'packaging/noip-duc/**'
+      - 'packaging/acarsdec/**'
       - 'scripts/ci/mk-build-chroot.sh'
       - 'scripts/ci/build-thirdparty-deb.sh'
       - 'scripts/ci/stamp-changelog.sh'
@@ -52,6 +53,7 @@ on:
           - dumphfdl
           - frpc
           - noip-duc
+          - acarsdec
   workflow_call:
     inputs:
       package:
@@ -80,6 +82,7 @@ jobs:
       dumphfdl: ${{ steps.filter.outputs.dumphfdl }}
       frpc: ${{ steps.filter.outputs.frpc }}
       noip-duc: ${{ steps.filter.outputs.noip-duc }}
+      acarsdec: ${{ steps.filter.outputs.acarsdec }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -94,6 +97,8 @@ jobs:
               - 'packaging/frpc/**'
             noip-duc:
               - 'packaging/noip-duc/**'
+            acarsdec:
+              - 'packaging/acarsdec/**'
 
   # Resolve the ordered build list (canonical order: libacars, dumphfdl,
   # frpc, noip-duc — libacars before dumphfdl always).
@@ -112,6 +117,7 @@ jobs:
           F_DUMPHFDL: ${{ needs.detect.outputs.dumphfdl }}
           F_FRPC: ${{ needs.detect.outputs.frpc }}
           F_NOIP_DUC: ${{ needs.detect.outputs.noip-duc }}
+          F_ACARSDEC: ${{ needs.detect.outputs.acarsdec }}
         run: |
           set -euo pipefail
           sel=""
@@ -120,19 +126,20 @@ jobs:
             [[ $F_DUMPHFDL == true ]] && sel="$sel dumphfdl"
             [[ $F_FRPC == true ]]     && sel="$sel frpc"
             [[ $F_NOIP_DUC == true ]] && sel="$sel noip-duc"
+            [[ $F_ACARSDEC == true ]] && sel="$sel acarsdec"
             # trigger fired on scripts/ci/** or this workflow only: the shared
             # build code changed — validate everything
-            [[ -z $sel ]] && sel="libacars dumphfdl frpc noip-duc"
+            [[ -z $sel ]] && sel="libacars dumphfdl frpc noip-duc acarsdec"
           else
             input=${INPUT_PACKAGE:-all}
             if [[ $input == all ]]; then
-              sel="libacars dumphfdl frpc noip-duc"
+              sel="libacars dumphfdl frpc noip-duc acarsdec"
             else
               IFS=',' read -ra parts <<< "$input"
               for p in "${parts[@]}"; do
                 p=${p// /}
                 case "$p" in
-                  libacars|dumphfdl|frpc|noip-duc)
+                  libacars|dumphfdl|frpc|noip-duc|acarsdec)
                     # dumphfdl links against the libacars debs in out/
                     [[ $p == dumphfdl ]] && sel="$sel libacars"
                     sel="$sel $p"
@@ -144,7 +151,7 @@ jobs:
           fi
           # dedupe into canonical build order
           ordered=""
-          for p in libacars dumphfdl frpc noip-duc; do
+          for p in libacars dumphfdl frpc noip-duc acarsdec; do
             case " $sel " in *" $p "*) ordered="$ordered $p" ;; esac
           done
           ordered=${ordered# }
@@ -177,6 +184,10 @@ jobs:
       - name: Build dumphfdl
         if: contains(env.SELECTED, 'dumphfdl')
         run: bash scripts/ci/build-thirdparty-deb.sh dumphfdl out/
+
+      - name: Build acarsdec
+        if: contains(env.SELECTED, 'acarsdec')
+        run: bash scripts/ci/build-thirdparty-deb.sh acarsdec out/
 
       - name: Build frpc
         if: contains(env.SELECTED, 'frpc')

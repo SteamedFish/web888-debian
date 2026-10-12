@@ -71,4 +71,5 @@ packaging/libacars/**
 packaging/dumphfdl/**
 packaging/frpc/**
 packaging/noip-duc/**
+packaging/acarsdec/**
 .github/workflows/build-thirdparty-debs.yml

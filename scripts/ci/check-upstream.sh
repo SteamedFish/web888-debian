@@ -5,7 +5,7 @@
 # third-party package to stdout (e.g. "v1.7.0"). Exit 0 on success,
 # exit 1 on fetch/parse failure. Runs unprivileged (no sudo).
 #
-# Usage: check-upstream.sh <libacars|dumphfdl|frpc|noip-duc>
+# Usage: check-upstream.sh <libacars|dumphfdl|frpc|noip-duc|acarsdec>
 #
 # Environment:
 #   GITHUB_TOKEN  optional, used for GitHub API rate limits.
@@ -45,6 +45,7 @@ github_latest() { # github_latest <owner/repo>
 case "$name" in
     libacars) github_latest szpajder/libacars ;;
     dumphfdl) github_latest szpajder/dumphfdl ;;
+    acarsdec) github_latest f00b4r0/acarsdec ;;
     frpc)     github_latest fatedier/frp ;;
     noip-duc)
         page=$(curl -fsSL --max-time 60 'https://www.noip.com/download?page=linux') || {
@@ -61,7 +62,7 @@ case "$name" in
         echo "$ver"
         ;;
     *)
-        echo "usage: $0 <libacars|dumphfdl|frpc|noip-duc>" >&2
+        echo "usage: $0 <libacars|dumphfdl|frpc|noip-duc|acarsdec>" >&2
         exit 2
         ;;
 esac

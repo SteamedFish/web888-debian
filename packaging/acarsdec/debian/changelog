@@ -1,0 +1,8 @@
+acarsdec (4.6-1web8881) unstable; urgency=medium
+
+  * Local CI build for the Web-888 armhf APT repo.
+  * Upstream release v4.6; minimal build: libsndfile raw-PCM stdin input
+    only, all SDR/audio/network backends disabled (used as a stdin/stdout
+    decoder helper by web888-websdr's ACARS extension).
+
+ -- SteamedFish <steamedfish@hotmail.com>  Mon, 12 Oct 2026 16:30:00 +0000

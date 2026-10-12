@@ -15,9 +15,11 @@ web888-websdr (2026.1012-1) UNRELEASED; urgency=medium
       0146 (folded into the 0144 rebase), 0153 (its target polls never
       existed upstream), 0119 (FT8 freq-sort port doesn't map to the
       rewritten decoder; fresh port tracked in docs/dev/TODO.md).
-    - new submodule externals/acarsdec pinned; the vendored acarsdec
-      helper (links only libc/libm/libpthread) is shipped at
-      /usr/lib/web888/acarsdec (Debian has no acarsdec package).
+    - new submodule externals/acarsdec pinned upstream, but the vendored
+      helper is no longer shipped: acarsdec is now its own Debian package
+      (packaging/acarsdec, upstream f00b4r0/acarsdec v4.6, CI auto-bumped)
+      and the ACARS extension execs /usr/bin/acarsdec with raw-stdin args
+      (new patch 0025; Debian trixie has no acarsdec package).
     - binary auto-update remains disabled (Debian package managed);
       upstream's new defaults (update_check/install off) match ours.
   * KiwiSDR upstream check (c40ecb47 v1.902 → 3b570602): nothing to

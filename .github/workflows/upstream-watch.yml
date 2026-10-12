@@ -1,7 +1,7 @@
 # upstream-watch.yml — daily watch over two kinds of upstream change:
 #
 #   1. New upstream releases of the third-party packages (libacars, dumphfdl,
-#      frpc, noip-duc): bump `version:` in packaging/<name>/upstream.pin.
+#      frpc, noip-duc, acarsdec): bump `version:` in packaging/<name>/upstream.pin.
 #   2. Trixie library refreshes (scripts/ci/check-deps.sh against the tracked
 #      runtime libs in packaging/deps-snapshot.conf, state in
 #      packaging/deps-snapshot.txt): third-party packages get a `pkgrev:` bump
@@ -69,7 +69,7 @@ jobs:
           set -uo pipefail
           changed=()
           msgs=()
-          for name in libacars dumphfdl frpc noip-duc; do
+          for name in libacars dumphfdl frpc noip-duc acarsdec; do
             pin="packaging/$name/upstream.pin"
             if [[ ! -f $pin ]]; then
               echo "::warning::$pin missing — skipping $name"

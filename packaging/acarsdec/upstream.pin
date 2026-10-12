@@ -1,0 +1,9 @@
+url: https://github.com/f00b4r0/acarsdec
+version: v4.6
+pkgrev: 1
+
+Source tarball fetched as:
+  https://github.com/f00b4r0/acarsdec/archive/refs/tags/<version>.tar.gz
+Built with all SDR/audio/network backends disabled; only the libsndfile
+raw-PCM input is kept (Web-888 pipes 12 kHz S16LE samples to its stdin).
+Bump `version:` to move upstream; bump `pkgrev:` for packaging-only changes.

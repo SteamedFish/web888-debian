@@ -50,10 +50,18 @@ this is a hard project rule).
 - **New upstream extensions**: ACARS (VHF aircraft datalink), AIS,
   space_weather, FST4W; FT8 decoder rewritten on ft8_lib (FFTW);
   Bayesian CW skimmer; modernized admin UI; HTTP gzip.
-- **acarsdec helper** — vendored build shipped at
-  `/usr/lib/web888/acarsdec` (Debian has no acarsdec package);
-  `ACARSDEC_BIN` retargeted from the Alpine path in
-  `0001-cmake-debian-paths.patch`.
+- **`packaging/acarsdec`** — new third-party package (upstream
+  f00b4r0/acarsdec v4.6; Debian trixie ships none). Minimal build: only
+  the libsndfile raw-PCM stdin frontend, all SDR/audio/network backends
+  disabled (runtime dep: libsndfile1). Wired into `upstream-watch.yml` /
+  `build-thirdparty-debs.yml` / `check-upstream.sh` /
+  `build-thirdparty-deb.sh` / `deb-trigger-paths.txt` /
+  `deps-snapshot.conf` for automatic upstream tracking. The websdr deb no
+  longer ships the vendored helper: `ACARSDEC_BIN` is `/usr/bin/acarsdec`
+  (0001) and the ACARS extension passes vanilla raw-stdin args (new patch
+  `0025-acarsdec-external`); `acarsdec` is a hard Depends. The upstream
+  submodule pin (0b7ba27b) is v4.6 + one sdrplay commit, so decoder
+  behaviour is unchanged.
 - KiwiSDR upstream re-checked (`c40ecb47` v1.902 → `3b570602`): nothing
   to cherry-pick (only Kiwi-hardware FPGA bitstream binaries changed).
 

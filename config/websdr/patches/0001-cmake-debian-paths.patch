@@ -63,7 +63,7 @@ index eec9c9b..7ef6d42 100644
          set(ACARSDEC_RUNTIME_BIN "${PROJECT_BINARY_DIR}/acarsdec")
      else()
 -        set(ACARSDEC_RUNTIME_BIN "/media/mmcblk0p1/acarsdec")
-+        set(ACARSDEC_RUNTIME_BIN "/usr/lib/web888/acarsdec")
++        set(ACARSDEC_RUNTIME_BIN "/usr/bin/acarsdec")
      endif()
  
      target_compile_definitions(websdr.bin PUBLIC

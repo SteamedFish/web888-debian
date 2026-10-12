@@ -1,0 +1,37 @@
+Description: accept pipes as raw-audio input via /dev/stdin
+ sf_open(3) by path fails on pipes for SF_FORMAT_RAW (libsndfile wants a
+ seekable regular file when opening by name), so the documented
+ "--sndfile file=/dev/stdin,subtype=0x02" usage does not actually work
+ for raw piped audio. Open the stdin fd directly with sf_open_fd(3)
+ instead, which handles unseekable raw streams fine (verified with a
+ 12 kHz S16LE pipe carrying a real ACARS message).
+ Web-888's websdr ACARS extension feeds the decoder exactly this way.
+Author: SteamedFish <steamedfish@hotmail.com>
+Forwarded: no
+
+diff --git a/soundfile.c b/soundfile.c
+index a0e5cab..b92793a 100644
+--- a/soundfile.c
++++ b/soundfile.c
+@@ -22,6 +22,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <limits.h>
++#include <unistd.h>
+ #include <sndfile.h>
+ #include "acarsdec.h"
+ #include "msk.h"
+@@ -130,7 +131,12 @@ int initSoundfile(char *optarg)
+ 	else
+ 		infsnd.format = 0;
+ 
+-	insnd = sf_open(fname, SFM_READ, &infsnd);
++	if (!strcmp(fname, "/dev/stdin"))
++		/* sf_open() by path fails on pipes for RAW input; the fd
++		 * variant handles unseekable streams (SF_FALSE: keep stdin open) */
++		insnd = sf_open_fd(STDIN_FILENO, SFM_READ, &infsnd, SF_FALSE);
++	else
++		insnd = sf_open(fname, SFM_READ, &infsnd);
+ 	if (insnd == NULL) {
+ 		fprintf(stderr, ERRPFX "could not open '%s'\n", fname);
+ 		return (1);

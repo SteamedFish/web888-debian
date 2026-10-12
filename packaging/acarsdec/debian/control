@@ -1,0 +1,20 @@
+Source: acarsdec
+Section: hamradio
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Build-Depends: debhelper-compat (= 13), cmake, pkg-config, libsndfile1-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/f00b4r0/acarsdec
+License: GPL-2.0
+Rules-Requires-Root: no
+
+Package: acarsdec
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: ACARS decoder (minimal raw-PCM build)
+ acarsdec is a multi-channel ACARS (Aircraft Communications Addressing and
+ Reporting System) decoder. This package is built for the Web-888 SDR with
+ only the libsndfile input enabled: it decodes raw 12 kHz mono S16LE PCM
+ from stdin (acarsdec --sndfile file=/dev/stdin,subtype=0x02) and writes
+ text reports to stdout. All SDR hardware backends (RTL-SDR, Airspy,
+ SDRplay, SoapySDR), ALSA, MQTT and libacars support are disabled.
