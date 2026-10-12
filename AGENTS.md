@@ -74,6 +74,10 @@ Review load-bearing claims against binaries and hardware before relying on them.
   first entry).
 - The pre-cleanup history is archived on the forgejo-only branch
   `master-pre-cleanup` — **never push it to GitHub**.
+- **The project has real users now.** Before anything is pushed to the
+  public GitHub mirror, the change MUST be properly tested first: QEMU
+  gate plus operator hardware verification, and an explicit go-ahead
+  from the operator. Never push to GitHub on your own initiative.
 - Work on `master` or short-lived feature branches; keep commits atomic.
 - `docs/` is tracked; `.tmp/`, `work/`, `output/` are gitignored.
 - Do not commit personal/local files unless they are already tracked.

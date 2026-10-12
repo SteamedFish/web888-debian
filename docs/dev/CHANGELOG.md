@@ -9,6 +9,15 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-12] — policy: GitHub pushes require testing first (real users)
+
+### Changed
+
+- **AGENTS.md git workflow** — the project now has real users. Pushing to
+  the public GitHub mirror now requires proper testing (QEMU gate +
+  operator hardware verification) and an explicit operator go-ahead;
+  agents must never push to GitHub on their own initiative.
+
 ## [2026-10-12] — websdr upstream pin bump: web-888-20260609 → master 2026-09-27
 
 ### Changed
