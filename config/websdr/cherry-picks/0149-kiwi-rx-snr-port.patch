@@ -1,35 +1,3 @@
-Cherry-pick: KiwiSDR rx_snr SNR measurement framework port (plan doc step B.4)
-
-Imports KiwiSDR's rx/rx_snr.{h,cpp} wholesale and adapts it to Web-888:
-- scheduler: TaskSleepSec/TaskWakeupF(TWF_CANCEL_DEADLINE) — Web-888 lacks
-  upstream's TWF_TIME_REMAINING/NEW_DEADLINE_SEC and FROM/TO_VOID_PARAM.
-- globals: freq_offset_kHz/freq_offmax_kHz plain doubles instead of
-  freq.offset_kHz struct; ZOOM_CAP -> MAX_ZOOM (same value, moved from
-  rx_waterfall.cpp to rx_waterfall.h).
-- helpers: cfg_true()/cfg_int_() local macros (Web-888 cfg.h only has
-  cfg_bool()/cfg_int()).
-- dropped: ant_switch integration (snr_meas_ant_sw, antsw.snr_ant,
-  ant_switch_check_set_default, snr_initial_meas_done) — Web-888's
-  ant_switch extension has no SNR coupling.
-- kiwi.snr_meas_active -> file-global snr_meas_active.
-
-Replaces Web-888's hourly-only SNR block in rx/rx_util.{h,cpp} and the old
-int-edge "ihr" /snr JSON. Adds: VDSL strong-signal run filter, minute-
-granularity + custom intervals (snr_meas_custom_min), custom band def,
-ham-band + AM BCB measurements (snr_meas_ham), imin/ant + float band edges
-in /snr JSON, working "Measure SNR now" (SET snr_meas handler already
-shipped in ui/admin.cpp via 0145).
-
-Client side: admin.js gets upstream's full SNR config UI (9-entry interval
-menu incl. 1/5/10 min + custom, "SNR measurement options" block, custom
-band lo/hi/zoom inputs, measure-now spinner, "next measurement in N min"
-countdown via id-snr-remain) minus the ant_switch checkbox; kiwi.js gets
-kiwi.SNR_CUSTOM/kiwi.snr_intervals_min constants, the kiwi_snr_stats()
-helper and the MSG snr_stats case (server sends snr_all/snr_hf via
-MSG snr_stats after each measurement). Fork display strings kept; no
-position_top_bar() call (absent in fork).
-
-Web-888 deviations are marked with "Web-888 0149:" comments.
 diff --git a/rx/rx_snr.h b/rx/rx_snr.h
 new file mode 100644
 index 0000000..81f5892
@@ -534,77 +502,139 @@ index 0000000..a8f2740
 +        printf("SNR_meas: WAKEUP on_demand=%d seq=%d\n", on_demand, snr_seq);
 +    } while (1);
 +}
-diff --git a/rx/rx_waterfall.h b/rx/rx_waterfall.h
-index 2e13e02..d01d5dc 100644
---- a/rx/rx_waterfall.h
-+++ b/rx/rx_waterfall.h
-@@ -105,6 +105,9 @@ enum { WF_SELECT_OFF = 0,
+diff --git a/kiwi.h b/kiwi.h
+index 43f9225..36b5e73 100644
+--- a/kiwi.h
++++ b/kiwi.h
+@@ -83,7 +83,7 @@ extern int version_maj, version_min;
+ extern bool background_mode, need_hardware, any_preempt_autorun,
+     DUC_enable_start, rev_enable_start, web_nocache, kiwi_reg_debug, cmd_debug,
+     have_ant_switch_ext, disable_led_task, debug_printfs, force_camp,
+-    snr_local_time, log_local_ip, DRM_enable, have_snd_users, admin_keepalive;
++    log_local_ip, DRM_enable, have_snd_users, admin_keepalive;
  
- #define WF_ZOOM_MIN 0
+ extern int ev_dump, tone, down, navg, meas, monitors_max,
+     gps_chans, rx_num, wf_num, bg, dx_print,
+@@ -91,7 +91,7 @@ extern int ev_dump, tone, down, navg, meas, monitors_max,
+     inactivity_timeout_mins, S_meter_cal, waterfall_cal, current_nusers, debug_v,
+     utc_offset, dst_offset, reg_kiwisdr_com_status, kiwi_reg_lo_kHz, kiwi_reg_hi_kHz,
+     debian_maj, debian_min, use_foptim, web_caching_debug,
+-    drm_nreg_chans, snr_meas_interval_hrs, snr_all, snr_HF, ant_connected;
++    drm_nreg_chans;
  
-+// Web-888 0149: moved here from rx_waterfall.cpp so rx_snr.cpp can use it (== upstream ZOOM_CAP)
-+#define MAX_ZOOM (kiwi.wf_share ? 11 : 14)
+ extern char** main_argv;
+ 
+diff --git a/net/services.cpp b/net/services.cpp
+index 5a08102..feac57f 100644
+--- a/net/services.cpp
++++ b/net/services.cpp
+@@ -862,7 +862,7 @@ void services_start() {
+     CreateTask(pub_NET, 0, SERVICES_PRIORITY);
+     CreateTask(get_TZ, 0, SERVICES_PRIORITY);
+     CreateTask(misc_NET, 0, SERVICES_PRIORITY);
+-    SNR_meas_tid = CreateTaskF(SNR_meas_task, 0, SERVICES_PRIORITY, CTF_NO_LOG);
++	SNR_meas_tid = CreateTaskF(SNR_meas, 0, SERVICES_PRIORITY, CTF_NO_LOG);
+     // CreateTask(git_commits, 0, SERVICES_PRIORITY);
+ 
+     if (!disable_led_task)
+diff --git a/rx/rx_init.cpp b/rx/rx_init.cpp
+index 584d266..2461d7e 100644
+--- a/rx/rx_init.cpp
++++ b/rx/rx_init.cpp
+@@ -137,8 +137,6 @@ TYPEREAL DC_offset_I, DC_offset_Q;
+ 
+ #define WATERFALL_CALIBRATION_DEFAULT -13
+ #define SMETER_CALIBRATION_DEFAULT    -13
+-static int snr_interval[] = { 0, 1, 4, 6, 24 };
+-
+ void update_freqs(bool* update_cfg) {
+     ui_srate = ADC_CLOCK_TYP / 2.0;
+     ui_srate_kHz = round(ui_srate / kHz);
+@@ -319,8 +317,21 @@ void update_vars_from_config(bool called_at_init) {
+     max_thr = (float)cfg_default_int("overload_mute", -15, &update_cfg);
+     cfg_default_bool("agc_thresh_smeter", true, &update_cfg);
+     n_camp = cfg_default_int("n_camp", N_CAMP, &update_cfg);
+-    snr_meas_interval_hrs = snr_interval[cfg_default_int("snr_meas_interval_hrs", 1, &update_cfg)];
+-    snr_local_time = cfg_default_bool("snr_local_time", true, &update_cfg);
 +
- #define WF_COMP_OFF 0
- #define WF_COMP_ON  1
++    // Web-888 0149: snr_meas_interval_hrs is now the menu index (0-8); rx_snr.cpp
++    // maps it to minutes. Defaults ported from KiwiSDR rx_init.cpp (minus snr_meas_ant_sw).
++    cfg_default_int("snr_meas_interval_hrs", 1, &update_cfg);
++    cfg_default_bool("snr_local_time", true, &update_cfg);
++    cfg_default_bool("snr_meas_ham", false, &update_cfg);
++    cfg_default_bool("snr_meas_filter", true, &update_cfg);
++    cfg_default_int("snr_meas_custom_min", 0, &update_cfg);
++    cfg_default_int("snr_meas_custom_lo", 0, &update_cfg);
++    cfg_default_int("snr_meas_custom_hi", 0, &update_cfg);
++    cfg_default_int("snr_meas_custom_zoom", 0, &update_cfg);
++    cfg_default_int("snr_filter_thresh", -82, &update_cfg);
++    cfg_default_int("snr_filter_delta", 25, &update_cfg);
++    cfg_default_int("snr_filter_runlen", 300, &update_cfg);
++
+     any_preempt_autorun = cfg_default_bool("any_preempt_autorun", true, &update_cfg);
+     cfg_default_int("ident_len", IDENT_LEN_MIN, &update_cfg);
+     cfg_default_bool("show_geo", true, &update_cfg);
+diff --git a/rx/rx_server_ajax.cpp b/rx/rx_server_ajax.cpp
+index 51eb8eb..8be9743 100644
+--- a/rx/rx_server_ajax.cpp
++++ b/rx/rx_server_ajax.cpp
+@@ -458,23 +458,43 @@ char* rx_server_ajax(struct mg_connection* mc, char* ip_forwarded, void* ev_data
+     //	Can be requested by anyone.
+     //	Returns JSON
+     case AJAX_SNR: {
++        // Web-888 0149: handler ported from KiwiSDR v1.902 (rx_server_ajax.cpp);
++        // adaptations: no ant_switch support, TaskWakeupF (no TWF_TIME_REMAINING), var_ctime_r.
++        if (kiwi_nonEmptyStr(mc->query) && strncmp(mc->query, "meas", 4) == 0) {
++            if (isLocalIP) {
++                if (SNR_meas_tid) {
++                    TaskWakeupF(SNR_meas_tid, TWF_CANCEL_DEADLINE);
++                }
++                asprintf(&sb, "/snr: measuring..\n");
++            } else {
++                asprintf(&sb, "/snr: NON_LOCAL MEASURE ATTEMPT from %s\n", ip_unforwarded);
++            }
++            printf("%s", sb);
++            break;
++        }
++
+         bool need_comma1 = false;
+         char *sb = (char*)"[", *sb2;
+         for (i = 0; i < SNR_MEAS_MAX; i++) {
+             SNR_meas_t* meas = &SNR_meas_data[i];
+-            if (!meas->valid) continue;
+-            asprintf(&sb2, "%s{\"ts\":\"%s\",\"seq\":%u,\"utc\":%d,\"ihr\":%d,\"snr\":[",
+-                     need_comma1 ? "," : "", meas->tstamp, meas->seq, meas->is_local_time ? 0 : 1, snr_meas_interval_hrs);
++            if (!(meas->flags & SNR_F_VALID)) continue;
++            char tb[32];
++            var_ctime_r(&meas->tstamp, tb);
++            asprintf(&sb2, "%s{\"ts\":\"%s\",\"seq\":%u,\"utc\":%d,\"imin\":%d,\"ant\":%d,\"snr\":[",
++                     need_comma1 ? "," : "", tb, meas->seq, (meas->flags & SNR_F_TLOCAL) ? 0 : 1,
++                     snr_meas_interval_min, meas->flags & SNR_F_ANT);
+             need_comma1 = true;
+             sb = kstr_cat(sb, kstr_wrap(sb2));
  
-diff --git a/rx/rx_waterfall.cpp b/rx/rx_waterfall.cpp
-index 5f76241..967dff8 100644
---- a/rx/rx_waterfall.cpp
-+++ b/rx/rx_waterfall.cpp
-@@ -70,8 +70,6 @@ Boston, MA  02110-1301, USA.
- #define WF_NSPEEDS 5
- static const int wf_fps[] = { WF_SPEED_OFF, WF_SPEED_1FPS, WF_SPEED_SLOW, WF_SPEED_MED, WF_SPEED_FAST };
- 
--#define MAX_ZOOM (kiwi.wf_share ? 11 : 14)
--
- static const char* interp_s[] = { "max", "min", "last", "drop", "cma" };
- 
- static wf_shmem_t wf_shmem;
-diff --git a/rx/rx_util.h b/rx/rx_util.h
-index 197b1f1..280089f 100644
---- a/rx/rx_util.h
-+++ b/rx/rx_util.h
-@@ -48,33 +48,9 @@ typedef struct {
- 
- extern rx_util_t rx_util;
- 
--#define SNR_MEAS_MAX (24 * 7)
--
--#define SNR_MEAS_ALL    0
--#define SNR_MEAS_HF     1
--#define SNR_MEAS_0_2    2
--#define SNR_MEAS_2_10   3
--#define SNR_MEAS_10_20  4
--#define SNR_MEAS_20_MAX 5
--#define SNR_MEAS_NDATA  6
--
--typedef struct {
--    int f_lo, f_hi, min, max, pct_50, pct_95, snr;
--} SNR_data_t;
--
--typedef struct {
--    bool valid;
--    u4_t seq;
--    char tstamp[CTIME_R_NL + 1 + SPACE_FOR_NULL];
--    bool is_local_time;
--    SNR_data_t data[SNR_MEAS_NDATA];
--} SNR_meas_t;
--
--extern SNR_meas_t SNR_meas_data[SNR_MEAS_MAX];
--extern int SNR_meas_tid;
-+#include "rx_snr.h"
- 
- int dB_wire_to_dBm(int db_value);
--void SNR_meas_task(void* param);
- 
- typedef enum { LOG_ARRIVED,
-                LOG_UPDATE,
++            bool ham = cfg_bool("snr_meas_ham", NULL, CFG_OPTIONAL);
+             bool need_comma2 = false;
+-            for (j = 0; j < SNR_MEAS_NDATA; j++) {
++            for (j = 0; j < SNR_NBANDS; j++) {
++                if (!ham && j == SNR_BAND_HAM_LF) break;
+                 SNR_data_t* data = &meas->data[j];
+-                if (data->f_lo == 0 && data->f_hi == 0) continue;
+-                asprintf(&sb2, "%s{\"lo\":%d,\"hi\":%d,\"min\":%d,\"max\":%d,\"p50\":%d,\"p95\":%d,\"snr\":%d}",
+-                         need_comma2 ? "," : "", data->f_lo, data->f_hi,
+-                         data->min, data->max, data->pct_50, data->pct_95, data->snr);
++                if (data->fkHz_lo == 0 && data->fkHz_hi == 0) continue;
++                asprintf(&sb2, "%s{\"lo\":%.0f,\"hi\":%.0f,\"min\":%d,\"max\":%d,\"p50\":%d,\"p95\":%d,\"snr\":%d}",
++                         need_comma2 ? "," : "", data->fkHz_lo, data->fkHz_hi,
++                         -(data->min), -(data->max), -(data->pct_50), -(data->pct_95), data->snr);
+                 need_comma2 = true;
+                 sb = kstr_cat(sb, kstr_wrap(sb2));
+             }
 diff --git a/rx/rx_util.cpp b/rx/rx_util.cpp
-index 4410f30..33642a9 100644
+index 9ba1d8e..15e28fd 100644
 --- a/rx/rx_util.cpp
 +++ b/rx/rx_util.cpp
-@@ -1122,186 +1122,3 @@ int dB_wire_to_dBm(int db_value) {
+@@ -1119,186 +1119,3 @@ int dB_wire_to_dBm(int db_value) {
  }
  
  
@@ -791,155 +821,72 @@ index 4410f30..33642a9 100644
 -        // TaskSleepSec(60);
 -    } while (1);
 -}
-diff --git a/kiwi.h b/kiwi.h
-index d4c8244..7f6f7e7 100644
---- a/kiwi.h
-+++ b/kiwi.h
-@@ -82,7 +82,7 @@ extern int version_maj, version_min;
- extern bool background_mode, need_hardware, any_preempt_autorun,
-     DUC_enable_start, rev_enable_start, web_nocache, kiwi_reg_debug, cmd_debug,
-     have_ant_switch_ext, disable_led_task, debug_printfs, force_camp,
--    snr_local_time, log_local_ip, DRM_enable, have_snd_users, admin_keepalive;
-+    log_local_ip, DRM_enable, have_snd_users, admin_keepalive;
+diff --git a/rx/rx_util.h b/rx/rx_util.h
+index 197b1f1..280089f 100644
+--- a/rx/rx_util.h
++++ b/rx/rx_util.h
+@@ -48,33 +48,9 @@ typedef struct {
  
- extern int ev_dump, tone, down, navg, meas, monitors_max,
-     gps_chans, rx_num, wf_num, bg, dx_print,
-@@ -90,7 +90,7 @@ extern int ev_dump, tone, down, navg, meas, monitors_max,
-     inactivity_timeout_mins, S_meter_cal, waterfall_cal, current_nusers, debug_v,
-     utc_offset, dst_offset, reg_kiwisdr_com_status, kiwi_reg_lo_kHz, kiwi_reg_hi_kHz,
-     debian_maj, debian_min, use_foptim, web_caching_debug,
--    drm_nreg_chans, snr_meas_interval_hrs, snr_all, snr_HF, ant_connected;
-+    drm_nreg_chans;
+ extern rx_util_t rx_util;
  
- extern char** main_argv;
- 
-diff --git a/rx/rx_init.cpp b/rx/rx_init.cpp
-index 22ac196..a40ed40 100644
---- a/rx/rx_init.cpp
-+++ b/rx/rx_init.cpp
-@@ -138,8 +138,6 @@ TYPEREAL DC_offset_I, DC_offset_Q;
- #define WATERFALL_CALIBRATION_DEFAULT -13
- #define SMETER_CALIBRATION_DEFAULT    -13
- 
--static int snr_interval[] = { 0, 1, 4, 6, 24 };
+-#define SNR_MEAS_MAX (24 * 7)
 -
- void update_freqs(bool* update_cfg) {
-     ui_srate = ADC_CLOCK_TYP / 2.0;
-     ui_srate_kHz = round(ui_srate / kHz);
-@@ -306,8 +304,21 @@ void update_vars_from_config(bool called_at_init) {
-     max_thr = (float)cfg_default_int("overload_mute", -15, &update_cfg);
-     cfg_default_bool("agc_thresh_smeter", true, &update_cfg);
-     n_camp = cfg_default_int("n_camp", N_CAMP, &update_cfg);
--    snr_meas_interval_hrs = snr_interval[cfg_default_int("snr_meas_interval_hrs", 1, &update_cfg)];
--    snr_local_time = cfg_default_bool("snr_local_time", true, &update_cfg);
-+
-+    // Web-888 0149: snr_meas_interval_hrs is now the menu index (0-8); rx_snr.cpp
-+    // maps it to minutes. Defaults ported from KiwiSDR rx_init.cpp (minus snr_meas_ant_sw).
-+    cfg_default_int("snr_meas_interval_hrs", 1, &update_cfg);
-+    cfg_default_bool("snr_local_time", true, &update_cfg);
-+    cfg_default_bool("snr_meas_ham", false, &update_cfg);
-+    cfg_default_bool("snr_meas_filter", true, &update_cfg);
-+    cfg_default_int("snr_meas_custom_min", 0, &update_cfg);
-+    cfg_default_int("snr_meas_custom_lo", 0, &update_cfg);
-+    cfg_default_int("snr_meas_custom_hi", 0, &update_cfg);
-+    cfg_default_int("snr_meas_custom_zoom", 0, &update_cfg);
-+    cfg_default_int("snr_filter_thresh", -82, &update_cfg);
-+    cfg_default_int("snr_filter_delta", 25, &update_cfg);
-+    cfg_default_int("snr_filter_runlen", 300, &update_cfg);
-+
-     any_preempt_autorun = cfg_default_bool("any_preempt_autorun", true, &update_cfg);
-     cfg_default_int("ident_len", IDENT_LEN_MIN, &update_cfg);
-     cfg_default_bool("show_geo", true, &update_cfg);
-diff --git a/rx/rx_server_ajax.cpp b/rx/rx_server_ajax.cpp
-index 398192f..8557588 100644
---- a/rx/rx_server_ajax.cpp
-+++ b/rx/rx_server_ajax.cpp
-@@ -458,23 +458,43 @@ char* rx_server_ajax(struct mg_connection* mc, char* ip_forwarded, void* ev_data
-     //	Can be requested by anyone.
-     //	Returns JSON
-     case AJAX_SNR: {
-+        // Web-888 0149: handler ported from KiwiSDR v1.902 (rx_server_ajax.cpp);
-+        // adaptations: no ant_switch support, TaskWakeupF (no TWF_TIME_REMAINING), var_ctime_r.
-+        if (kiwi_nonEmptyStr(mc->query) && strncmp(mc->query, "meas", 4) == 0) {
-+            if (isLocalIP) {
-+                if (SNR_meas_tid) {
-+                    TaskWakeupF(SNR_meas_tid, TWF_CANCEL_DEADLINE);
-+                }
-+                asprintf(&sb, "/snr: measuring..\n");
-+            } else {
-+                asprintf(&sb, "/snr: NON_LOCAL MEASURE ATTEMPT from %s\n", ip_unforwarded);
-+            }
-+            printf("%s", sb);
-+            break;
-+        }
-+
-         bool need_comma1 = false;
-         char *sb = (char*)"[", *sb2;
-         for (i = 0; i < SNR_MEAS_MAX; i++) {
-             SNR_meas_t* meas = &SNR_meas_data[i];
--            if (!meas->valid) continue;
--            asprintf(&sb2, "%s{\"ts\":\"%s\",\"seq\":%u,\"utc\":%d,\"ihr\":%d,\"snr\":[",
--                     need_comma1 ? "," : "", meas->tstamp, meas->seq, meas->is_local_time ? 0 : 1, snr_meas_interval_hrs);
-+            if (!(meas->flags & SNR_F_VALID)) continue;
-+            char tb[32];
-+            var_ctime_r(&meas->tstamp, tb);
-+            asprintf(&sb2, "%s{\"ts\":\"%s\",\"seq\":%u,\"utc\":%d,\"imin\":%d,\"ant\":%d,\"snr\":[",
-+                     need_comma1 ? "," : "", tb, meas->seq, (meas->flags & SNR_F_TLOCAL) ? 0 : 1,
-+                     snr_meas_interval_min, meas->flags & SNR_F_ANT);
-             need_comma1 = true;
-             sb = kstr_cat(sb, kstr_wrap(sb2));
+-#define SNR_MEAS_ALL    0
+-#define SNR_MEAS_HF     1
+-#define SNR_MEAS_0_2    2
+-#define SNR_MEAS_2_10   3
+-#define SNR_MEAS_10_20  4
+-#define SNR_MEAS_20_MAX 5
+-#define SNR_MEAS_NDATA  6
+-
+-typedef struct {
+-    int f_lo, f_hi, min, max, pct_50, pct_95, snr;
+-} SNR_data_t;
+-
+-typedef struct {
+-    bool valid;
+-    u4_t seq;
+-    char tstamp[CTIME_R_NL + 1 + SPACE_FOR_NULL];
+-    bool is_local_time;
+-    SNR_data_t data[SNR_MEAS_NDATA];
+-} SNR_meas_t;
+-
+-extern SNR_meas_t SNR_meas_data[SNR_MEAS_MAX];
+-extern int SNR_meas_tid;
++#include "rx_snr.h"
  
-+            bool ham = cfg_bool("snr_meas_ham", NULL, CFG_OPTIONAL);
-             bool need_comma2 = false;
--            for (j = 0; j < SNR_MEAS_NDATA; j++) {
-+            for (j = 0; j < SNR_NBANDS; j++) {
-+                if (!ham && j == SNR_BAND_HAM_LF) break;
-                 SNR_data_t* data = &meas->data[j];
--                if (data->f_lo == 0 && data->f_hi == 0) continue;
--                asprintf(&sb2, "%s{\"lo\":%d,\"hi\":%d,\"min\":%d,\"max\":%d,\"p50\":%d,\"p95\":%d,\"snr\":%d}",
--                         need_comma2 ? "," : "", data->f_lo, data->f_hi,
--                         data->min, data->max, data->pct_50, data->pct_95, data->snr);
-+                if (data->fkHz_lo == 0 && data->fkHz_hi == 0) continue;
-+                asprintf(&sb2, "%s{\"lo\":%.0f,\"hi\":%.0f,\"min\":%d,\"max\":%d,\"p50\":%d,\"p95\":%d,\"snr\":%d}",
-+                         need_comma2 ? "," : "", data->fkHz_lo, data->fkHz_hi,
-+                         -(data->min), -(data->max), -(data->pct_50), -(data->pct_95), data->snr);
-                 need_comma2 = true;
-                 sb = kstr_cat(sb, kstr_wrap(sb2));
-             }
-diff --git a/net/services.cpp b/net/services.cpp
-index 0a5f291..66f9dfc 100644
---- a/net/services.cpp
-+++ b/net/services.cpp
-@@ -852,7 +852,7 @@ void services_start() {
-     CreateTask(pub_NET, 0, SERVICES_PRIORITY);
-     CreateTask(get_TZ, 0, SERVICES_PRIORITY);
-     CreateTask(misc_NET, 0, SERVICES_PRIORITY);
--    SNR_meas_tid = CreateTaskF(SNR_meas_task, 0, SERVICES_PRIORITY, CTF_NO_LOG);
-+	SNR_meas_tid = CreateTaskF(SNR_meas, 0, SERVICES_PRIORITY, CTF_NO_LOG);
-     // CreateTask(git_commits, 0, SERVICES_PRIORITY);
+ int dB_wire_to_dBm(int db_value);
+-void SNR_meas_task(void* param);
  
-     if (!disable_led_task)
-diff --git a/support/misc.h b/support/misc.h
-index ed3326c..112c5aa 100644
---- a/support/misc.h
-+++ b/support/misc.h
-@@ -36,6 +36,8 @@ int median_i(int* i, int len, int* pct_1 = NULL, int* pct_2 = NULL);
- #define SM_DEBUG       true
- #define SM_NO_DEBUG    false
- #define SM_RX_CHAN_ALL -1
-+#define SM_SND_ADM_ALL -2
-+#define SM_ADMIN_ALL   -3
+ typedef enum { LOG_ARRIVED,
+                LOG_UPDATE,
+diff --git a/rx/rx_waterfall.cpp b/rx/rx_waterfall.cpp
+index 56b8b82..f24c986 100644
+--- a/rx/rx_waterfall.cpp
++++ b/rx/rx_waterfall.cpp
+@@ -70,8 +70,6 @@ Boston, MA  02110-1301, USA.
+ #define WF_NSPEEDS 5
+ static const int wf_fps[] = { WF_SPEED_OFF, WF_SPEED_1FPS, WF_SPEED_SLOW, WF_SPEED_MED, WF_SPEED_FAST };
  
- void send_msg_buf(conn_t* c, char* s, int slen);
- void send_msg(conn_t* c, bool debug, const char* msg, ...);
-@@ -44,6 +46,7 @@ void send_msg_data2(conn_t *c, bool debug, u1_t cmd, u1_t *bytes2, int nbytes2,
- void send_msg_mc(struct mg_connection* mc, bool debug, const char* msg, ...);
- void send_msg_encoded(conn_t* conn, const char* dst, const char* cmd, const char* fmt, ...);
- void send_msg_mc_encoded(struct mg_connection* mc, const char* dst, const char* cmd, const char* fmt, ...);
-+int snd_send_msg(int rx_chan, bool debug, const char* msg, ...);
- int snd_send_msg_encoded(int rx_chan, bool debug, const char* dst, const char* cmd, const char* msg, ...);
- void snd_send_msg_data(int rc_chan, bool debug, u1_t cmd, u1_t* bytes, int nbytes);
- void input_msg_internal(conn_t* conn, const char* fmt, ...);
+-#define MAX_ZOOM (kiwi.wf_share ? 11 : 14)
+-
+ static const char* interp_s[] = { "max", "min", "last", "drop", "cma" };
+ 
+ static wf_shmem_t wf_shmem;
+diff --git a/rx/rx_waterfall.h b/rx/rx_waterfall.h
+index 2e13e02..d01d5dc 100644
+--- a/rx/rx_waterfall.h
++++ b/rx/rx_waterfall.h
+@@ -105,6 +105,9 @@ enum { WF_SELECT_OFF = 0,
+ 
+ #define WF_ZOOM_MIN 0
+ 
++// Web-888 0149: moved here from rx_waterfall.cpp so rx_snr.cpp can use it (== upstream ZOOM_CAP)
++#define MAX_ZOOM (kiwi.wf_share ? 11 : 14)
++
+ #define WF_COMP_OFF 0
+ #define WF_COMP_ON  1
+ 
 diff --git a/support/misc.cpp b/support/misc.cpp
 index c1f3a9d..1566a17 100644
 --- a/support/misc.cpp
@@ -1000,64 +947,90 @@ index c1f3a9d..1566a17 100644
  int snd_send_msg_encoded(int rx_chan, bool debug, const char* dst, const char* cmd, const char* msg, ...) {
      int rv = -1;
      va_list ap;
+diff --git a/support/misc.h b/support/misc.h
+index ed3326c..112c5aa 100644
+--- a/support/misc.h
++++ b/support/misc.h
+@@ -36,6 +36,8 @@ int median_i(int* i, int len, int* pct_1 = NULL, int* pct_2 = NULL);
+ #define SM_DEBUG       true
+ #define SM_NO_DEBUG    false
+ #define SM_RX_CHAN_ALL -1
++#define SM_SND_ADM_ALL -2
++#define SM_ADMIN_ALL   -3
+ 
+ void send_msg_buf(conn_t* c, char* s, int slen);
+ void send_msg(conn_t* c, bool debug, const char* msg, ...);
+@@ -44,6 +46,7 @@ void send_msg_data2(conn_t *c, bool debug, u1_t cmd, u1_t *bytes2, int nbytes2,
+ void send_msg_mc(struct mg_connection* mc, bool debug, const char* msg, ...);
+ void send_msg_encoded(conn_t* conn, const char* dst, const char* cmd, const char* fmt, ...);
+ void send_msg_mc_encoded(struct mg_connection* mc, const char* dst, const char* cmd, const char* fmt, ...);
++int snd_send_msg(int rx_chan, bool debug, const char* msg, ...);
+ int snd_send_msg_encoded(int rx_chan, bool debug, const char* dst, const char* cmd, const char* msg, ...);
+ void snd_send_msg_data(int rc_chan, bool debug, u1_t cmd, u1_t* bytes, int nbytes);
+ void input_msg_internal(conn_t* conn, const char* fmt, ...);
 diff --git a/web/kiwi/admin.js b/web/kiwi/admin.js
-index 7633291..f037b6f 100644
+index ac99a69..def1db1 100644
 --- a/web/kiwi/admin.js
 +++ b/web/kiwi/admin.js
-@@ -460,8 +460,7 @@ function control_html()
+@@ -440,7 +440,7 @@ function control_html()
     var n_camp_u = [ 'disable camping' ];
-    for (i = 1; i <= max_camp; i++)
+    for (var i = 1; i <= max_camp; i++)
        n_camp_u[i] = i.toFixed(0);
--   // Web-888: keep the old 5-entry interval menu until the B.4 rx_snr port brings the custom-interval server side
 -   var snr_interval_u = [ 'disable', 'hourly', '4 hours', '6 hours', '24 hours' ];
 +   var snr_interval_u = [ 'disable', 'hourly', '4 hours', '6 hours', '24 hours', '1 min', '5 min', '10 min', 'custom' ];
- 
- 	var s3 =
- 		'<hr>' +
-@@ -494,19 +493,38 @@ function control_html()
-          ),
- 
- 			w3_divs('/w3-center w3-tspace-8',
--            w3_select('w3-width-auto', 'SNR measurement interval', '', 'cfg.snr_meas_interval_hrs', cfg.snr_meas_interval_hrs, snr_interval_u, 'admin_select_cb'),
-+            w3_select('w3-width-auto', 'SNR measurement interval', '', 'cfg.snr_meas_interval_hrs', cfg.snr_meas_interval_hrs, snr_interval_u, 'control_snr_interval_cb'),
- 				w3_text('w3-text-black w3-center',
- 				   'Enables automatic sampling of <br>' +
- 				   'signal-to-noise ratio (SNR) at the specified interval. <br>' +
- 				   'Access SNR data in JSON format using <br>' +
- 				   'URL of the form: <i>my_sdr:8073/snr</i>'
--				)
-+				),
-+				w3_div('id-snr-remain w3-margin-top w3-bold')
- 			),
- 
- 			w3_divs('/w3-tspace-8',
-             w3_checkbox_get_param('//w3-label-inline w3-restart', 'Non native connections can preempt autorun processes', 'any_preempt_autorun', 'admin_bool_cb', true),
--            w3_checkbox_get_param('//w3-label-inline', 'Timestamp SNR with local time', 'snr_local_time', 'admin_bool_cb', true),
--            w3_button('w3-aqua w3-margin-T-16', 'Measure SNR now', 'control_snr_measure_cb')
-+            w3_div('w3-margin-T-8',
-+               w3_text('w3-margin-B-8 w3-text-teal w3-bold', 'SNR measurement options:'),
-+               w3_checkbox_get_param('//w3-label-inline', 'Timestamp SNR with local time', 'snr_local_time', 'admin_bool_cb', true),
-+               w3_checkbox_get_param('//w3-label-inline', 'Also measure ham bands and AM BCB', 'snr_meas_ham', 'admin_bool_cb', false),
-+               // Web-888 0149: no snr_meas_ant_sw ("Measure on antenna change") — ant_switch not supported
-+               w3_input_get('w3-margin-top//', 'Custom interval (min)', 'snr_meas_custom_min', 'control_snr_measure_custom_cb'),
+    var tlimit_help =
+ 				w3_div('w3-text-black', 'Password users can give to override time limits. <br> To specify in URL: web-888.local:8073/?pwd=<i>password</i>')
+          ;
+@@ -487,14 +487,31 @@ function control_html()
+             w3_div('ui-admin-control-field',
+                w3_select('w3-width-auto', 'Automatic measurement interval', '',
+                   'cfg.snr_meas_interval_hrs', cfg.snr_meas_interval_hrs,
+-                  snr_interval_u, 'admin_select_cb') +
++                  snr_interval_u, 'control_snr_interval_cb') +
+                w3_div('ui-admin-control-field-desc',
+-                  'Samples receiver signal-to-noise ratio and publishes the data at /snr.')
++                  'Samples receiver signal-to-noise ratio and publishes the data at /snr.') +
++               w3_div('id-snr-remain w3-margin-top w3-bold')
+             ) +
+             w3_div('ui-admin-control-field',
+                w3_checkbox_get_param('//w3-label-inline',
+                   'Timestamp SNR measurements with local time',
+-                  'snr_local_time', 'admin_bool_cb', true)
++                  'snr_local_time', 'admin_bool_cb', true) +
++               w3_checkbox_get_param('//w3-label-inline',
++                  'Also measure ham bands and AM BCB',
++                  'snr_meas_ham', 'admin_bool_cb', false) +
++               // Web-888 0149: no snr_meas_ant_sw ("Measure on antenna change") -- ant_switch not supported
++               w3_input_get('w3-margin-top//', 'Custom interval (min)',
++                  'snr_meas_custom_min', 'control_snr_measure_custom_cb') +
 +               w3_inline('w3-margin-T-8',
 +                  w3_text('w3-text-teal w3-bold', 'Custom band:'),
-+                  w3_link('w3-link-darker-color w3-margin-L-4', '//forum.kiwisdr.com/index.php?p=/discussion/comment/21044/#Comment_21044', 'more info')
-+               ),
++                  w3_link('w3-link-darker-color w3-margin-L-4',
++                     '//forum.kiwisdr.com/index.php?p=/discussion/comment/21044/#Comment_21044', 'more info')
++               ) +
 +               w3_inline('w3-valign w3-gap-16 w3-halign-space-between/',
 +                  w3_input_get('', 'Freq lo (kHz)', 'snr_meas_custom_lo', 'admin_int_cb'),
 +                  w3_input_get('', 'Freq hi (kHz)', 'snr_meas_custom_hi', 'admin_int_cb'),
 +                  w3_input_get('', 'Zoom', 'snr_meas_custom_zoom', 'admin_int_cb')
 +               )
-+            ),
-+            w3_inline('w3-margin-top w3-valign/',
-+               w3_button('w3-aqua', 'Measure SNR now', 'control_snr_measure_cb'),
+             )
+          ) +
+          w3_div('ui-admin-control-session-action',
+@@ -503,8 +520,11 @@ function control_html()
+                w3_div('ui-admin-control-action-desc',
+                   'Run an SNR measurement now instead of waiting for the schedule.')
+             ) +
+-            w3_button('ui-admin-control-action-button w3-aqua', 'Measure SNR now',
+-               'control_snr_measure_cb')
++            w3_inline('w3-valign/',
++               w3_button('ui-admin-control-action-button w3-aqua', 'Measure SNR now',
++                  'control_snr_measure_cb') +
 +               w3_div('id-msg-snr-now w3-margin-left w3-text-black')
 +            )
           )
- 		) +
- 		'<hr>';
-@@ -572,11 +590,37 @@ function control_user_kick_cb(id, idx)
+       );
+ 
+@@ -655,11 +675,37 @@ function control_user_kick_cb(id, idx)
  	ext_send('SET user_kick=-1');
  }
  
@@ -1096,7 +1069,7 @@ index 7633291..f037b6f 100644
  {
  	w3_string_set_cfg_cb(path, val);
 diff --git a/web/kiwi/kiwi.js b/web/kiwi/kiwi.js
-index 40cab02..2cc6b53 100644
+index 572b987..359f082 100644
 --- a/web/kiwi/kiwi.js
 +++ b/web/kiwi/kiwi.js
 @@ -12,6 +12,10 @@ var kiwi = {
@@ -1110,7 +1083,7 @@ index 40cab02..2cc6b53 100644
     
     cfg:   { seq:0, name:'cfg',   cmd:'save_cfg',   lock:0, timeout:null },
     dxcfg: { seq:0, name:'dxcfg', cmd:'save_dxcfg', lock:0, timeout:null },
-@@ -2866,6 +2870,44 @@ var kiwi_output_msg_p = { scroll_only_at_bottom: true, inline_returns: true, pro
+@@ -3027,6 +3031,44 @@ var kiwi_output_msg_p = { scroll_only_at_bottom: true, inline_returns: true, pro
  var client_public_ip;
  
  // includes msgs relevant for both user and admin modes
@@ -1155,7 +1128,7 @@ index 40cab02..2cc6b53 100644
  function kiwi_msg(param, ws)
  {
  	var rtn = true;
-@@ -2883,9 +2925,15 @@ function kiwi_msg(param, ws)
+@@ -3044,9 +3086,15 @@ function kiwi_msg(param, ws)
  			kiwi.platform = parseInt(param[1]);
  			break;
  
@@ -1174,7 +1147,7 @@ index 40cab02..2cc6b53 100644
  
  		case "client_public_ip":
  			client_public_ip = param[1].replace(/::ffff:/, '');    // remove IPv4-mapped IPv6 if any
-@@ -3104,14 +3152,7 @@ function kiwi_msg(param, ws)
+@@ -3267,14 +3315,7 @@ function kiwi_msg(param, ws)
  				   //console.log('stat kiwi.WSPR_rgrid='+ kiwi.WSPR_rgrid);
  				}
  				
@@ -1189,4 +1162,4 @@ index 40cab02..2cc6b53 100644
 +				kiwi_snr_stats(o.sa, o.sh, o.tr);
  
  				admin_stats_cb(o.ad, o.au, o.ae, o.ar, o.an, o.ap, o.an2, o.ai);
- 				w3_call('config_status_cb', o);
+ 				w3_call('status_runtime_update', o);

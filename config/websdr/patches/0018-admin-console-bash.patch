@@ -1,11 +1,13 @@
+diff --git a/ui/admin.cpp b/ui/admin.cpp
+index 1b3c5fd..7be4814 100644
 --- a/ui/admin.cpp
 +++ b/ui/admin.cpp
-@@ -174,7 +174,7 @@
+@@ -175,7 +175,7 @@ static void console_task(void* param) {
      char* buf = (char*)kiwi_imalloc("console", NBUF + SPACE_FOR_NULL);
      int i, n, err;
  
 -    char* args[] = { (char*)"/bin/sh", (char*)"--login", NULL };
 +    char* args[] = { (char*)"/bin/bash", (char*)"--login", NULL };
-     scall("forkpty", (c->console_child_pid = forkpty(&c->master_pty_fd, NULL, NULL, NULL)));
- 
-     if (c->console_child_pid == 0) { // child
+     struct winsize ws, *wsp = NULL;
+     if (c->console_rows > 0 && c->console_cols > 0) {
+         memset(&ws, 0, sizeof(ws));

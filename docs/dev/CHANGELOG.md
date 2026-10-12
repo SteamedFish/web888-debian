@@ -9,7 +9,46 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
-## [2026-09-11] — docs: stable-operation statement, WiFi dongle guidance, conciseness cleanup
+## [2026-10-12] — websdr upstream pin bump: web-888-20260609 → master 2026-09-27
+
+### Changed
+
+- **`config/websdr/upstream.pin`** — RaspSDR/server `68a64e1b`
+  (tag `web-888-20260609`) → `4dfecc46` (master, 2026-09-27; 187 commits,
+  includes post-tag fixes past `web-888-20260919`). New submodule
+  `externals/acarsdec` pinned; other submodules unchanged.
+- **Quilt series rebased** onto the new pin: 18 patches regenerated
+  (`config/websdr/patches/` + `config/websdr/cherry-picks/`). Notable:
+  - `0144-kiwi-mongoose-7.14-upgrade` — web.cpp resolved by 3-way merge,
+    keeping upstream's new HTTP gzip (zlib) on the 7.14 compat API;
+    web_server.cpp merged manually (NATIVE_HARNESS blocks re-inserted).
+  - `0149-kiwi-rx-snr-port` / `0150` — admin.js hunks re-based onto
+    upstream's modernized admin.js (new markup style; hourly SNR UI kept).
+  - `0131` FT8 VUHF/QO-100 freqs re-ported to the new `ft8_arun_proto[]`
+    table; `0137` DRM-kick guard re-inserted into the rewritten
+    `ft8_autorun()`; `0130` PSKReporter retargeted to its new path
+    (`extensions/FT8/PSKReporter.cpp`).
+- **Dropped patches** (obsolete at the new pin; reasons in
+  `debian-patches-series` + `cherry-picks.manifest` + `PROVENANCE.md`):
+  `0145-kiwi-admin-resync` (upstream now ships its own modernized admin
+  stack carrying our fork deltas), `0146` (folded into the 0144 rebase),
+  `0153` (its target polls never existed upstream),
+  `0119-kiwi-ft8-freq-sort` (decoder rewritten on ft8_lib; fresh port
+  tracked in TODO).
+
+### Added
+
+- **New upstream extensions**: ACARS (VHF aircraft datalink), AIS,
+  space_weather, FST4W; FT8 decoder rewritten on ft8_lib (FFTW);
+  Bayesian CW skimmer; modernized admin UI; HTTP gzip.
+- **acarsdec helper** — vendored build shipped at
+  `/usr/lib/web888/acarsdec` (Debian has no acarsdec package);
+  `ACARSDEC_BIN` retargeted from the Alpine path in
+  `0001-cmake-debian-paths.patch`.
+- KiwiSDR upstream re-checked (`c40ecb47` v1.902 → `3b570602`): nothing
+  to cherry-pick (only Kiwi-hardware FPGA bitstream binaries changed).
+
+
 
 ### Added
 

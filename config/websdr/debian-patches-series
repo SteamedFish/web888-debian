@@ -24,7 +24,9 @@
 0113-kiwi-ksplit-parse-numeric.patch
 0114-kiwi-str-helpers.patch
 0117-kiwi-ansi-h-split.patch
-0119-kiwi-ft8-freq-sort.patch
+# 0119 DROPPED at pin 20260927: upstream rewrote decode_ft8.cpp on the new
+# ft8_lib (ftx_* API); the old save_deco/qsort freq-sort port does not map.
+# A fresh port (pre-sort candidates) is tracked in docs/dev/TODO.md.
 0120-kiwi-symmetrical-fir-taps.patch
 0121-kiwi-admin-pwd-serno-detection.patch
 0122-kiwi-admin-pwd-serno-popup.patch
@@ -54,16 +56,13 @@
 # mongoose 7.14; everything after it assumes the 7.14 API.
 0144-kiwi-mongoose-7.14-upgrade.patch
 
-# Plan section B.2 feature port: wholesale re-sync of the admin-page stack
-# (web/kiwi/{admin.js,admin.html,w3_util.js,kiwi.css,w3_ext.css} + one-line
-# admin_sdr.js id fix) to KiwiSDR v1.902 with Web-888 deltas re-applied.
-# See cherry-picks/PROVENANCE.md.
-0145-kiwi-admin-resync.patch
-
-# 0146: restore EXT_LIST_JS registration in web.cpp (0144 brought upstream's
-# USE_SDR guard; Web-888's cmake build never defines it -> literal %[EXT_LIST_JS]
-# on admin.html + extension JS no longer loaded on the admin page).
-0146-webcpp-restore-ext-list-js.patch
+# 0145 DROPPED at pin 20260927: upstream (RaspSDR/server master) rewrote the
+# admin stack themselves (modern_ui); re-applying KiwiSDR v1.902's admin would
+# undo that work. Fork deltas verified present upstream (wifi, MQTT,
+# rev_register, hourly snr_meas).
+# 0146 DROPPED at pin 20260927: folded into the 0144 rebase — the 3-way merge
+# took upstream master's reload_index_params(), which registers EXT_LIST_JS
+# unconditionally (no USE_SDR guard).
 
 # 0147: cherry-pick KiwiSDR f98b3779 (post-v1.902) — remove FAX extension's
 # server-side recording (fixed, world-downloadable /root/samples/fax.chN.pgm
@@ -129,14 +128,9 @@
 # Verified with -F 0 against the full post-0151 series tree.
 0152-websocket-control-msgs-no-drop.patch
 
-# 0153: Web-888-local admin.js fix — 0145's v1.902 resync brought a 1 Hz
-# status-tab poll sending 'SET xfer_stats' + 'ADM antsw_GetCurrentAnt',
-# neither implemented by RaspSDR's server -> "ADMIN: unknown command"
-# twice a second while the admin status tab is open. Sends removed;
-# nothing ever rendered from them (no server replies, ant_switch
-# extension JS never loads on the admin page).
-# Verified with -F 0 against the full post-0152 series tree.
-0153-admin-status-poll-unknown-cmd-noise.patch
+# 0153 DROPPED at pin 20260927: its targets (the 1 Hz 'SET xfer_stats' and
+# 'ADM antsw_GetCurrentAnt' status polls) only existed in 0145's admin.js;
+# upstream's modernized admin.js never had them, so there is nothing to fix.
 
 # 0020: kiwi_str_encode (support/str.cpp) — mongoose mg_url_encode() does
 # NOT percent-encode '%' itself, so console output containing '%' (e.g.

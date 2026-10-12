@@ -55,12 +55,12 @@ configure). Divergences from stock, all intentional:
   RTL8812BU/8822BU (AC1200) is the best value (dual-band 5 GHz + AP).
   Not a defect — hardware capability. There is intentionally no UI "Off" option; the CLI
   escape hatch is documented in `docs/user/usage.md`.
-- **0153 admin status-poll fix pending hardware verification** — patch 0153
-  removes the 1 Hz `SET xfer_stats` / `ADM antsw_GetCurrentAnt` sends that
-  0145's admin.js resync added (RaspSDR's server implements neither →
-  `ADMIN: unknown command` twice per second while an admin status tab was
-  open). Patch-applies and `node --check` verified; watch the device log for
-  absence of the lines after the new deb is deployed.
+- **0153 admin status-poll fix** — OBSOLETE 2026-10-12: dropped at the pin
+  bump to `web-888-20260927`; the polls it removed only existed in 0145's
+  resynced admin.js, which is itself dropped (upstream now ships its own
+  modernized admin stack). No `ADMIN: unknown command` spam is expected
+  from the new admin.js (it never had those polls); confirm on hardware
+  after the 2026.1012-1 deb lands.
 - **PSKReporter UDP path untested** — the KiwiSDR cherry-pick batch touched
   this code; autorun is off on the development unit, so it has never
   exercised the path on hardware.

@@ -1,3 +1,31 @@
+web888-websdr (2026.1012-1) UNRELEASED; urgency=medium
+
+  * Upstream pin bump: RaspSDR/server 68a64e1b (web-888-20260609) →
+    4dfecc46 (master 2026-09-27, 187 commits). Highlights:
+    - new extensions: ACARS (VHF aircraft datalink), AIS (marine),
+      space_weather, FST4W; FT8 decoder rewritten on the new ft8_lib
+      (FFTW-based); Bayesian CW skimmer replaces the old scanner;
+      modernized admin UI (modern_ui); HTTP gzip compression for
+      served files.
+    - quilt series rebased onto the new pin: 18 patches regenerated
+      (notably 0144 mongoose-7.14 — 3-way merged to keep upstream's
+      new gzip code; 0149 rx_snr admin UI re-based onto the modernized
+      admin.js). Four patches dropped as obsolete: 0145 (upstream now
+      ships its own modernized admin stack carrying our fork deltas),
+      0146 (folded into the 0144 rebase), 0153 (its target polls never
+      existed upstream), 0119 (FT8 freq-sort port doesn't map to the
+      rewritten decoder; fresh port tracked in docs/dev/TODO.md).
+    - new submodule externals/acarsdec pinned; the vendored acarsdec
+      helper (links only libc/libm/libpthread) is shipped at
+      /usr/lib/web888/acarsdec (Debian has no acarsdec package).
+    - binary auto-update remains disabled (Debian package managed);
+      upstream's new defaults (update_check/install off) match ours.
+  * KiwiSDR upstream check (c40ecb47 v1.902 → 3b570602): nothing to
+    cherry-pick — the only new commits replace Kiwi-hardware FPGA
+    bitstreams.
+
+ -- SteamedFish <69167+SteamedFish@users.noreply.github.com>  Mon, 12 Oct 2026 00:00:00 +0800
+
 web888-websdr (2026.730-11) UNRELEASED; urgency=medium
 
   * The admin console's Dynamic DNS (DUC) and reverse-proxy features now
@@ -26,6 +54,8 @@ web888-websdr (2026.730-11) UNRELEASED; urgency=medium
     Making it live would be a regression: `frpc stop` exits cleanly, which
     Restart=on-failure does not revive, so every websdr restart would
     permanently drop the reverse-proxy tunnel.
+
+ -- SteamedFish <69167+SteamedFish@users.noreply.github.com>  Sun, 30 Aug 2026 17:37:13 +0800
 
 web888-websdr (2026.730-10) UNRELEASED; urgency=medium
 

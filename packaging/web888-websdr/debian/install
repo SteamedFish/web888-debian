@@ -1,4 +1,7 @@
 build/websdr.bin usr/bin/
+# vendored acarsdec (ACARS extension helper, ACARSDEC_BIN=/usr/lib/web888/acarsdec);
+# Debian has no acarsdec package, and the vendored build links only libc/libm/libpthread.
+build/acarsdec usr/lib/web888/
 # vendored externals/dumphfdl binary intentionally NOT installed: its library
 # linkage doesn't match trixie; websdr launches the system dumphfdl package's
 # /usr/bin/dumphfdl instead (patch 0006, hard Depends in control).

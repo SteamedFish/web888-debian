@@ -36,8 +36,14 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 - [ ] Optional, if their value case materialises: ipset blacklist,
       kiwi_output_chars console rework
+- [ ] Fresh port of 0119-kiwi-ft8-freq-sort onto the new ft8_lib-based
+      decoder (dropped at the 2026-10-12 pin bump; approach: pre-sort
+      decode candidates by frequency before the decode loop)
 - Cherry-pick surface otherwise exhausted as of KiwiSDR v1.902 (incl.
-  post-v1.902 fixes through 0153) — see
+  post-v1.902 fixes through 0153); re-checked 2026-10-12 against
+  KiwiSDR master `3b570602` — only Kiwi-hardware FPGA bitstreams
+  changed, nothing applicable. Web-888 (RaspSDR/server) pin bumped
+  2026-10-12 to master `4dfecc46` (2026-09-27) — see
   `web888-kiwisdr-cherry-pick-plan.md` and `config/websdr/cherry-picks/`
 
 ## Red Pitaya follow-ups

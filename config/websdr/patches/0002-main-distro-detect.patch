@@ -1,9 +1,8 @@
-From: web888-debian step3
-Subject: main: detect /etc/debian_version (fallback alpine), create state dirs
-
+diff --git a/main.cpp b/main.cpp
+index 09b4446..3b21e0b 100644
 --- a/main.cpp
 +++ b/main.cpp
-@@ -109,7 +109,7 @@
+@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
      shmem_init();
      printf_init();
  
@@ -12,10 +11,10 @@ Subject: main: detect /etc/debian_version (fallback alpine), create state dirs
  
  #define ARG(s) (strcmp(argv[ai], s) == 0)
  #define ARGP() argv[++ai]
-@@ -187,7 +187,8 @@
-             version_maj, version_min);
-     lprintf("compiled: %s %s on %s\n", __DATE__, __TIME__, COMPILE_HOST);
- 
+@@ -195,7 +195,8 @@ int main(int argc, char* argv[]) {
+     disable_led_task = true;
+     lprintf("native harness host\n");
+ #else
 -    char* reply = read_file_string_reply("/etc/alpine-release");
 +    char* reply = read_file_string_reply("/etc/debian_version");
 +    if (reply == NULL) reply = read_file_string_reply("/etc/alpine-release");

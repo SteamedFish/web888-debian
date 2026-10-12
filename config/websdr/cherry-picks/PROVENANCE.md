@@ -192,6 +192,14 @@ candidates from the plan tables.
 
 ## Feature ports (plan section B): patch 0144
 
+> **Rebased 2026-10-12** onto upstream pin `web-888-20260927` (`4dfecc46`):
+> web.cpp resolved by 3-way merge keeping upstream's new HTTP gzip feature
+> (`web_client_accepts_gzip`/`web_gzip_payload`/`web_response_is_compressible`,
+> zlib wired by upstream) on the mongoose-7.14 API; web_server.cpp merged
+> manually (upstream's NATIVE_HARNESS blocks re-inserted into the new
+> `web_server_init`). `reload_index_params` now registers `EXT_LIST_JS`
+> unconditionally, superseding 0146. See cherry-picks.manifest.
+
 0144 (2026-08-05, plan section B.1) is a feature port, not a cherry-pick:
 the entire mongoose 5.6 web layer is replaced by KiwiSDR's mongoose 7.14
 file set (`4eebfb3b` flipped Kiwi's own symlinks to the same files), with
@@ -250,6 +258,15 @@ upstream (so the patch can be dropped). It does **not** overwrite hand-adapted
 patches (0104) — only reports drift on those.
 
 ### 0145-kiwi-admin-resync.patch — Admin-page stack re-sync to KiwiSDR v1.902 (plan B.2)
+
+> **DROPPED 2026-10-12** at the pin bump to `web-888-20260927` (`4dfecc46`):
+> RaspSDR/server master rewrote the admin stack itself (modern_ui.css/js,
+> admin.js 3329→4376 lines), and the fork deltas this port carried are all
+> present upstream (wifi config, MQTT, `rev_register`, hourly `snr_meas`).
+> Re-applying Kiwi v1.902's admin would undo upstream's work. The text below
+> is kept as the historical record of the port (and documents deltas that
+> may matter again if upstream's admin diverges).
+
 - **Source:** KiwiSDR `c40ecb47` (= v1.902) `web/kiwi/{admin.js,admin.html,w3_util.js,kiwi.css,w3_ext.css}`.
 - **What it does:** wholesale replacement of Web-888's independently-forked admin-page
   stack with the v1.902 versions, re-applying every Web-888 customization on top, plus
@@ -310,6 +327,11 @@ patches (0104) — only reports drift on those.
   admin_draw→init_panel_toggle is identical upstream (admin.js:5056) — cosmetic, kept.
 
 ### 0146-webcpp-restore-ext-list-js.patch — Restore EXT_LIST_JS registration (0144 regression)
+
+> **DROPPED 2026-10-12:** folded into the 0144 rebase — the 3-way merge took
+> upstream master's `reload_index_params()`, which registers `EXT_LIST_JS`
+> unconditionally. Kept below as historical record.
+
 - **Source:** none (local bugfix of 0144's web.cpp port).
 - **What:** removes the `#ifdef USE_SDR` guard around the `EXT_LIST_JS` iparams
   registration that 0144's mongoose-7.14 web.cpp brought from upstream. Web-888's
@@ -525,6 +547,11 @@ patches (0104) — only reports drift on those.
   surrounding entries).
 
 ## 0153-admin-status-poll-unknown-cmd-noise.patch
+
+> **DROPPED 2026-10-12:** the 1 Hz `SET xfer_stats` / `ADM antsw_GetCurrentAnt`
+> polls this patch removed only existed in 0145's resynced admin.js; upstream's
+> modernized admin.js never had them, so with 0145 dropped there is nothing to
+> fix. Kept below as historical record.
 
 - **Upstream:** none — Web-888-local fix (RaspSDR's server does not
   implement the polled commands; real KiwiSDR does, so there is nothing
