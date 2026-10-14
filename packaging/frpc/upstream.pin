@@ -1,5 +1,5 @@
 url: https://github.com/fatedier/frp
-version: v0.71.0
+version: v0.71.1
 pkgrev: 1
 
 Repack of the official static Go binary release (no rebuild):
