@@ -46,10 +46,16 @@ web888-mode                                # websdr or an RP app running?
 2. **Check the LEDs.** D2 stuck ON = boot failure → re-flash per
    `flashing.md` (and re-run `scripts/test-qemu.sh uboot` first). D2 off but
    no D0 = booted but userspace unhealthy.
-3. **Check power.** The board needs a solid 5 V / 2 A+ supply; brownouts
+3. **Blind-boot flight recorder.** If the board dies before/at network
+   setup and you have no serial adapter, install `scripts/debug/bootlog.sh`
+   + `bootlog.service` into the image (instructions in the script header),
+   re-flash, boot once, then read `bootlog.txt` from the FAT partition on
+   any PC — it logs uptime/eth0/websdr/dmesg every 3 s for the first 5
+   minutes.
+4. **Check power.** The board needs a solid 5 V / 2 A+ supply; brownouts
    cause exactly this symptom (see `quick-reference.md` §Power).
-4. **Check the card.** Class 10 SD/SDHC, not SDXC; re-flash if in doubt.
-5. Worst case: swap the **stock TF card** back in to verify the hardware
+5. **Check the card.** Class 10 SD/SDHC, not SDXC; re-flash if in doubt.
+6. Worst case: swap the **stock TF card** back in to verify the hardware
    and network are fine, isolating the problem to the Debian card.
 
 ## 2. Device reachable, but web UI dead

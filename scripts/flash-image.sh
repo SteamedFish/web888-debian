@@ -43,4 +43,11 @@ read -r -p "Type the exact device path ($DEV) to confirm: " CONFIRM
 
 sudo -n dd if="$IMG" of="$DEV" bs=4M status=progress oflag=sync conv=fsync
 sync
+# Read-back verify: a silently truncated/corrupted write boots the kernel
+# (FAT is near the start) but dies mid-boot — caught 2026-10-19 incident.
+echo "verifying written data (read-back checksum, takes a minute)..."
+SUM_IMG=$(md5sum "$IMG" | awk '{print $1}')
+SUM_DEV=$(sudo -n head -c "$(stat -c%s "$IMG")" "$DEV" | md5sum | awk '{print $1}')
+[[ $SUM_IMG == "$SUM_DEV" ]] || { echo "ERROR: verify FAILED (image=$SUM_IMG card=$SUM_DEV) — reflash or try another card" >&2; exit 1; }
+echo "verify OK: $SUM_IMG"
 echo "flashed OK. Insert into Web-888, power on, then watch for the unit's ce:cf:3f:* MAC on DHCP."

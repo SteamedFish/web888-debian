@@ -215,7 +215,7 @@ required fix.
 > The disciminating 2026-08-20 test is adapter-X vs adapter-Y on the
 > **same** data Type-C: working vs failing with no other change.
 
-## 9. Pin-bump image (websdr 2026.1012-1): no IP after hardware boot — UNDER INVESTIGATION
+## 9. Pin-bump image (websdr 2026.1012-1): no IP after hardware boot — RESOLVED 2026-10-19 (bad flash write)
 
 Reported 2026-10-19: image built from branch `websdr-pin-bump-20260927`
 (websdr pin 4dfecc46 + acarsdec split-out) flashes and boots on hardware
@@ -270,3 +270,14 @@ PC) + persistent journald (`/var/log/journal`). QEMU gate passed
 the debug image; if it boots, the original failure was media/write-
 related; if it fails again, pull the card and read `bootlog.txt` +
 journal from a PC.
+
+**Resolution 2026-10-19:** operator flashed the debug image with
+read-back verification (`head -c $(stat -c%s img) /dev/sdX | md5sum` ==
+image md5) and the board booted perfectly — DHCP lease, SSH, websdr
+running, prog_done=1, port 8073 up with all 4 DRM workers. Root cause
+of the original dead card: **a bad flash write / marginal SD state**
+(deterministic per-flash because the same corrupted blocks were hit on
+every boot). websdr and the pin bump were never involved.
+Countermeasures landed: `scripts/flash-image.sh` now always does a
+read-back checksum verify after writing; the flight recorder is
+committed as a reusable debug tool under `scripts/debug/`.

@@ -50,6 +50,12 @@ The script enforces, in order:
 
 Any failed check aborts before a single byte is written.
 
+After writing, the script reads the card back and compares its checksum
+against the image file — a silently truncated or corrupted write boots
+the kernel (the FAT partition sits at the start of the card) but dies
+mid-boot, and this verify step catches it on the spot. If it fails,
+re-flash or try another card.
+
 ## 3. First boot
 
 1. Insert the card into the Web-888 (**label side down, contacts up**),

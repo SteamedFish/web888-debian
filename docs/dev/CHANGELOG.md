@@ -9,6 +9,29 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-19] — pin-bump no-IP investigation: resolved (bad flash write)
+
+### Fixed
+
+- **KNOWN-ISSUES #9 resolved** — the pin-bump image's dead boot was
+  caused by a bad flash write / marginal SD state, not by the image:
+  the debug image (identical config + flight recorder) booted perfectly
+  once the flash was verified by read-back checksum. websdr exonerated
+  by live debugging (healthy manual start, 8/8 warm-reboot loop,
+  starts only after the DHCP lease).
+
+### Added
+
+- **`scripts/flash-image.sh` read-back verify** — after writing, the
+  card is read back and its checksum compared against the image; a
+  mismatch aborts with an error. Catches silently truncated/corrupted
+  writes on the spot.
+- **`scripts/debug/bootlog.sh` + `bootlog.service`** — blind-boot
+  flight recorder (logs uptime/eth0/websdr/dmesg every 3 s to
+  `/boot/firmware/bootlog.txt` on the FAT partition, readable from any
+  PC). Not shipped in images; install manually when debugging a blind
+  boot (see `docs/user/troubleshooting.md` §1).
+
 ## [2026-10-19] — pin-bump no-IP investigation: websdr exonerated
 
 ### Changed
