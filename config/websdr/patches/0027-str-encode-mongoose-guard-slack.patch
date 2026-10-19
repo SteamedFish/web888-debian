@@ -1,0 +1,17 @@
+--- a/support/str.cpp
++++ b/support/str.cpp
+@@ -562,7 +562,13 @@ char* kiwi_str_encode(char* src, const c
+     size_t slen = strlen(src);
+ 
+ #define ENCODE_EXPANSION_FACTOR 3 // c -> %xx
+-    size_t dlen = (slen * ENCODE_EXPANSION_FACTOR) + SPACE_FOR_NULL;
++    // web888: mongoose 7.14 mg_url_encode() bails out (returning 0 and leaving
++    // dst UNTOUCHED) whenever fewer than 4 bytes remain at the CURRENT offset
++    // ("if (n + 4 >= len) return 0"). An exact-fit slen*3+1 buffer therefore
++    // fails for slen==1 always (0+4 >= 4) and for an all-%XX-encoded tail --
++    // the caller gets raw heap garbage (seen as mangled admin-console echoes
++    // of single characters). Give the guard its 4 bytes of slack.
++    size_t dlen = (slen * ENCODE_EXPANSION_FACTOR) + 4;
+ 
+     // don't use kiwi_malloc() due to large number of these simultaneously active from dx list
+     // and also because dx list has to use kiwi_asfree() due to related allocations via strdup()

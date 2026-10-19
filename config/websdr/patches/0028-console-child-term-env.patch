@@ -1,0 +1,27 @@
+--- a/ui/admin.cpp
++++ b/ui/admin.cpp
+@@ -176,6 +176,15 @@ static void console_task(void* param) {
+     int i, n, err;
+ 
+     char* args[] = { (char*)"/bin/bash", (char*)"--login", NULL };
++    // web888 Debian: the forkpty child is execved with a NULL envp, so it has
++    // no TERM and full-screen programs fail ("Error opening terminal: unknown").
++    // The kiwi.js console is an ANSI/xterm emulator; give the shell a minimal env.
++    char* envp[] = {
++        (char*)"TERM=xterm-256color",
++        (char*)"LANG=C.UTF-8",
++        (char*)"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
++        NULL
++    };
+     struct winsize ws, *wsp = NULL;
+     if (c->console_rows > 0 && c->console_cols > 0) {
+         memset(&ws, 0, sizeof(ws));
+@@ -189,7 +198,7 @@ static void console_task(void* param) {
+         // terminate when parent exits
+         scall("PR_SET_PDEATHSIG", prctl(PR_SET_PDEATHSIG, SIGTERM));
+ 
+-        execve(args[0], args, NULL);
++        execve(args[0], args, envp);
+         child_exit(EXIT_SUCCESS);
+     }
+ 

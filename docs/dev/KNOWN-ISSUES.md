@@ -281,3 +281,30 @@ every boot). websdr and the pin bump were never involved.
 Countermeasures landed: `scripts/flash-image.sh` now always does a
 read-back checksum verify after writing; the flight recorder is
 committed as a reusable debug tool under `scripts/debug/`.
+
+## 10. Pin-bump regressions in admin console: echo mojibake + missing TERM — FIXED 2026-10-20 (patches 0027/0028)
+
+Found during hardware testing of branch `websdr-pin-bump-20260927`:
+typing in the admin console displayed trailing garbage (`df` →
+`dfÒà\±à\±Òà\±`) and `htop` failed with "Error opening terminal:
+unknown", while commands still executed correctly.
+
+Root cause of the mojibake (proven with an on-device instrumented
+build logging hex dumps at the pty read/write points — the pty itself
+was byte-clean): mongoose 7.14, pulled in by rebase patch 0144,
+guards `mg_url_encode()` with `if (n + 4 >= len) return 0` — returning
+0 and leaving the destination buffer UNTOUCHED when fewer than 4 bytes
+remain at the current offset. `kiwi_str_encode()` sized its buffer
+exact-fit (`slen*3+1`), so every 1-character payload (0+4 ≥ 4 — every
+single-keypress console echo) returned raw heap garbage onto the
+websocket. Random per session, 3–4 bytes, exactly matching the
+observed symptoms. Fixed by `0027-str-encode-mongoose-guard-slack`
+(buffer slack +4). Note the same latent bug exists for any exact-fit
+caller; `kiwi_str_encode_static()` uses a 512-byte buffer and is safe
+for realistic inputs.
+
+The `htop` failure was independent: `console_task` execved the login
+shell with a NULL envp (no `TERM`). Fixed by
+`0028-console-child-term-env` (minimal env: `TERM=xterm-256color`,
+`LANG`, `PATH`). Both verified on hardware 2026-10-20: exact character
+echoes, `TERM=xterm-256color`, readline bracketed-paste active.

@@ -190,3 +190,14 @@
 # into /media/mmcblk0p1 — a plain rootfs directory on Debian — then reboots),
 # and the admin Update tab is replaced with an apt-managed notice.
 0026-update-disable-debian.patch
+
+# 0027: mongoose 7.14 (0144) hardened mg_url_encode() with an
+# "n + 4 >= len → return 0" guard that leaves dst UNTOUCHED; kiwi_str_encode's
+# exact-fit slen*3+1 buffer then returns heap garbage for slen==1 payloads
+# (admin console single-character echoes showed as mojibake). +4 bytes slack.
+0027-str-encode-mongoose-guard-slack.patch
+
+# 0028: console_task forkpty child was execved with NULL envp → no TERM →
+# htop etc. fail with "Error opening terminal: unknown". Give the shell a
+# minimal env (TERM=xterm-256color, LANG, PATH).
+0028-console-child-term-env.patch

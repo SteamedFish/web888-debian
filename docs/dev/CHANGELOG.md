@@ -9,6 +9,30 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-20] — pin-bump hardware testing: console echo garbage + TERM fixed
+
+### Fixed
+
+- **Admin console echoed single characters as mojibake** (`df` displayed
+  as `dfÒà\±à\±…`) — root-caused with an on-device instrumented build
+  (`CONSOLE-DBG` read/write hex dumps in `ui/admin.cpp`): the pty layer
+  was clean; the corruption was in `kiwi_str_encode()`. Mongoose 7.14
+  (pulled in by patch 0144) guards `mg_url_encode()` with
+  `if (n + 4 >= len) return 0`, leaving the destination buffer UNTOUCHED
+  when fewer than 4 bytes remain. `kiwi_str_encode()` sized its buffer
+  exact-fit (`slen*3+1`), so every 1-character payload (0+4 ≥ 4) — i.e.
+  every single-keypress console echo — returned 4 bytes of raw heap
+  garbage straight onto the websocket. New patch
+  `0027-str-encode-mongoose-guard-slack` gives the guard its 4 bytes of
+  slack. Verified on hardware: `console_c2w` frames now carry the exact
+  typed characters.
+- **Admin console full-screen programs failed** (`htop`:
+  "Error opening terminal: unknown") — `console_task` execved the shell
+  with a NULL envp, so no `TERM`. New patch
+  `0028-console-child-term-env` passes a minimal environment
+  (`TERM=xterm-256color`, `LANG`, `PATH`). Verified: `echo $TERM` →
+  `xterm-256color`, readline bracketed-paste sequences active.
+
 ## [2026-10-19] — pin-bump hardware testing: admin console fix + updater disabled
 
 ### Fixed
