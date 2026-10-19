@@ -13,6 +13,16 @@ this is a hard project rule).
 
 ### Fixed
 
+- **`/etc/sudoers` missing from all images** (pre-existing since ≤
+  2026-08-30, not a pin-bump regression) — broke every web888 root
+  helper (admin hotspot button, netconfig, DUC/frpc): without the main
+  sudoers file the `/etc/sudoers.d/web888` drop-in is never read.
+  Restored the pristine conffile on the live device and in
+  `work/rootfs`; `configure-rootfs.sh` now reinstalls sudo with
+  `--force-confmiss` when the file is absent and runs `visudo -c`.
+  Verified: `web888-wificonfig ap-defaults` executes as root via sudo.
+
+
 - **Admin console echoed single characters as mojibake** (`df` displayed
   as `dfÒà\±à\±…`) — root-caused with an on-device instrumented build
   (`CONSOLE-DBG` read/write hex dumps in `ui/admin.cpp`): the pty layer

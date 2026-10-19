@@ -142,6 +142,16 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
     iptables miniupnpc netcat-openbsd sudo \
     zram-tools log2ram cloud-guest-utils \
     avahi-daemon libnss-mdns
+# Safeguard: /etc/sudoers vanished from early rootfs trees via some untracked
+# out-of-band edit between 2026-08-15 and 2026-08-30 (dpkg -V sudo: "missing
+# c /etc/sudoers"; sudo is then useless — drop-ins in /etc/sudoers.d are never
+# read — which broke the web888 root-helper mechanism, e.g. the admin hotspot
+# button). Restore the package conffile if absent and validate the result.
+if [ ! -f /etc/sudoers ]; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --reinstall \
+        -o DPkg::Options::=--force-confmiss sudo
+fi
+visudo -c >/dev/null
 # Admin-console tooling: the websdr admin console tab has htop/tmux
 # shortcut buttons and is generally more useful with curl/rsync around
 # (update pulls, log captures). bash-completion gives the console bash

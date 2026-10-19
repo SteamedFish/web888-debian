@@ -308,3 +308,26 @@ shell with a NULL envp (no `TERM`). Fixed by
 `0028-console-child-term-env` (minimal env: `TERM=xterm-256color`,
 `LANG`, `PATH`). Both verified on hardware 2026-10-20: exact character
 echoes, `TERM=xterm-256color`, readline bracketed-paste active.
+
+## 11. /etc/sudoers missing → all web888 root helpers broken (hotspot, netconfig, DUC/frpc) — FIXED 2026-10-20
+
+Found 2026-10-20 via the admin console "enable hotspot" action:
+`sudo -n /usr/lib/web888/root-helpers/web888-wificonfig ap-defaults`
+failed with "sudo: unable to open /etc/sudoers: No such file or
+directory". `/etc/sudoers.d/web888` (the deb-shipped drop-in) existed,
+but without the main `/etc/sudoers` (which carries the
+`@includedir /etc/sudoers.d`) sudo never reads it. **Pre-existing** —
+the 2026-08-30 known-good image has the same defect; dpkg logs show
+sudo installed 2026-08-15 and never purged, so the conffile was
+deleted by some untracked out-of-band edit in between (root cause not
+archaeology-worthy; safeguard added instead). Not a pin-bump
+regression — the feature was simply never exercised end-to-end.
+
+Fix: restored the pristine conffile from the cached
+`sudo_1.9.16p2-3+deb13u2_armhf.deb` (mode 0440, `visudo -c` clean) on
+the live device and in `work/rootfs`; `scripts/configure-rootfs.sh`
+now reinstalls sudo with `DPkg::Options::=--force-confmiss` when
+`/etc/sudoers` is absent and validates with `visudo -c`.
+Verified on device: the wificonfig helper runs as root via sudo (it
+then correctly reports "no AP-capable WiFi adapter" — no dongle
+attached, expected).
