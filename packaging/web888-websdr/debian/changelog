@@ -31,6 +31,15 @@ web888-websdr (2026.1012-1) UNRELEASED; urgency=medium
       upstream release into /media/mmcblk0p1 — a plain rootfs directory
       on Debian — then reboot) and the admin Update tab is replaced
       with an apt-managed notice.
+    - new patch 0027 fixes admin-console keypress echoes arriving as
+      mojibake: mongoose 7.14's mg_url_encode() bails out untouched
+      when its 4-byte guard trips ("n + 4 >= len → return 0"), and
+      kiwi_str_encode's exact-fit slen*3+1 buffer made every 1-char
+      payload return heap garbage; +4 slack.
+    - new patch 0028 gives the console login shell a minimal envp
+      (TERM=xterm-256color, LANG, PATH) — it was execved with NULL envp,
+      so full-screen programs (htop) failed with "Error opening
+      terminal: unknown".
   * KiwiSDR upstream check (c40ecb47 v1.902 → 3b570602): nothing to
     cherry-pick — the only new commits replace Kiwi-hardware FPGA
     bitstreams.
