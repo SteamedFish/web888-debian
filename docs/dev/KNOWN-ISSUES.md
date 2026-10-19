@@ -235,10 +235,38 @@ Image delta vs the last known-good flash is exactly web888-websdr
 2026.730-11 → 2026.1012-1 plus the acarsdec package.
 
 Bisect image built 2026-10-19 with `web888-websdr.service` **masked**
-(single variable; QEMU gate re-passed): if the board then gets an IP,
-websdr.bin at runtime (Si5351 sys_panic loop / xdevcfg load / mlock) is
-the killer; if not, websdr is exonerated and the boot chain / physical
-environment is suspect. Next steps after the bisect: router DHCP lease
-table (lease present → booted + DHCP ok → post-boot freeze), timed
-arp-scan from power-on (appears-then-vanishes = freeze signature),
-LED pattern D0/D3 (PL-driven: lit ⇒ bitstream loaded ⇒ websdr.bin ran).
+(single variable; QEMU gate re-passed) — **booted fine**, got DHCP
+lease, SSH in. On-device findings: websdr.bin works perfectly when
+started manually (prog_done=1, bitstream loaded, ACARS extension runs
+the new `/usr/bin/acarsdec`, port 8073 listening, RSS 36 MB, no OOM);
+unmasked websdr and rebooted — still boots fine. Successful-boot
+timeline: growfs at ~9.5 s, DHCP lease at ~19 s, websdr starts ~25 s
+(after the lease, `After=network-online.target`).
+
+**websdr exonerated.** An 8-cycle warm-reboot loop with websdr enabled
+passed 8/8 (~20 s to SSH each time). And the failing boot died before
+the ~9.5 s growfs step (operator confirmed the failing card's partition
+was NEVER expanded even after many power cycles → deterministic
+per-flash failure, not a first-boot flake) — websdr wasn't even running
+yet at that point.
+
+Remaining suspects for the deterministic dead boot, in order:
+1. **Bad flash write / marginal SD region** — the failing image and the
+   working bisect image differ in rootfs layout; a bad NAND region or
+   truncated write could corrupt ext4 blocks read before ~9.5 s
+   (kernel boots — D2 went out — then userspace stalls on I/O).
+2. Deterministic image-content bug in early boot (would have to be in
+   the rootfs delta vs the bisect image, which is only the mask
+   symlink — making this unlikely).
+
+Debug image `output/web888-debian-uboot-debug-firstboot.img`
+(2026-10-19, md5 `aa22ae8fcddc1733ccb02158e17f915d`) = pin-bump image
+(websdr ENABLED, as the failing one) + blind-boot flight recorder
+(`bootlog.service`, starts right after local-fs at ~12 s, appends
+uptime/network/websdr/dmesg state every 3 s to
+`/boot/firmware/bootlog.txt` on the FAT partition — readable from any
+PC) + persistent journald (`/var/log/journal`). QEMU gate passed
+(bootlog.service confirmed running at 12.2 s). Next: operator flashes
+the debug image; if it boots, the original failure was media/write-
+related; if it fails again, pull the card and read `bootlog.txt` +
+journal from a PC.

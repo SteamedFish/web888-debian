@@ -9,6 +9,19 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-19] — pin-bump no-IP investigation: websdr exonerated
+
+### Changed
+
+- **KNOWN-ISSUES #9** — the pin-bump image's dead boot is deterministic
+  per-flash and dies before the ~9.5 s growfs step; websdr.bin was
+  exonerated by live hardware debugging (manual start healthy, 8/8
+  warm-reboot loop with websdr enabled, starts only after the DHCP
+  lease). Leading suspect is now a bad flash write / marginal SD
+  region. Debug image with a blind-boot flight recorder
+  (`bootlog.service` → `/boot/firmware/bootlog.txt`) + persistent
+  journald built for the next flash attempt.
+
 ## [2026-10-12] — policy: GitHub pushes require testing first (real users)
 
 ### Changed
