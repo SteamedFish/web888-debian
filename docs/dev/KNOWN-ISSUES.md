@@ -214,3 +214,31 @@ required fix.
 > element") is wrong, because the board has no USB-A plug at all.
 > The disciminating 2026-08-20 test is adapter-X vs adapter-Y on the
 > **same** data Type-C: working vs failing with no other change.
+
+## 9. Pin-bump image (websdr 2026.1012-1): no IP after hardware boot — UNDER INVESTIGATION
+
+Reported 2026-10-19: image built from branch `websdr-pin-bump-20260927`
+(websdr pin 4dfecc46 + acarsdec split-out) flashes and boots on hardware
+(image md5 verified, LEDs active) but the board never appears in
+`arp-scan`. QEMU `uboot` gate passes — but QEMU cannot exercise Ethernet
+(phy@1 vs QEMU phy@7 mismatch, no 24c64 EEPROM), so a hardware-only
+network regression is invisible to the gate.
+
+Statically ruled out (all byte-identical to the 2026-08-18 state or
+provably non-network): boot.bin (FSBL+U-Boot), boot.scr/uEnv.txt/dtb,
+kernel 6.12.100-10, `/etc` network config (ifupdown `eth0 dhcp` +
+dhcpcd-base — dhclient was never installed), websdr.service ordering
+(`Type=simple`, `After=network-online.target`), vendored FPGA
+bitstreams, zynqsdr ioctl ABI (MODE_SET present in our driver), admin
+`use_static=false` (netconfig helper only fires from the admin UI).
+Image delta vs the last known-good flash is exactly web888-websdr
+2026.730-11 → 2026.1012-1 plus the acarsdec package.
+
+Bisect image built 2026-10-19 with `web888-websdr.service` **masked**
+(single variable; QEMU gate re-passed): if the board then gets an IP,
+websdr.bin at runtime (Si5351 sys_panic loop / xdevcfg load / mlock) is
+the killer; if not, websdr is exonerated and the boot chain / physical
+environment is suspect. Next steps after the bisect: router DHCP lease
+table (lease present → booted + DHCP ok → post-boot freeze), timed
+arp-scan from power-on (appears-then-vanishes = freeze signature),
+LED pattern D0/D3 (PL-driven: lit ⇒ bitstream loaded ⇒ websdr.bin ran).
