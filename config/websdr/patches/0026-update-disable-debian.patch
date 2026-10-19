@@ -1,0 +1,94 @@
+diff --git a/net/update.cpp b/net/update.cpp
+index 23f1cd5..0756ef0 100644
+--- a/net/update.cpp
++++ b/net/update.cpp
+@@ -646,6 +646,13 @@ void update_init()
+ 
+ void update_start()
+ {
++    // web888 Debian: updates are delivered as Debian packages via apt. The stock
++    // updater would unzip an upstream release into /media/mmcblk0p1 (a plain
++    // directory on our rootfs, not the FAT partition) and then reboot — disable it.
++    if (debian_maj != 0) {
++        lprintf("UPDATE: Debian-managed system, built-in updater disabled\n");
++        return;
++    }
+     next_update_check = timer_sec() + update_check_interval_s;
+     update_pending = true;
+     check_for_update(WAIT_UNTIL_NO_USERS, NULL);
+diff --git a/web/kiwi/admin.js b/web/kiwi/admin.js
+index d3a2e42..7861671 100644
+--- a/web/kiwi/admin.js
++++ b/web/kiwi/admin.js
+@@ -1298,56 +1298,26 @@ function connect_proxy_server_cb(path, val)
+ 
+ function update_html()
+ {
+-   var update_channel = adm.update_channel !== false;
+-   var header =
++   // web888 Debian: updates ship as Debian packages via apt (web888 apt repo).
++   // The stock online updater targets the factory image layout and is disabled
++   // server-side (net/update.cpp update_start()); show a notice instead.
++   var content =
+       '<header class="ui-admin-page-header ui-admin-update-header">' +
+          '<div><span>SOFTWARE</span><h2>Updates</h2>' +
+-            '<p>Keep this receiver current with the latest software release.</p>' +
+-            '<div id="id-update-last-check" class="ui-admin-update-last-check">Last checked: Not checked yet</div></div>' +
+-         w3_button_path('w3-aqua', 'id-update-primary-action', 'Check for updates',
+-            'update_primary_cb') +
+-      '</header>';
+-
+-   var status =
+-      w3_div('id-update-progress ui-admin-update-progress w3-hide',
+-         '<div><i></i></div><span id="id-update-progress-text"></span>') +
+-      w3_div('id-msg-update w3-container');
+-
+-   var result = w3_div('id-update-result-row w3-hide',
+-      admin_section('Available update', 'Version and change log for the latest release',
+-         w3_div('id-update-result'), 'ui-admin-section-wide'));
+-
+-   var settings =
+-      admin_section('Update settings', 'Choose the release channel and automatic update behavior',
+-         w3_div('ui-admin-update-policy',
+-            w3_div('ui-admin-update-policy-row',
+-               w3_switch_label('w3-label-inline w3-label-left', 'Release channel',
+-                  'Alpha', 'Stable', 'adm.update_channel', update_channel, 'update_channel_cb') +
+-               w3_switch_label('w3-label-inline w3-label-left', 'Auto download',
+-                  'On', 'Off', 'adm.update_check', adm.update_check, 'admin_radio_YN_cb') +
+-               w3_switch_label('w3-label-inline w3-label-left', 'Auto install',
+-                  'On', 'Off', 'adm.update_install', adm.update_install, 'admin_radio_YN_cb')
+-            ) +
+-            w3_div('ui-admin-update-policy-note',
+-               'Alpha checks the newest release. Stable checks the latest tested release. ' +
+-               'Auto download caches an available package; Auto install extracts it to the SD card.')
+-         ),
+-         'ui-admin-section-wide');
+-
+-   var content =
+-      header +
++            '<p>This receiver runs Debian — software is updated with apt.</p></div>' +
++      '</header>' +
+       '<div class="ui-admin-section-grid">' +
+-         admin_section('Update status', 'Current update activity', status, 'ui-admin-section-wide') +
+-         result +
+-         settings +
+-         admin_section('Previous releases',
+-            'Install a release package already cached on the SD card.',
+-            w3_button_path('w3-aqua', 'id-update-previous-releases', 'Previous Releases',
+-               'update_previous_releases_cb') +
+-            w3_div('id-release-picker ui-admin-release-picker w3-margin-T-16 w3-hide'),
++         admin_section('Debian package management', 'How to update this receiver',
++            w3_div('w3-container',
++               '<p>All software on this receiver — WebSDR, the kernel and the boot ' +
++               'chain — is distributed as Debian packages. The stock firmware online ' +
++               'updater is disabled because it would overwrite files outside apt\'s ' +
++               'control.</p>' +
++               '<p>To update, use the shell (admin console tab or SSH):</p>' +
++               '<pre>apt update\napt upgrade</pre>'
++            ),
+             'ui-admin-section-wide') +
+       '</div>';
+-   setTimeout(function() { ext_send('SET update_status'); }, 0);
+ 	return w3_div('id-update w3-hide ui-admin-update', content);
+ }
+ 

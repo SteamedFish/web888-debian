@@ -9,7 +9,7 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
-## [2026-10-19] — pin-bump hardware testing: admin console fix
+## [2026-10-19] — pin-bump hardware testing: admin console fix + updater disabled
 
 ### Fixed
 
@@ -22,6 +22,17 @@ this is a hard project rule).
   the series; console verified working on hardware. The '%'-safety
   fixes 0020/0021 remain and keep shell output containing '%' safe
   through the single decode.
+
+### Added
+
+- **Patch 0026: stock online updater disabled on Debian** — the new
+  pin's Update tab (release channel / auto download / auto install)
+  drives an updater that unzips upstream releases into
+  `/media/mmcblk0p1` — a plain rootfs directory on Debian, not the FAT
+  partition — and then reboots the board. `update_start()` now returns
+  early on Debian and the admin Update tab shows an apt-managed notice
+  instead. Verified on hardware ("UPDATE: Debian-managed system,
+  built-in updater disabled" in the log).
 
 ## [2026-10-19] — pin-bump no-IP investigation: resolved (bad flash write)
 

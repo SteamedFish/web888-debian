@@ -26,6 +26,11 @@ web888-websdr (2026.1012-1) UNRELEASED; urgency=medium
       upstream rewrote the console so kiwi_output_msg() performs the
       only decodeURIComponent — keeping no_decode:true rendered raw
       %-encoded text in the admin console.
+    - new patch 0026 disables the stock online updater on Debian:
+      update_start() returns early (the stock updater would unzip an
+      upstream release into /media/mmcblk0p1 — a plain rootfs directory
+      on Debian — then reboot) and the admin Update tab is replaced
+      with an apt-managed notice.
   * KiwiSDR upstream check (c40ecb47 v1.902 → 3b570602): nothing to
     cherry-pick — the only new commits replace Kiwi-hardware FPGA
     bitstreams.

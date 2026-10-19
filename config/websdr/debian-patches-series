@@ -184,3 +184,9 @@
 # FIXME at the DUC call site (eth0 hardwire) is retired with the flag.
 0024-duc-frpc-debian.patch
 0025-acarsdec-external.patch
+
+# 0026: disable the stock online updater on Debian. update_start() returns
+# early when debian_maj != 0 (the stock updater unzips an upstream release
+# into /media/mmcblk0p1 — a plain rootfs directory on Debian — then reboots),
+# and the admin Update tab is replaced with an apt-managed notice.
+0026-update-disable-debian.patch
