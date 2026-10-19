@@ -9,6 +9,20 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-19] — pin-bump hardware testing: admin console fix
+
+### Fixed
+
+- **Admin console rendered URL-encoded text** (e.g.
+  `CONSOLE%3a%20open%20connection%0a...`) — regression carried by patch
+  `0022-console-no-double-decode`: written for the old pin where
+  `kiwi_output_chars()` pre-decoded the text (so `no_decode:true`
+  prevented a double decode), but the new pin rewrote the console path
+  and `kiwi_output_msg()` is now the ONLY decode. Patch dropped from
+  the series; console verified working on hardware. The '%'-safety
+  fixes 0020/0021 remain and keep shell output containing '%' safe
+  through the single decode.
+
 ## [2026-10-19] — pin-bump no-IP investigation: resolved (bad flash write)
 
 ### Fixed

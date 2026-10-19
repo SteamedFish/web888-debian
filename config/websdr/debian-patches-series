@@ -146,10 +146,14 @@
 # double_fail when nothing was removed.
 0021-decodeURIComponent-infinite-loop.patch
 
-# console_c2w text is decoded once by kiwi_output_chars(); admin.console did not
-# set no_decode, so kiwi_output_msg() decodeURIComponent()d it again and failed on
-# shell output containing % (df "43%", ping "0%"). Set no_decode: true.
-0022-console-no-double-decode.patch
+# DROPPED at pin 4dfecc46 (2026-10-19): 0022-console-no-double-decode
+# Upstream rewrote the console path: console_c2w now passes the still-encoded
+# text straight to kiwi_output_msg(), which decodes it (its own comment says
+# so) — the old kiwi_output_chars() pre-decode no longer exists, so
+# no_decode:true suppresses the ONLY decode and the console renders raw
+# %-encoded text. Verified on hardware (admin console showed
+# "CONSOLE%3a%20open%20connection%0a..."). 0020/0021 still make '%' in shell
+# output safe through the single decode.
 
 # 0023: Debian USB-WiFi support for the admin network page. Wraps the three
 # WiFi widgets (mode/SSID/password) so real user edits set adm.wifi_configured;

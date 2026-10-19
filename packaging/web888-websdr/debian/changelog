@@ -22,6 +22,10 @@ web888-websdr (2026.1012-1) UNRELEASED; urgency=medium
       (new patch 0025; Debian trixie has no acarsdec package).
     - binary auto-update remains disabled (Debian package managed);
       upstream's new defaults (update_check/install off) match ours.
+    - 0022-console-no-double-decode dropped after hardware testing:
+      upstream rewrote the console so kiwi_output_msg() performs the
+      only decodeURIComponent — keeping no_decode:true rendered raw
+      %-encoded text in the admin console.
   * KiwiSDR upstream check (c40ecb47 v1.902 → 3b570602): nothing to
     cherry-pick — the only new commits replace Kiwi-hardware FPGA
     bitstreams.
