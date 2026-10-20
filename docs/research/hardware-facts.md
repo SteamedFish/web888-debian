@@ -222,6 +222,17 @@ when they conflict.
     multi-byte BURST reads are unreliable (the chip has no
     auto-increment) — a "registers identical across different configs"
     observation is a burst-read artifact.
+  - **Si5351 is a clone part, PLLB dead (verified 2026-10-20)**:
+    reg183 (crystal load) reads 0xC0 instead of the datasheet's
+    mandatory `0bxx010010` reserved pattern; reg0 bit0 (SYS_INIT)
+    reads 1 permanently and bit7 toggles at ~4 Hz; **PLLB never locks
+    under any programming recipe** (single-byte/burst writes, copy of
+    PLLA's live config, VCO sweep 614–786 MHz, cold/warm, long power
+    discharge) while PLLA locks fine in the same sessions. Nothing in
+    pre-2026.10 firmware ever used PLLB, so the defect was invisible
+    until the new-pin airband path (98.304/110.592 MHz profiles).
+    websdr ships a fallback (patch 0029) that keeps AIR band on the
+    HF clock instead of panicking.
 ## Discovery procedure (blind boot, DHCP + avahi mDNS)
 
 1. Boot device with new card.

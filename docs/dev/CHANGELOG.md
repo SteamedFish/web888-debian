@@ -19,6 +19,19 @@ this is a hard project rule).
   release images verified unaffected).
 
 
+- **AIR band toggle crash-looped websdr** (`SYS_PANIC: i2c si5351
+  ADC PLL failed to lock`, systemd restart loop): root cause is
+  hardware, not software — this unit's Si5351 is a clone part whose
+  PLLB never locks under any programming recipe (verified with a day
+  of on-device i2c experiments; KNOWN-ISSUES §11 and
+  docs/research/hardware-facts.md carry the full evidence). The new
+  pin is the first firmware that ever exercises PLLB on web-888, so
+  the defect was invisible before. Patch 0029 replaces the panic with
+  a logged fallback to the nominal HF clock + vhf bitstream (pre-bump
+  airband behavior — no more crash loop). Patch 0030 (program PLLB
+  before switching the mux to it, per AN619) is kept as defensively
+  correct ordering but does not make PLLB lock on this unit.
+
 - **Admin console echoed single characters as mojibake** (`df` displayed
   as `dfÒà\±à\±…`) — root-caused with an on-device instrumented build
   (`CONSOLE-DBG` read/write hex dumps in `ui/admin.cpp`): the pty layer

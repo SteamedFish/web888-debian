@@ -308,3 +308,61 @@ shell with a NULL envp (no `TERM`). Fixed by
 `0028-console-child-term-env` (minimal env: `TERM=xterm-256color`,
 `LANG`, `PATH`). Both verified on hardware 2026-10-20: exact character
 echoes, `TERM=xterm-256color`, readline bracketed-paste active.
+
+## 11. AIR band: Si5351 PLLB never locks on this unit's clone clock chip — graceful fallback shipped (patch 0029)
+
+Found 2026-10-20: switching admin → AIR band at the bumped pin
+(2026.1012-1) crash-looped websdr: `SYS_PANIC: "i2c si5351 ADC PLL
+failed to lock"` (zynq/peri.cpp), systemd restart counter spinning.
+
+**Final verdict (2026-10-20, after a day of on-device i2c
+experiments): the PLLB of this unit's Si5351-compatible (clone) clock
+chip is non-functional. AIR band with the new-pin 98.304/110.592 MHz
+ADC clock profiles is not usable on this hardware; HF is unaffected.**
+
+Evidence (all live on the device, websdr masked/unmasked, cold and
+warm, POR through websdr-initialized states):
+
+- PLLB never reached a verifiable lock: LOL_B (reg0 bit6) stuck at 1
+  across every recipe tried — single-byte writes, burst writes, exact
+  copy of PLLA's live working config into MSNB, VCO sweep
+  a=25..32 (614–786 MHz), with/without PLLA locked, with the CLK0 mux
+  held on PLLA (patch 0030 order), after warm reboots and after a
+  15-minute+ full power discharge. PLLA locks reliably in the same
+  sessions (LOL_A=0), same driver, same bus — the defect is
+  PLLB-specific.
+- Three apparent PLLB locks early in the investigation (config-copy
+  test) could not be reproduced afterwards under any conditions and
+  are treated as unreliable status-register readings (this clone's
+  reg0 is quirky: SYS_INIT bit0 reads 1 permanently, bit7 toggles at
+  ~4 Hz, reg183 reads 0xC0 instead of the datasheet's mandatory
+  0bxx010010 pattern).
+- websdr's own `Si5351::init()` programs PLLB to 800 MHz at every
+  start; it never locks either — harmless because nothing routes a
+  clock from PLLB except the new-pin airband path.
+- Why it went unnoticed: PLLB was never exercised by any earlier
+  firmware (old pins and the stock firmware kept the HF clock for
+  airband and only swapped the FPGA bitstream). The new pin is the
+  first software that needs PLLB on web-888; upstream developed it on
+  RaspSDR hardware whose genuine Si5351 presumably locks fine.
+
+Shipped behavior:
+
+- `0029-airband-pllb-lock-fallback` — the lock-fail `sys_panic` is
+  replaced by a logged warning + fallback to the nominal HF clock
+  (PLLA 66.666 MHz) while still loading the vhf bitstream, i.e. the
+  pre-bump airband behavior. No more crash loop; AIR band simply
+  behaves like the old pin on this hardware.
+- `0030-airband-mux-switch-after-lock` — programs PLLB with the CLK0
+  mux still on PLLA and switches the mux only after lock (AN619's
+  recommended order; adds `Si5351::set_pll_assignment()`). Kept as
+  defensively correct ordering, but it does NOT make PLLB lock on
+  this unit.
+
+Operations notes:
+
+- The admin UI manages `freq_offset` (98304 kHz for the 98.304
+  profile) on BOTH toggle directions (admin.js `airband_switch_cb`);
+  hand-editing `admin.json` `airband` without resetting
+  `websdr.json` `freq_offset` leaves the UI frequency scale shifted
+  by +98.304 MHz (HF signals under airband labels).
