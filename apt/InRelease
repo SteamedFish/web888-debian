@@ -4,30 +4,30 @@ Hash: SHA512
 Architectures: armhf
 Codename: stable
 Components: main
-Date: Tue, 20 Oct 2026 07:18:23 +0000
+Date: Tue, 20 Oct 2026 07:35:05 +0000
 Label: web888
 Origin: web888
 Suite: stable
 MD5Sum:
- 185393803cd05b21739c5c512db437a2            55588 Packages
- 1bcfbb4395334e27c25e168bee2bffc7            11951 Packages.gz
- 5d030bcd2760a7257128b1c9ce962b14              136 Release
+ f3fec9f0652ad70622e5ff8bad8b651f            55631 Packages
+ 2ad333efdea549d8629b533a986838d3            11779 Packages.gz
+ 52d67d5b31e2f2d67ecd2c3ca44dac88              136 Release
 SHA1:
- 32c1609c18f7457ba65c86f506e17e2862f3c140            55588 Packages
- d47369dde095098ae9c2a728edd7057fda1b3e81            11951 Packages.gz
- a2174095fcc914649dc2b92a997dc5a71e180dc5              136 Release
+ c9e5ea24ed2221138574143042e9ffc2f92116c3            55631 Packages
+ a88873651fa815577840bb00d343bd63512886c5            11779 Packages.gz
+ 8da5ed96d91118bd0464c38564adfc54bd7c5879              136 Release
 SHA256:
- 816fa82b4ca0dc9950758164949374e4efd9f665369d63b4d746d9b9b3d77855            55588 Packages
- 0ba00869ff8f1677f6c89fcdb6fa9e6e8adb65c7b9639b43f3242eabbd1c5790            11951 Packages.gz
- 2c051a66f7526516503b4b267fd6af0dc0a95d070f92c684d7f44563f71bb76d              136 Release
+ d552f33592640491caa7dfd6f17a27496ad915aba127ee1258cfa6c0e3223805            55631 Packages
+ 8ffff34b334a13de38845dce5e9c88985f1e28fb0a18dd0fc2599e466e6b26cb            11779 Packages.gz
+ 7047c4c3fd82424b10d5698319596ccad82b1bca7c5d03c213d42c1076473bac              136 Release
 SHA512:
- 677ceb9b4633d2c694a3e9c4d0bca374cb00b52ec0f01cde4301241b6d28a283e5cd421bf06be4d74ae45c95a0a7ff5ab2e68f1020b38d699554e22f87718fd1            55588 Packages
- 044a299cf531ecc60c0adca7e4eaa5ba151918d06455c8225e518e13330d76ce9ffb46d431971ca3519f19abaf2057af69c2092b224fe7ca2358ebff79cf73f7            11951 Packages.gz
- 6c48d4927497a5cef618aa1f6468160cc1c7ac760a927bb7788b7ff7b5f5a48a6adeccd290b84770a7542c69ab136ee9a6d3f1d4c5f36dc27ac25e33fb32b892              136 Release
+ 6952b977e7cabe7ca4206354739b56e7c127ca75726cbf04cc5e0cc8be52fb92209732855db825de99761e15533d305ed9f560feb351b9a5513d13f87d256267            55631 Packages
+ d7ab20d65a954a0bbb46f9dc546d914e4ecd3b2febf47c1434821ea9cff8cdb6c9399f5765ac9927b656e64c74ba7c30640d300b4d3b0f40b336f8a2983c303e            11779 Packages.gz
+ e3885d6dc261c2bef2423ae8f17ccb364a92e46b4658f5697ffa177ccf6c8082dd7db09920ebef0995cb7de3907bb77b88022b56ccacde6e34f13ecf8b2f6b32              136 Release
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQQxzhu9+gO9nuxiXH/F1BaePAiW4wUCatcVvwAKCRDF1BaePAiW
-46Q/AP9afifWlZuI/GsTAtTyj0RNXcDAnmlrEbbrKG6qOt9QUgD/dmix77uzg908
-pHo0QA6o06K0+Vyu9njEhmeQnGeoqwI=
-=wbg7
+iHUEARYKAB0WIQQxzhu9+gO9nuxiXH/F1BaePAiW4wUCatcZqQAKCRDF1BaePAiW
+4xhyAP9ZQ/k+tBCMTd/AEtOFlRnlbVeiR7gYtLRxIxtX0iEcUQEAsCB1TZ0x5qEv
+j/6kXEKnhy+C9SAnXTUWi69cEZngDwM=
+=1a+C
 -----END PGP SIGNATURE-----

@@ -1039,44 +1039,6 @@ Description: No-IP Dynamic Update Client (https://www.noip.com)
  ```
 
 Package: web888-boot
-Version: 2026.07-2+ci17
-Architecture: armhf
-Maintainer: SteamedFish <steamedfish@hotmail.com>
-Installed-Size: 1940
-Filename: ./web888-boot_2026.07-2+ci17_armhf.deb
-Size: 367796
-MD5sum: f60b0b44b7677cbc84e21dde15410b64
-SHA1: b14165fe7e485c121aca6f6a8a6f7ba3ffa6d10c
-SHA256: 4e6d52b8a1b824616ccf5f262298961dcf75c1aeae72e02c135368fc39cf469a
-Section: admin
-Priority: optional
-Homepage: https://github.com/steamedfish/web888-debian
-Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
- Bootloader package for the Web-888 Debian image (uboot chain): the
- packed boot.bin (source-built Xilinx zynq_fsbl + mainline U-Boot as
- SSBL), the individual FSBL / U-Boot binaries, the compiled boot.scr,
- and the default uEnv.txt, staged under /usr/lib/web888-boot/.
- .
- On configure, the payload is installed onto the FAT boot partition
- mounted at /boot: boot.bin and boot.scr are replaced via
- temp-file + sync + rename with one-generation .bak backups; uEnv.txt
- is only installed when absent (it is the on-device kernel-selection
- knob and user edits are never overwritten). When /boot/boot.bin does
- not exist (chroot / image build) the install step is skipped, so the
- package is safe during rootfs assembly.
- .
- Only the uboot boot chain is supported; the stub chain embeds
- kernel+dtb inside boot.bin and stays rollback-only.
- .
- The package also ships /etc/kernel/postinst.d/zz-web888-zimage, which
- syncs the FAT /boot/zImage (U-Boot's fixed-name kernel, gzip
- self-extractor format) with /boot/vmlinuz-<kver> whenever a kernel
- package is installed or upgraded, rotating the previous image to
- zImage.prev as the rollback kernel. The hook is a no-op outside the
- live system (chroot, non-vfat /boot, or missing boot.bin) and refuses
- non-gzip images, so a bad kernel package cannot brick boot.
-
-Package: web888-boot
 Version: 2026.07-3+ci21
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
@@ -1162,6 +1124,44 @@ Size: 369700
 MD5sum: 20ed995f6ee44d7beffb9058c4417738
 SHA1: 521bdae0245b7fa11bf3bad59829869f668f16bd
 SHA256: f44f3f5c8c7e70a26dfa4de15347fb63280f79726c0b6b0ac97ffb677fc457e0
+Section: admin
+Priority: optional
+Homepage: https://github.com/steamedfish/web888-debian
+Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
+ Bootloader package for the Web-888 Debian image (uboot chain): the
+ packed boot.bin (source-built Xilinx zynq_fsbl + mainline U-Boot as
+ SSBL), the individual FSBL / U-Boot binaries, the compiled boot.scr,
+ and the default uEnv.txt, staged under /usr/lib/web888-boot/.
+ .
+ On configure, the payload is installed onto the FAT firmware partition
+ mounted at /boot/firmware: boot.bin and boot.scr are replaced via
+ temp-file + sync + rename with one-generation .bak backups; uEnv.txt
+ is only installed when absent (it is the on-device kernel-selection
+ knob and user edits are never overwritten). When
+ /boot/firmware/boot.bin does not exist (chroot / image build, or an
+ old-layout device with the FAT at /boot) the install step is skipped,
+ so the package is safe during rootfs assembly and on legacy images.
+ .
+ Only the uboot boot chain is supported; the stub chain embeds
+ kernel+dtb inside boot.bin and stays rollback-only.
+ .
+ The package also ships /etc/kernel/postinst.d/zz-web888-zimage, which
+ points the /boot/zImage symlink (the fixed name boot.scr ext4-loads
+ from the rootfs) at /boot/vmlinuz-<kver> whenever a kernel package is
+ installed or upgraded, rotating the previous target to zImage.prev as
+ the rollback kernel. Symlinks only — no copies, no mount requirements,
+ so the hook also runs correctly inside the image-build chroot.
+
+Package: web888-boot
+Version: 2026.10-1+ci26
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 1949
+Filename: ./web888-boot_2026.10-1+ci26_armhf.deb
+Size: 369612
+MD5sum: 49d5f133b987138d9944e9205a6c3408
+SHA1: ebd0083cd8ab5e42f2b33146f2fd9abc61b3d467
+SHA256: 295485d6aca26f78d4aa00410b4753b4e56fe8818b9dd69e50ab39801dffdc4a
 Section: admin
 Priority: optional
 Homepage: https://github.com/steamedfish/web888-debian
