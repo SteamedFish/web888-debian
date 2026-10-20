@@ -116,7 +116,10 @@ sudo chown -R "$USER":"$USER" "$OUT"
 sudo bash -c "rm -rf \"$CHROOT/root/boot-pkg\" \"$CHROOT\"/root/${PKG}_*"
 
 # --- sentinels ----------------------------------------------------------
-DEB=$(ls "$OUT"/${PKG}_*_armhf.deb 2>/dev/null | head -1)
+# pick the deb matching debian/changelog's version — a lexical glob picks up
+# stale older builds left in $OUT (e.g. 2026.07-3 sorted before 2026.10-1)
+VER=$(dpkg-parsechangelog -l "$(dirname "$0")/../packaging/web888-boot/debian/changelog" -S Version)
+DEB="$OUT/${PKG}_${VER}_armhf.deb"
 [[ -f $DEB ]] || { echo "Error: deb not produced" >&2; touch "$OUT/$PKG.deb-build-failed"; exit 1; }
 
 fail=0

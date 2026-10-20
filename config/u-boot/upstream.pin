@@ -1,11 +1,11 @@
 # U-Boot upstream pin — web888 step 6 (mainline, no SPL; see build-uboot.sh)
 url: https://github.com/u-boot/u-boot.git
-tag: v2026.07
-commit: ece349ade2973e220f524ce59e59711cc919263f
+tag: v2026.10
+commit: 5508406582f6f7120dce0c4b3059819a41788db2
 dir: work/u-boot
 notes: >
-  Mainline U-Boot release tag v2026.07 (annotated tag object
-  5b7003b7dd0ffb2d98f46edae3d818d9d1adc2bf dereferences to this commit).
+  Mainline U-Boot release tag v2026.10 (annotated tag object
+  a58e2b7af42c179ace2c6210de0a219fa3f3cf3c dereferences to this commit).
   The dir field overrides the default work/<name>-src layout:
   build-uboot.sh materializes the config/u-boot/ patches into work/u-boot
   (gitignored tree, same pattern as build-kernel.sh).

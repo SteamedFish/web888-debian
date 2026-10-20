@@ -65,9 +65,13 @@ echo "==> copying into chroot"
 sudo rm -rf "$CHROOT"/root/websdr-pkg
 sudo rsync -a work/websdr-pkg/ "$CHROOT"/root/websdr-pkg/
 
-# anomaly guards: a stale quilt .pc dir makes dpkg-source skip applying patches
-# (silently building a pristine tree), and staging steps can silently no-op on
-# this host. Wipe .pc and verify the staged patch set before building.
+# anomaly guards: dpkg-source --before-build dry-run-checks only the FIRST
+# series patch and silently applies NOTHING when it doesn't apply strictly
+# (V3/Quilt.pm check_patches_applied treats "fails to apply" like "already
+# applied" — a fuzz-needing 0001 once made it skip all 66 patches and build
+# a pristine tree, 2026-10-20). A stale quilt .pc dir causes the same skip,
+# and staging steps can silently no-op on this host. Wipe .pc, verify the
+# staged patch set, and after the build require N applied lines in the log.
 sudo rm -rf "$CHROOT"/root/websdr-pkg/web888-websdr/.pc
 # expected patch count comes from the committed series file, so adding a new
 # patch never makes the sentinel stale (the take-38 false-fail lesson).

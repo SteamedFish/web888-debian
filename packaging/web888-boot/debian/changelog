@@ -1,3 +1,11 @@
+web888-boot (2026.10-1) UNRELEASED; urgency=medium
+
+  * U-Boot v2026.07 → v2026.10 (mainline release 55084065). Board patches
+    0001 (dts Makefile) and 0002 (EEPROM MAC hook) re-applied cleanly;
+    QEMU gate (test-qemu.sh uboot) passed on the v2026.10 binary.
+
+ -- SteamedFish <69167+SteamedFish@users.noreply.github.com>  Mon, 20 Oct 2026 13:20:00 +0800
+
 web888-boot (2026.07-3) UNRELEASED; urgency=medium
 
   * ext4 /boot refactor: the kernel moves from the FAT partition to the

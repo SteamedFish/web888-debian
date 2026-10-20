@@ -9,6 +9,30 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-20] — upstream version bumps: kernel 6.12.111, U-Boot v2026.10, websdr 6445a00
+
+- **Kernel**: pin `6.12.100-1` → `6.12.111-1` (`KVER`/`KREV`/`KSNAP` in
+  `build-kernel-6.12.sh`; snapshot timestamp refreshed for the new
+  version). Local build verified: DTB drift check identical, deb
+  installed into rootfs with `zImage.prev` rollback chain kept.
+- **U-Boot**: pin `v2026.07` → `v2026.10` (commit `55084065`). Both
+  board patches (dts Makefile, EEPROM MAC) apply cleanly; QEMU gate
+  passed (`U-Boot 2026.10-dirty` → boot.scr → login prompt).
+  `web888-boot` deb bumped to `2026.10-1`.
+- **websdr**: upstream pin `4dfecc46` → `6445a00` (master 2026-10-18,
+  4 commits: Super NR denoising with rx/super_nr FFTW DSP, FST4W spots
+  to WSPRnet, native updater tests). Patches 0001/0004 regenerated
+  against the new pin (upstream added super_nr CMake wiring and an
+  updater `fail_reason` block); series re-verified with strict
+  `git apply` (66/66, zero fuzz) after catching a wrong-base rebase
+  (ambiguous tag/branch `base` refname in the scratch repo replayed the
+  series onto the OLD pin — see the REBASE WARNING comment in
+  `config/websdr/debian-patches-series`).
+- **Fixed** latent version-glob bugs: `install-kernel-deb.sh`,
+  `build-boot-deb.sh` and `install-boot-deb.sh` picked debs by lexical
+  order (`100` < `111`, `2026.07` < `2026.10`) — all now derive the
+  expected version from the corresponding pin/changelog.
+
 ## [2026-10-20] — pin-bump hardware testing: console echo garbage + TERM fixed
 
 - **CI**: bumped `actions/checkout`, `upload-artifact`,

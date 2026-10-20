@@ -13,7 +13,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ROOTFS=work/rootfs
-DEB=$(ls output/boot/web888-boot_*_armhf.deb 2>/dev/null | head -1)
+VER=$(dpkg-parsechangelog -l "$(dirname "$0")/../packaging/web888-boot/debian/changelog" -S Version)
+DEB="output/boot/web888-boot_${VER}_armhf.deb"
 
 [[ -n $DEB ]] || {
     echo "error: no output/boot/web888-boot_*_armhf.deb (run build-boot-deb.sh first)" >&2
