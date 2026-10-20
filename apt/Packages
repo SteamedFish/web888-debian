@@ -1185,16 +1185,16 @@ Description: Red Pitaya app stack for Web-888 (RX-888) SDR - Debian build
  gr-osmosdr), led_blinker (FPGA-load smoke test).
 
 Package: web888-websdr
-Version: 2026.730-10+ci13
+Version: 2026.1012-1+ci16
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
-Installed-Size: 46420
-Depends: libc6 (>= 2.38), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.1.4), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc
-Filename: ./web888-websdr_2026.730-10+ci13_armhf.deb
-Size: 30662888
-MD5sum: 203566a3f864610f5e7e5e663d67c295
-SHA1: af52af9ed921b4c1f965b3512263f574e45dd2f0
-SHA256: 5b9a4fa2f29b17186fdb8a15085470d640137e35c6d39d073d3fd143068562d5
+Installed-Size: 49599
+Depends: libc6 (>= 2.38), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libssl3t64 (>= 3.0.0), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.2.0), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc, acarsdec
+Filename: ./web888-websdr_2026.1012-1+ci16_armhf.deb
+Size: 32397368
+MD5sum: f1850eb74f02da50b0adbd06515c9917
+SHA1: 5b77a21e284ccca141014447229a0e74fe69654e
+SHA256: 304aa17f67ffaa7640a4ed536d4bffc3434f441e5e6e422a4e90ac154320f8d8
 Section: hamradio
 Priority: optional
 Homepage: https://github.com/RaspSDR/server
