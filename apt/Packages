@@ -1232,16 +1232,16 @@ Description: Red Pitaya app stack for Web-888 (RX-888) SDR - Debian build
  gr-osmosdr), led_blinker (FPGA-load smoke test).
 
 Package: web888-redpitaya
-Version: 2025.430-2+ci9
+Version: 2025.430-2+ci13
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
 Installed-Size: 4172
 Depends: libc6 (>= 2.34), libgcc-s1 (>= 3.5), libstdc++6 (>= 5.2)
-Filename: ./web888-redpitaya_2025.430-2+ci9_armhf.deb
-Size: 879680
-MD5sum: 2b9f42d9102ab8a3031997e089869462
-SHA1: d174c241fc77b4b6920dc47ae08a029a43bf1466
-SHA256: 60b53dd4e00cfd4b15dfeb42c3256c418876b7efab2f6a0e634c3cefc5b373cd
+Filename: ./web888-redpitaya_2025.430-2+ci13_armhf.deb
+Size: 880120
+MD5sum: ceebf1cc9b47ec1f48c1e4579164d365
+SHA1: f031b36c18654b36b187f69da148966d89fb637f
+SHA256: 8611ea150ba83019fefe79d75be2e2b19158af00ddc9e1b195c4f319292614d4
 Section: hamradio
 Priority: optional
 Homepage: https://github.com/RaspSDR/red-pitaya-notes
