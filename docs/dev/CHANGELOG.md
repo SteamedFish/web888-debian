@@ -9,6 +9,19 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-20] — CI: finish the Node 20 deprecation sweep
+
+### Changed
+- Follow-up to the v4→v5 action bump: `actions/download-artifact@v5` and
+  `actions/upload-artifact@v5` still declared `runs.using: node20`, as did
+  `crazy-max/ghaction-import-gpg@v6`, `dorny/paths-filter@v3` and
+  `hendrikmuhs/ccache-action@v1.2` (the floating v1.2 tag points at a stale
+  release). Bumped to download-artifact@v7, upload-artifact@v7,
+  ghaction-import-gpg@v7, paths-filter@v4 and ccache-action@v1.2.24 — all
+  `node24`; `actions/checkout@v5` was already node24. Inputs used
+  (name/path/retention-days, gpg keys, filters, max-size/key) are stable
+  across these majors. Verified each action.yml's `runs.using` upstream.
+
 ## [2026-10-20] — CI: smoke gates survive the kernel publish window
 
 ### Fixed

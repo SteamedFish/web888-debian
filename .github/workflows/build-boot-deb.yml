@@ -147,7 +147,7 @@ jobs:
       - name: Build the boot deb
         run: bash scripts/build-boot-deb.sh
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: debs-boot
           path: output/boot/*.deb
@@ -190,7 +190,7 @@ jobs:
           done
           echo "Error: APT repo unreachable" >&2; exit 1
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: debs-boot
           path: debs/
@@ -237,12 +237,12 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 update
           sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends dpkg-dev apt-utils
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: debs-boot
           path: debs/
 
-      - uses: crazy-max/ghaction-import-gpg@v6
+      - uses: crazy-max/ghaction-import-gpg@v7
         with:
           gpg_private_key: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
