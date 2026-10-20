@@ -1,3 +1,43 @@
+Package: acarsdec
+Version: 4.6-1web8881+ci12
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 76
+Depends: libc6 (>= 2.34), libsndfile1 (>= 1.0.20)
+Filename: ./acarsdec_4.6-1web8881+ci12_armhf.deb
+Size: 24440
+MD5sum: 7310337961c5e1071e0d9a29d3b38d9e
+SHA1: 3d408e918a903a1d347aa608912a216cbb1f43b1
+SHA256: 20d01e76a2dd2cc2e91fde84b02dcaf51f12d6691bbc40d2cf171a75a3b6d2ce
+Section: hamradio
+Priority: optional
+Homepage: https://github.com/f00b4r0/acarsdec
+Description: ACARS decoder (minimal raw-PCM build)
+ acarsdec is a multi-channel ACARS (Aircraft Communications Addressing and
+ Reporting System) decoder. This package is built for the Web-888 SDR with
+ only the libsndfile input enabled: it decodes raw 12 kHz mono S16LE PCM
+ from stdin (acarsdec --sndfile file=/dev/stdin,subtype=0x02) and writes
+ text reports to stdout. All SDR hardware backends (RTL-SDR, Airspy,
+ SDRplay, SoapySDR), ALSA, MQTT and libacars support are disabled.
+
+Package: acarsdec-dbgsym
+Source: acarsdec
+Version: 4.6-1web8881+ci12
+Auto-Built-Package: debug-symbols
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 109
+Depends: acarsdec (= 4.6-1web8881+ci12)
+Filename: ./acarsdec-dbgsym_4.6-1web8881+ci12_armhf.deb
+Size: 59880
+MD5sum: 5eb0bb3654e50bf62b8d057b188c9fad
+SHA1: 8160159bf417b2c3a7faef75e53fb337d7b8e694
+SHA256: 611d76b1962a69f450927873f345adf6f2fc15833b17458817ce8a9e9fc2c554
+Section: debug
+Priority: optional
+Description: debug symbols for acarsdec
+Build-Ids: 9f2266703ec7d2860e4a9fc8e726735ffd1243c5
+
 Package: dumphfdl
 Version: 1.7.0-1web8881+ci10
 Architecture: armhf
