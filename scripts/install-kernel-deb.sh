@@ -7,7 +7,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ROOTFS=work/rootfs
-DEB=$(ls output/kernel/linux-image-*_armhf.deb 2>/dev/null | grep -v -- -dbg | head -1)
+# Pick the deb matching the pinned KVER in build-kernel-6.12.sh — a plain
+# `ls | head -1` sorts 6.12.100 before 6.12.111 lexically and silently
+# installs the OLD kernel when both families sit in output/kernel/.
+KVER=$(sed -n 's/^KVER=//p' scripts/build-kernel-6.12.sh)
+DEB=$(ls output/kernel/linux-image-${KVER}-web888_${KVER}-*_armhf.deb 2>/dev/null | grep -v -- -dbg | sort -V | tail -1)
 
 [[ -n $DEB ]] || {
     echo "error: no output/kernel/linux-image-*_armhf.deb (run build-kernel-6.12.sh first)" >&2

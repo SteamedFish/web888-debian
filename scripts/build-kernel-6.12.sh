@@ -16,7 +16,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-KVER=6.12.100
+KVER=6.12.111
 KREV=1
 # snapshot.debian.org timestamp whose main archive still carries
 # linux_${KVER}-${KREV} — the live pool drops superseded point releases
@@ -24,7 +24,7 @@ KREV=1
 # When bumping KVER/KREV, refresh this from
 # https://snapshot.debian.org/mr/package/linux/${KVER}-${KREV}/srcfiles?fileinfo=1
 # (pick a 'debian' archive entry's first_seen).
-KSNAP=20260803T203533Z
+KSNAP=20261011T144745Z
 KDIR=work/linux-debian-6.12
 DL=work/downloads/linux-${KVER}
 CROSS=arm-linux-gnueabihf-
