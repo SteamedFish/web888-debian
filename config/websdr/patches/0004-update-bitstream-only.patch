@@ -1,8 +1,8 @@
 diff --git a/net/update.cpp b/net/update.cpp
-index 1f1c6b3..93f7bfa 100644
+index 082173a..88c90b6 100644
 --- a/net/update.cpp
 +++ b/net/update.cpp
-@@ -421,6 +421,20 @@ static bool update_dir_create()
+@@ -424,6 +424,20 @@ static bool update_dir_create()
  
  static int update_build(conn_t* conn, bool report, const release_t& release)
  {
@@ -23,7 +23,7 @@ index 1f1c6b3..93f7bfa 100644
      sd_enable(true);
      int status = EXIT_FAILURE;
      std::string archive = update_dir() + "/" + release.filename;
-@@ -543,14 +557,8 @@ static void _update_task(void* param) {
+@@ -546,17 +560,8 @@ static void _update_task(void* param) {
          lprintf("UPDATE: release changed (current %d.%d, new %d.%d), automatic install not enabled\n",
                  version_maj, version_min, pending_maj, pending_min);
  
@@ -32,8 +32,11 @@ index 1f1c6b3..93f7bfa 100644
 -            sd_enable(true);
 -            bool downloaded = update_dir_create() && download_release(NULL, false, release);
 -            sd_enable(false);
--            if (!downloaded)
+-            if (!downloaded) {
+-                if (fail_reason == FAIL_NONE)
+-                    fail_reason = FAIL_DOWNLOAD;
 -                lprintf("UPDATE: automatic release download failed\n");
+-            }
 -        }
 +        // Debian: auto-download of the Alpine release ZIP disabled (deb-managed).
 +        (void) update_download;

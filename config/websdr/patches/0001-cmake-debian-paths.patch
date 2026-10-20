@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index eec9c9b..7ef6d42 100644
+index 78aa98f..22134f8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -76,7 +76,7 @@ pkg_check_modules(SSL REQUIRED openssl)
@@ -11,8 +11,8 @@ index eec9c9b..7ef6d42 100644
  endif()
  
  if(EMULATOR)
-@@ -225,6 +225,10 @@ file(GLOB_RECURSE KIWI_SRCS
-     "${UPSTREAM_DIR}/pkgs/mqtt-c/*.c"
+@@ -234,6 +234,10 @@ set_source_files_properties(${SUPER_NR_SOURCES} PROPERTIES
+     COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off"
  )
  
 +# Debian: dpkg-source (3.0 quilt) keeps pristine backups in .pc/ and
@@ -20,9 +20,9 @@ index eec9c9b..7ef6d42 100644
 +list(FILTER KIWI_SRCS EXCLUDE REGEX "/\\.pc/")
 +
  add_executable(websdr.bin ${KIWI_SRCS} ${EXT_SRCS}
+     "${UPSTREAM_DIR}/rx/super_nr/super_nr.c"
      ${CMAKE_BINARY_DIR}/edata_always.cpp ${CMAKE_BINARY_DIR}/edata_always2.cpp ${CMAKE_BINARY_DIR}/edata_embed.cpp
- )
-@@ -282,6 +286,7 @@ target_link_libraries(websdr.bin PRIVATE
+@@ -292,6 +296,7 @@ target_link_libraries(websdr.bin PRIVATE
      ${CONFIG_LIBRARIES}
      ${CURL_LIBRARIES}
      ${SSL_LIBRARIES}
@@ -30,7 +30,7 @@ index eec9c9b..7ef6d42 100644
  )
  
  if(EMULATOR)
-@@ -351,13 +356,13 @@ if (${CURRENT_MONTH_DAY} MATCHES "^0[0-9].*")
+@@ -389,13 +394,13 @@ if (${CURRENT_MONTH_DAY} MATCHES "^0[0-9].*")
      string(SUBSTRING ${CURRENT_MONTH_DAY} 1 3 CURRENT_MONTH_DAY)
  endif()
  
@@ -47,7 +47,7 @@ index eec9c9b..7ef6d42 100644
  endif()
  
  # Generate a version file based on year and month day
-@@ -371,6 +376,10 @@ target_compile_definitions(websdr.bin PUBLIC
+@@ -409,6 +414,10 @@ target_compile_definitions(websdr.bin PUBLIC
      KIWI KIWISDR
      DIR_CFG="${RUNTIME_CFG_DIR}"
      DIR_SAMPLES="${RUNTIME_SAMPLES_DIR}"
@@ -58,7 +58,7 @@ index eec9c9b..7ef6d42 100644
      CFG_PREFIX=""
      DIR_DATA=STRINGIFY\(${DIR_DATA}\)
      BUILD_DIR="${PROJECT_BINARY_DIR}"
-@@ -395,7 +404,7 @@ if(ENABLE_ACARS)
+@@ -433,7 +442,7 @@ if(ENABLE_ACARS)
      if(NATIVE_HARNESS)
          set(ACARSDEC_RUNTIME_BIN "${PROJECT_BINARY_DIR}/acarsdec")
      else()
@@ -67,7 +67,7 @@ index eec9c9b..7ef6d42 100644
      endif()
  
      target_compile_definitions(websdr.bin PUBLIC
-@@ -478,7 +487,7 @@ foreach(file ${FILES_EMBED_FILES})
+@@ -516,7 +525,7 @@ foreach(file ${FILES_EMBED_FILES})
      file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/htdoc/${FOLDER}")
  
      LIST(APPEND FILES_EMBED_FILES_OUTPUT ${PROJECT_BINARY_DIR}/htdoc/${target_path})
@@ -76,7 +76,7 @@ index eec9c9b..7ef6d42 100644
          add_custom_command(
              OUTPUT ${PROJECT_BINARY_DIR}/htdoc/${target_path}
              DEPENDS ${UPSTREAM_DIR}/web/${file}
-@@ -487,7 +496,7 @@ foreach(file ${FILES_EMBED_FILES})
+@@ -525,7 +534,7 @@ foreach(file ${FILES_EMBED_FILES})
                  -o ${PROJECT_BINARY_DIR}/htdoc/${target_path} # Destination path in build directory
              COMMENT "Minify CSS ${file} to ${target_path}"
          )
@@ -85,7 +85,7 @@ index eec9c9b..7ef6d42 100644
          add_custom_command(
              OUTPUT ${PROJECT_BINARY_DIR}/htdoc/${target_path}
              DEPENDS ${UPSTREAM_DIR}/web/${file}
-@@ -496,7 +505,7 @@ foreach(file ${FILES_EMBED_FILES})
+@@ -534,7 +543,7 @@ foreach(file ${FILES_EMBED_FILES})
                  -o ${PROJECT_BINARY_DIR}/htdoc/${target_path} # Destination path in build directory
              COMMENT "Minify JS ${file} to ${target_path}"
          )

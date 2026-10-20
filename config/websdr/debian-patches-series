@@ -213,3 +213,13 @@
 # mux only after lock (web-888 clone Si5351 wedges PLLB until power cycle if
 # the mux is switched to an unlocked PLLB; verified on hardware 2026-10-20).
 0030-airband-mux-switch-after-lock.patch
+
+# REBASE WARNING (2026-10-20 incident): on every upstream pin bump, verify
+# the rebase scratch base REALLY is the new pin before replaying — an
+# ambiguous tag/branch refname plus `git archive | tar` without pipefail
+# once replayed the whole series onto the OLD pin and reported a bogus
+# "SERIES COMPLETE". Always md5-spot-check base files against
+# `git show <pin>:<path>`, apply with STRICT git apply (no fuzz), then
+# diff the merged tree against pristine upstream and confirm every
+# inter-pin upstream change survives (a fuzz/forced hunk silently drops
+# upstream lines inside replaced regions).
