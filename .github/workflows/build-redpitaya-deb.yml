@@ -51,7 +51,7 @@ jobs:
       hash: ${{ steps.check.outputs.hash }}
       skip: ${{ steps.check.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: check
         run: >-
           bash scripts/ci/preflight-skip.sh web888-redpitaya
@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # crossbuild-essential-armhf + file: build-redpitaya.sh verifies the
       # produced binaries with `file` and arm-linux-gnueabihf-readelf on the
@@ -101,7 +101,7 @@ jobs:
       - name: Build the redpitaya deb
         run: bash scripts/build-redpitaya-deb.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: debs-redpitaya
           path: output/redpitaya/*.deb
@@ -120,7 +120,7 @@ jobs:
       # Publish tooling (scripts/ci/*) intentionally tracks master HEAD, not the
       # trigger sha: a publish-script fix must not require a full rebuild round.
       - name: Check out master (publish tooling)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
 
@@ -145,7 +145,7 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 update
           sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends dpkg-dev apt-utils
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: debs-redpitaya
           path: debs/

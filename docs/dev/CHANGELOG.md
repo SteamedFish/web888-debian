@@ -11,6 +11,10 @@ this is a hard project rule).
 
 ## [2026-10-20] — pin-bump hardware testing: console echo garbage + TERM fixed
 
+- **CI**: bumped `actions/checkout`, `upload-artifact`,
+  `download-artifact` v4 → v5 (Node.js 20 deprecation — GitHub
+  runners now force Node 24; v4 still works but warns on every job).
+
 ### Fixed
 
 - **`configure-rootfs.sh` safeguard**: reinstall sudo with `--force-confmiss`
