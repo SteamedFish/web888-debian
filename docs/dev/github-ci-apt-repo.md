@@ -43,6 +43,18 @@ gate: their debs are userspace-only and cannot break boot. The smoke gate
 shares every QEMU limitation in `KNOWN-ISSUES.md` §5 — most notably it
 never executes the FSBL inside `web888-boot` (hardware gate only).
 
+Publish-window fallback: the baseline build inside the smoke gate
+apt-installs the kernel release pinned in `scripts/build-kernel-6.12.sh`.
+On a kernel pin bump that deb only reaches the repo once
+`build-kernel-deb` finishes (~1-2 h), so every concurrently running smoke
+gate would hard-fail with "Unable to locate package linux-image-<new>".
+The gate therefore exports `WEB888_KERNEL_FALLBACK=latest`, which lets
+`install-debs-apt.sh` substitute the newest published
+`linux-image-*-web888` as the boot vehicle (with a loud warning) — the deb
+under test is overlaid afterwards, so coverage is unaffected. Everything
+else, notably `build-image.yml` release builds, stays strict: a missing
+pinned kernel is a hard error there, never a silent downgrade.
+
 ## 2. One-time GitHub setup
 
 ### 2.1 Generate a dedicated signing key

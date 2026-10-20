@@ -43,7 +43,12 @@ for cmd in debootstrap qemu-system-arm qemu-arm-static dpkg-deb; do
 done
 
 echo "== 1/4 baseline image from published debs (DEB_SOURCE=apt) =="
-DEB_SOURCE=apt bash scripts/build-all.sh
+# The kernel is only a boot vehicle for the baseline — the deb under test is
+# overlaid in step 2. On a kernel pin bump the pinned kernel deb is not
+# published yet (build-kernel-deb still running), so ride on the newest
+# published kernel instead of hard-failing (install-debs-apt.sh stays
+# strict without this opt-in).
+DEB_SOURCE=apt WEB888_KERNEL_FALLBACK=latest bash scripts/build-all.sh
 
 echo "== 2/4 overlay deb(s) under test into work/rootfs =="
 ROOTFS=work/rootfs

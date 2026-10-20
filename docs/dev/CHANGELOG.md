@@ -9,6 +9,20 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-20] — CI: smoke gates survive the kernel publish window
+
+### Fixed
+- `scripts/install-debs-apt.sh` + `scripts/ci/qemu-smoke-deb.sh`: on a
+  kernel pin bump, every deb publisher's QEMU smoke gate hard-failed with
+  "Unable to locate package linux-image-<new>" — the baseline image build
+  apt-installs the pinned kernel from the *published* repo, but that deb
+  only appears once `build-kernel-deb` finishes (~1-2 h). The smoke gate
+  now exports `WEB888_KERNEL_FALLBACK=latest`, letting the baseline ride
+  on the newest published kernel as a boot vehicle (loud warning; the deb
+  under test is overlaid afterwards, coverage unchanged). Without the
+  opt-in, `install-debs-apt.sh` fails loudly — release image builds can
+  never silently ship a stale kernel. Docs: `github-ci-apt-repo.md` §1.
+
 ## [2026-10-20] — upstream version bumps: kernel 6.12.111, U-Boot v2026.10, websdr 6445a00
 
 - **Kernel**: pin `6.12.100-1` → `6.12.111-1` (`KVER`/`KREV`/`KSNAP` in

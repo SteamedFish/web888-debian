@@ -30,6 +30,20 @@ KVER=$(sed -n 's/^KVER=//p' scripts/build-kernel-6.12.sh | head -1)
 [[ -n $KVER ]] || { echo "Error: cannot derive KVER from build-kernel-6.12.sh" >&2; exit 1; }
 KREL="${KVER}-web888"
 
+# Cross-workflow publish window: on a kernel pin bump the pinned kernel deb
+# only reaches the APT repo once build-kernel-deb finishes building AND
+# publishing (~1-2 h). Until then every apt-mode consumer hard-fails on
+# "Unable to locate package linux-image-<new>". Smoke gates
+# (qemu-smoke-deb.sh) only need the kernel as a boot vehicle — the deb
+# under test is overlaid afterwards — so they export
+# WEB888_KERNEL_FALLBACK=latest to ride on the newest published kernel
+# instead. Anything else (notably build-image.yml release builds) stays
+# strict: a missing pinned kernel is a loud error, never a silent downgrade.
+kernel_available() {
+    sudo -n chroot "$ROOTFS" /usr/bin/env PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+        apt-cache show "linux-image-$1" >/dev/null 2>&1
+}
+
 bash scripts/setup-apt-repo.sh
 
 # Suppress service start/restart inside the chroot, keep enablement (same
@@ -56,6 +70,26 @@ for attempt in $(seq 1 20); do
     echo "install-debs-apt.sh: apt-get update failed (attempt $attempt/20) — waiting 30s for the repo index to settle" >&2
     sleep 30
 done
+
+if ! kernel_available "$KREL"; then
+    if [[ ${WEB888_KERNEL_FALLBACK:-} == latest ]]; then
+        FALLBACK_KREL=$(sudo -n chroot "$ROOTFS" /usr/bin/env PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+            apt-cache pkgnames linux-image- | grep -E '^linux-image-[0-9].*-web888$' | sort -V | tail -1)
+        FALLBACK_KREL=${FALLBACK_KREL#linux-image-}
+        [[ -n $FALLBACK_KREL ]] || {
+            echo "install-debs-apt.sh: pinned linux-image-${KREL} not published and no linux-image-*-web888 fallback found in the repo" >&2
+            exit 1
+        }
+        echo "install-debs-apt.sh: WARNING: pinned linux-image-${KREL} not in the APT repo yet (kernel publish window)" >&2
+        echo "install-debs-apt.sh: WARNING: WEB888_KERNEL_FALLBACK=latest — using linux-image-${FALLBACK_KREL} as the boot vehicle instead" >&2
+        KREL=$FALLBACK_KREL
+    else
+        echo "install-debs-apt.sh: Error: linux-image-${KREL} not in the APT repo" >&2
+        echo "  On a kernel pin bump the deb appears only after build-kernel-deb publishes." >&2
+        echo "  Smoke gates may set WEB888_KERNEL_FALLBACK=latest; release builds must wait." >&2
+        exit 1
+    fi
+fi
 
 echo "==> apt install web888 debs from the repo"
 # --force-confnew (via dpkg options): image build, not a device upgrade — a
