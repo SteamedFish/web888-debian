@@ -12,8 +12,13 @@ touch it.
 ## Version pinning rules
 
 - The **exact** Debian revision is pinned in `scripts/build-kernel-6.12.sh`
-  (`KVER` / `-rev` variables at the top). Never build "whatever is newest" —
+  (`KVER` / `KREV` variables at the top). Never build "whatever is newest" —
   bump the pin deliberately, in its own commit.
+- The live pool drops superseded point releases, so the fetch falls back to
+  `snapshot.debian.org` at the `KSNAP` timestamp pinned next to `KVER`/`KREV`.
+  When bumping the pin, refresh `KSNAP` from
+  `https://snapshot.debian.org/mr/package/linux/<KVER>-<KREV>/srcfiles?fileinfo=1`
+  (pick a `debian` archive entry's `first_seen`).
 - Kernel ABI contract (must not change silently):
   - `xilinx_devcfg` module provides `/dev/xdevcfg` (char 240:0) and
     `fclk0`-`fclk3` under `/sys/class/fclk/` — see the dts override in

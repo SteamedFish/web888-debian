@@ -14,6 +14,12 @@ this is a hard project rule).
 - **CI**: bumped `actions/checkout`, `upload-artifact`,
   `download-artifact` v4 → v5 (Node.js 20 deprecation — GitHub
   runners now force Node 24; v4 still works but warns on every job).
+- **CI kernel fetch**: `build-kernel-6.12.sh` now falls back to
+  `snapshot.debian.org` (pinned `KSNAP` timestamp) when the pinned
+  `linux_${KVER}-${KREV}` files have been dropped from the live pool —
+  6.12.100-1 vanished after 6.12.101+ landed and broke `build-kernel-deb`
+  with a curl 404. `docs/dev/kernel-update-sop.md` documents refreshing
+  `KSNAP` together with `KVER`/`KREV`.
 
 ### Fixed
 

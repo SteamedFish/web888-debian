@@ -18,6 +18,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 KVER=6.12.100
 KREV=1
+# snapshot.debian.org timestamp whose main archive still carries
+# linux_${KVER}-${KREV} — the live pool drops superseded point releases
+# (broke CI 2026-10-20: 6.12.100-1 vanished after 6.12.101+ landed).
+# When bumping KVER/KREV, refresh this from
+# https://snapshot.debian.org/mr/package/linux/${KVER}-${KREV}/srcfiles?fileinfo=1
+# (pick a 'debian' archive entry's first_seen).
+KSNAP=20260803T203533Z
 KDIR=work/linux-debian-6.12
 DL=work/downloads/linux-${KVER}
 CROSS=arm-linux-gnueabihf-
@@ -62,9 +69,14 @@ export PERL5LIB="$(readlink --canonicalize "$DHTOOLS/usr/share/perl5")${PERL5LIB
 if [[ ! -d $KDIR ]]; then
     mkdir --parents "$DL"
     base=https://deb.debian.org/debian/pool/main/l/linux
+    snapbase=https://snapshot.debian.org/archive/debian/${KSNAP}/pool/main/l/linux
     for f in "linux_${KVER}.orig.tar.xz" "linux_${KVER}-${KREV}.debian.tar.xz" \
              "linux_${KVER}-${KREV}.dsc"; do
-        [[ -f $DL/$f ]] || curl -fSL -o "$DL/$f" "$base/$f"
+        [[ -f $DL/$f ]] && continue
+        curl -fSL -o "$DL/$f" "$base/$f" || {
+            echo "pool miss for $f — falling back to snapshot.debian.org ($KSNAP)"
+            curl -fSL -o "$DL/$f" "$snapbase/$f"
+        }
     done
     dpkg-source --no-check -x "$DL/linux_${KVER}-${KREV}.dsc" "$KDIR"
 fi
