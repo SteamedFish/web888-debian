@@ -29,7 +29,9 @@
 #
 # /releases/latest always points at the freshest image; assets keep a stable
 # name so .../releases/latest/download/web888-debian-uboot.img.xz is a
-# permalink. Old img-* releases are pruned (keep 5).
+# permalink. Old img-* releases are pruned: the newest 5 always stay, older
+# ones only if nobody ever downloaded them (users flash old images and need
+# them for debugging).
 name: build-image
 
 on:
@@ -187,14 +189,24 @@ jobs:
             --notes-file release-notes.md
           echo "released: $TAG"
 
-      - name: Prune old image releases (keep 5)
+      - name: Prune old image releases (keep 5 + any with downloads)
         if: ${{ !failure() }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Policy: the newest 5 img-* releases always stay (rollback
+          # window). Beyond those, prune ONLY releases nobody ever
+          # downloaded — users flash old images and need them for
+          # debugging. Fail-safe: if the download count cannot be
+          # determined (API error, schema change), keep the release.
           gh release list --limit 100 --json tagName,isDraft \
             --jq '[.[] | select(.tagName | startswith("img-")) | .tagName] | sort | reverse | .[5:] | .[]' \
             | while read -r old; do
-                echo "pruning $old"
-                gh release delete "$old" --yes --cleanup-tag || true
+                downloads=$(gh release view "$old" --json assets --jq '[.assets[].downloadCount] | add' 2>/dev/null)
+                if [[ $downloads =~ ^[0-9]+$ && $downloads -eq 0 ]]; then
+                  echo "pruning $old (0 downloads)"
+                  gh release delete "$old" --yes --cleanup-tag || true
+                else
+                  echo "keeping $old (downloads: ${downloads:-unknown})"
+                fi
               done

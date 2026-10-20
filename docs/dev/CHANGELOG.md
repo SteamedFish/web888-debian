@@ -9,6 +9,19 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-20] — CI: keep image releases that have downloads
+
+### Changed
+- `build-image.yml` release pruning: previously hard-deleted every `img-*`
+  release beyond the newest 5 — a busy publish day (kernel + boot + websdr
+  in sequence) wiped ALL history, leaving users who flashed an older image
+  with nothing to debug against. New policy: the newest 5 always stay;
+  beyond those, only releases with **zero asset downloads** are pruned —
+  anything a user ever downloaded is kept. Fail-safe: if the download
+  count can't be determined (API error / schema change), the release is
+  kept. Note: already-pruned releases are unrecoverable (tags were cleaned
+  too); historical images can still be rebuilt from git.
+
 ## [2026-10-20] — CI: finish the Node 20 deprecation sweep
 
 ### Changed
