@@ -1256,16 +1256,16 @@ Description: WebSDR server for Web-888 (RX-888) SDR - Debian build
  reboot/halt/poweroff); openssh-server stays an image-level package.
 
 Package: web888-websdr
-Version: 2026.730-10+ci14
+Version: 2026.1012-1+ci17
 Architecture: armhf
 Maintainer: SteamedFish <steamedfish@hotmail.com>
-Installed-Size: 46421
-Depends: libc6 (>= 2.38), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.1.4), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc
-Filename: ./web888-websdr_2026.730-10+ci14_armhf.deb
-Size: 30633244
-MD5sum: c9302c70c9974923334319989d84ef83
-SHA1: 5abd3e89824b5ed125c735966e5027dcfa54d571
-SHA256: 2c1099704a909d60e835ef7dedd631f8a88a9a388e1b238074ff8a624a9d3390
+Installed-Size: 49599
+Depends: libc6 (>= 2.38), libcrypt1 (>= 1:4.1.0), libcurl4t64 (>= 7.16.2), libfdk-aac2t64 (>= 2.0.1), libgcc-s1 (>= 3.5), libgps30t64 (>= 3.3), libssl3t64 (>= 3.0.0), libstdc++6 (>= 13.1), libunwind8, zlib1g (>= 1:1.2.0), adduser, udev, iptables, miniupnpc, netcat-openbsd, sudo, dumphfdl, noip-duc, frpc, acarsdec
+Filename: ./web888-websdr_2026.1012-1+ci17_armhf.deb
+Size: 32471304
+MD5sum: 0a18008963dba25ac9106263fd66f726
+SHA1: 193f718f34888f63174dc229f615e0e8204bc867
+SHA256: ccc75f0336097d8cce0284d47a19285375fbb21a58185bf58f2995480bf6c712
 Section: hamradio
 Priority: optional
 Homepage: https://github.com/RaspSDR/server
