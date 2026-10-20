@@ -201,3 +201,15 @@
 # htop etc. fail with "Error opening terminal: unknown". Give the shell a
 # minimal env (TERM=xterm-256color, LANG, PATH).
 0028-console-child-term-env.patch
+
+# 0029: airband Si5351 PLLB lock failure is fatal upstream (sys_panic crash
+# loop). On web-888 the upstream sequence wedges PLLB (see 0030), so the
+# lock poll can fail -- fall back to the nominal HF clock instead of
+# panicking; vhf bitstream still loads (pre-bump behavior). Safety net for
+# 0030; 0030's comment rewrite supersedes this patch's inline comment.
+0029-airband-pllb-lock-fallback.patch
+
+# 0030: airband -- program PLLB with the CLK0 mux still on PLLA and switch the
+# mux only after lock (web-888 clone Si5351 wedges PLLB until power cycle if
+# the mux is switched to an unlocked PLLB; verified on hardware 2026-10-20).
+0030-airband-mux-switch-after-lock.patch

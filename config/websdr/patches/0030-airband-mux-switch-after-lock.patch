@@ -1,0 +1,85 @@
+--- a/zynq/peri.cpp
++++ b/zynq/peri.cpp
+@@ -71,7 +71,16 @@
+             assert(profile != NULL);
+             assert(profile->pll_hz == profile->adc_hz * profile->multisynth_div);
+             si5351->clear_io_error();
+-            si5351->set_ms_source(SI5351_CLK0, SI5351_PLLB);
++            // web-888: the (clone) Si5351 on this board permanently wedges
++            // PLLB -- LOL_B stuck until the next FULL power cycle -- if the
++            // CLK0 mux is switched to PLLB while PLLB is still unlocked.
++            // Verified on hardware 2026-10-20: the upstream sequence (mux
++            // switch first, then PLLB programming) never locks, while the
++            // exact same MSNB values written with the mux kept on PLLA lock
++            // immediately. So program PLLB with the mux untouched and switch
++            // the mux only after the lock poll below succeeds (which is also
++            // AN619's recommended order).
++            si5351->set_pll_assignment(SI5351_CLK0, SI5351_PLLB);
+             ret = si5351->set_freq_manual(
+                 (uint64_t) profile->adc_hz * 100,
+                 (uint64_t) profile->pll_hz * 100,
+@@ -94,15 +103,10 @@
+                     break;
+             }
+             if (retries == 10) {
+-                // web-888: on (at least some) web-888 units the Si5351 PLLB
+-                // never locks (LOL_B stuck) -- verified on hardware 2026-10-20:
+-                // PLLA's known-good running config copied verbatim into MSNB
+-                // (single-byte writes, readback-verified) still leaves LOL_B
+-                // set after PLLB reset. PLLB was never exercised by any
+-                // earlier firmware (old pins kept the HF clock for airband),
+-                // so this chip-level limitation went unnoticed. Don't kill the
+-                // whole SDR for it: fall back to the nominal HF clock path;
+-                // the vhf bitstream still loads below (pre-bump behavior).
++                // web-888: PLLB failed to lock even with the reordered
++                // sequence (or the chip was already wedged by a previous
++                // boot) -- fall back to the nominal HF clock path; the vhf
++                // bitstream still loads below (pre-bump airband behavior).
+                 printf("si5351: airband ADC PLL (PLLB) failed to lock -- falling back to nominal ADC clock\n\n");
+                 si5351->clear_io_error();
+                 si5351->set_ms_source(SI5351_CLK0, SI5351_PLLA);
+@@ -110,6 +114,13 @@
+                 si5351->drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA);
+                 if (ret != 0 || si5351->io_error_detected())
+                     sys_panic("i2c si5351 ADC clock fallback failed\n\n");
++            } else {
++                // PLLB locked -- only now is it safe to move the CLK0 mux
++                // to PLLB (see comment above). set_ms_source() also re-sets
++                // pll_assignment[] to the same value, which is harmless.
++                si5351->set_ms_source(SI5351_CLK0, SI5351_PLLB);
++                if (si5351->io_error_detected())
++                    sys_panic("i2c si5351 mux switch failed\n\n");
+             }
+         }
+         printf("i2c si5351 initialized, error=%d\n", ret);
+--- a/si5351/si5351.cpp
++++ b/si5351/si5351.cpp
+@@ -855,6 +855,18 @@
+ }
+ 
+ /*
++ * set_pll_assignment(enum si5351_clock clk, enum si5351_pll pll)
++ *
++ * Software-side counterpart of set_ms_source(): updates pll_assignment[]
++ * only, WITHOUT touching the CLKx_CTRL mux register. Needed by the airband
++ * path on web-888 (see zynq/peri.cpp) to program PLLB while the clock mux
++ * is still sourced from the locked PLLA.
++ */
++void Si5351::set_pll_assignment(enum si5351_clock clk, enum si5351_pll pll) {
++    pll_assignment[(uint8_t)clk] = pll;
++}
++
++/*
+  * set_int(enum si5351_clock clk, uint8_t int_mode)
+  *
+  * clk - Clock output
+--- a/si5351/si5351.h
++++ b/si5351/si5351.h
+@@ -320,6 +320,7 @@
+     int32_t get_correction(enum si5351_pll_input);
+     void pll_reset(enum si5351_pll);
+     void set_ms_source(enum si5351_clock, enum si5351_pll);
++    void set_pll_assignment(enum si5351_clock, enum si5351_pll);
+     void set_int(enum si5351_clock, uint8_t);
+     void set_clock_pwr(enum si5351_clock, uint8_t);
+     void set_clock_invert(enum si5351_clock, uint8_t);

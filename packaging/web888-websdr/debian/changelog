@@ -40,6 +40,15 @@ web888-websdr (2026.1012-1) UNRELEASED; urgency=medium
       (TERM=xterm-256color, LANG, PATH) — it was execved with NULL envp,
       so full-screen programs (htop) failed with "Error opening
       terminal: unknown".
+    - new patch 0029 makes an airband Si5351 PLLB lock failure fall
+      back to the nominal HF clock + vhf bitstream instead of
+      sys_panic/restart loop (web-888 hardware: PLLB never locks,
+      docs/dev/KNOWN-ISSUES.md §11).
+    - new patch 0030 reorders airband clock setup: program PLLB with
+      the CLK0 mux still on PLLA, switch the mux only after the PLL
+      locks (upstream's mux-first order wedges PLLB on web-888 until
+      power cycle, KNOWN-ISSUES §11) — enables true 98.304/110.592 MHz
+      airband sampling.
   * KiwiSDR upstream check (c40ecb47 v1.902 → 3b570602): nothing to
     cherry-pick — the only new commits replace Kiwi-hardware FPGA
     bitstreams.

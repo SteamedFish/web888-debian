@@ -1,0 +1,29 @@
+--- a/zynq/peri.cpp
++++ b/zynq/peri.cpp
+@@ -93,8 +93,24 @@
+                 if (!si5351->dev_status.SYS_INIT && !si5351->dev_status.LOL_B)
+                     break;
+             }
+-            if (retries == 10)
+-                sys_panic("i2c si5351 ADC PLL failed to lock\n\n");
++            if (retries == 10) {
++                // web-888: on (at least some) web-888 units the Si5351 PLLB
++                // never locks (LOL_B stuck) -- verified on hardware 2026-10-20:
++                // PLLA's known-good running config copied verbatim into MSNB
++                // (single-byte writes, readback-verified) still leaves LOL_B
++                // set after PLLB reset. PLLB was never exercised by any
++                // earlier firmware (old pins kept the HF clock for airband),
++                // so this chip-level limitation went unnoticed. Don't kill the
++                // whole SDR for it: fall back to the nominal HF clock path;
++                // the vhf bitstream still loads below (pre-bump behavior).
++                printf("si5351: airband ADC PLL (PLLB) failed to lock -- falling back to nominal ADC clock\n\n");
++                si5351->clear_io_error();
++                si5351->set_ms_source(SI5351_CLK0, SI5351_PLLA);
++                ret = si5351->set_freq((uint64_t)(ADC_CLOCK_NOM * 100), SI5351_CLK0);
++                si5351->drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA);
++                if (ret != 0 || si5351->io_error_detected())
++                    sys_panic("i2c si5351 ADC clock fallback failed\n\n");
++            }
+         }
+         printf("i2c si5351 initialized, error=%d\n", ret);
+     }
