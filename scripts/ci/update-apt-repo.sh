@@ -11,8 +11,14 @@
 # the site as-is — harmless to the homepage).
 #
 #   1. copy DEBS_DIR/*.deb into REPO_DIR/SUBDIR
-#   2. prune per package name to KEEP_VERSIONS newest (dpkg --compare-versions;
-#      package name = field before the first "_" in the filename)
+#   2. prune per package name (dpkg --compare-versions; package name = field
+#      before the first "_" in the filename): keep the KEEP_VERSIONS newest
+#      versions AND every version first published within the last KEEP_DAYS
+#      days. First-seen dates are tracked in version-dates.txt inside SUBDIR
+#      (committed alongside Packages by the caller): users can only be
+#      running versions they could apt-install, i.e. recently published
+#      ones — age is the available proxy for "has users" (GitHub Pages
+#      serves no download statistics). Keep the old versions debuggable.
 #   3. regenerate Packages / Packages.gz (dpkg-scanpackages --multiversion)
 #   4. regenerate Release (apt-ftparchive)
 #   5. sign: Release.gpg (detached armor) + InRelease (clearsign)
@@ -23,6 +29,8 @@
 # Env:
 #   APT_GPG_KEY_ID   (required) key used to sign Release / InRelease
 #   KEEP_VERSIONS    (optional, default 4) versions kept per package
+#   KEEP_DAYS        (optional, default 90) first-published window in which
+#                    versions are kept even beyond KEEP_VERSIONS
 
 set -euo pipefail
 
@@ -34,6 +42,7 @@ DEBS_DIR=$1
 REPO_DIR=$2
 SUBDIR=${3:-apt}
 KEEP_VERSIONS=${KEEP_VERSIONS:-4}
+KEEP_DAYS=${KEEP_DAYS:-90}
 
 [[ -n ${APT_GPG_KEY_ID:-} ]] || die "APT_GPG_KEY_ID is not set"
 [[ -d $DEBS_DIR ]] || die "not a directory: $DEBS_DIR"
@@ -45,6 +54,8 @@ KEEP_VERSIONS=${KEEP_VERSIONS:-4}
 REPO_DIR=$(cd "$REPO_DIR" && pwd)
 [[ $KEEP_VERSIONS =~ ^[0-9]+$ && $KEEP_VERSIONS -ge 1 ]] \
     || die "KEEP_VERSIONS must be a positive integer (got '$KEEP_VERSIONS')"
+[[ $KEEP_DAYS =~ ^[0-9]+$ && $KEEP_DAYS -ge 1 ]] \
+    || die "KEEP_DAYS must be a positive integer (got '$KEEP_DAYS')"
 
 for cmd in dpkg-scanpackages apt-ftparchive gpg gzip dpkg; do
     command -v "$cmd" >/dev/null 2>&1 \
@@ -61,10 +72,29 @@ cp -f "${new_debs[@]}" "$REPO_DIR/$SUBDIR/"
 
 cd "$REPO_DIR/$SUBDIR"
 
-# --- prune to KEEP_VERSIONS newest per package -----------------------------
-# package name = field before the first "_" in the filename; version = field
-# between the first and second "_". Insertion-sorted newest-first with
-# dpkg --compare-versions (sort -V is NOT dpkg semantics).
+# --- first-seen date tracking (version-dates.txt) --------------------------
+# One line per deb stem: "<stem> <YYYY-MM-DD>" (UTC first-seen). Missing
+# entries (fresh debs, or everything on the first run after this feature
+# landed) get today's date — bootstrap is deliberately conservative: all
+# pre-existing versions count as young and survive one full KEEP_DAYS
+# window before age-based pruning starts biting.
+DATES=version-dates.txt
+TODAY=$(date -u +%F)
+touch "$DATES"
+for f in *.deb; do
+    stem=${f%.deb}
+    grep -q "^${stem} " "$DATES" || echo "$stem $TODAY" >> "$DATES"
+done
+
+first_seen() {  # first_seen <stem> → YYYY-MM-DD (falls back to today)
+    local d
+    d=$(awk -v s="$1" '$1 == s { print $2 }' "$DATES" | tail -1)
+    echo "${d:-$TODAY}"
+}
+
+# --- prune old versions per package -----------------------------------------
+# Keep rule: rank < KEEP_VERSIONS (newest-first) OR first-seen date is
+# younger than KEEP_DAYS. Everything older AND out of the top ranks goes.
 all_debs=(*.deb)
 ((${#all_debs[@]})) || die "no .deb files in $REPO_DIR/$SUBDIR after copy"
 
@@ -86,11 +116,32 @@ for pkg in "${!pkg_seen[@]}"; do
         done
         sorted=("${sorted[@]:0:i}" "$f" "${sorted[@]:i}")
     done
-    for old in "${sorted[@]:KEEP_VERSIONS}"; do
-        log "prune: $old (keeping $KEEP_VERSIONS newest of $pkg)"
+    rank=0
+    for old in "${sorted[@]}"; do
+        if (( rank < KEEP_VERSIONS )); then
+            (( ++rank ))
+            continue
+        fi
+        stem=${old%.deb}
+        seen=$(first_seen "$stem")
+        keep_until=$(date -u -d "$seen + $KEEP_DAYS days" +%F)
+        if [[ ! $keep_until < $TODAY ]]; then
+            log "keep: $old (first published $seen, within ${KEEP_DAYS}d window)"
+            continue
+        fi
+        log "prune: $old (rank >$KEEP_VERSIONS of $pkg, first published $seen >${KEEP_DAYS}d ago)"
         rm -f "$old"
     done
 done
+
+# Garbage-collect date entries whose deb is gone.
+tmp_dates=$(mktemp)
+while read -r stem date; do
+    if [[ -f ${stem}.deb ]]; then
+        echo "$stem $date"
+    fi
+done < "$DATES" > "$tmp_dates"
+mv "$tmp_dates" "$DATES"
 
 # --- index ------------------------------------------------------------------
 log "generating Packages / Packages.gz"

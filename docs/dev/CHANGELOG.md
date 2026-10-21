@@ -9,6 +9,23 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-21] — CI: age-aware APT repo retention
+
+### Changed
+- `scripts/ci/update-apt-repo.sh`: pruning is now two-dimensional — keep the
+  `KEEP_VERSIONS` (4) newest versions per package **plus every version first
+  published within `KEEP_DAYS` (90) days**. First-seen dates are tracked in
+  `apt/version-dates.txt` on gh-pages (committed alongside `Packages`;
+  bootstrap stamps all pre-existing debs with today's date, so nothing is
+  pruned for one full window). Age is the proxy for "has users" — GitHub
+  Pages serves no download statistics, and a user can only be running a
+  recently-published version. Old versions stay fetchable for debugging;
+  every version also remains rebuildable from git (changelog version + pins).
+  Editing this script triggers no rebuilds: it is in no workflow's
+  push.paths nor preflight hash inputs — the next publish picks it up.
+  Verified locally with stubbed dpkg-scanpackages/apt-ftparchive/gpg against
+  both prune-by-age and keep-young scenarios. Docs: `github-ci-apt-repo.md` §7.
+
 ## [2026-10-20] — CI: keep image releases that have downloads
 
 ### Changed

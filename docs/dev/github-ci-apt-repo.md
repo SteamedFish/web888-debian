@@ -245,13 +245,24 @@ being published) — otherwise the next force-publish drops the pin bumps and
 
 ## 7. Pruning and retention
 
-`scripts/ci/update-apt-repo.sh` prunes each package to the **4 newest
-versions** (`KEEP_VERSIONS`, compared with `dpkg --compare-versions`) on every
-publish. Old versions stay installable for rollback; the kernel deb is the
-largest artifact (~10–30 MB), so 4 kernels + 4 of everything else stays well
-under the **1 GB Pages site limit**. If the site ever approaches the limit,
-drop `KEEP_VERSIONS` to 3 or 2 in the workflow env. Pages soft bandwidth is
-100 GB/month — irrelevant at our fleet size.
+`scripts/ci/update-apt-repo.sh` prunes each package on every publish, keeping
+the **4 newest versions** (`KEEP_VERSIONS`, compared with
+`dpkg --compare-versions`) **plus every version first published within the
+last 90 days** (`KEEP_DAYS`). First-seen dates live in
+`apt/version-dates.txt` on gh-pages (one `<stem> <YYYY-MM-DD>` line per deb,
+UTC, committed alongside `Packages`); a missing entry gets today's date, so
+pre-existing versions survive one full window before age-based pruning bites.
+
+Rationale for the age dimension: GitHub Pages serves no download statistics,
+so "first-published date" is the available proxy for "has users" — a user can
+only be running a version they could apt-install, i.e. a recently published
+one. Old versions must stay fetchable for debugging user reports (and any
+version can additionally be rebuilt from git: committed changelog version +
+pin state). Size stays bounded: the kernel deb is the largest artifact
+(~10–30 MB), and even a busy 90-day window stays well under the **1 GB Pages
+site limit**. If the site ever approaches the limit, drop `KEEP_DAYS` or
+`KEEP_VERSIONS` in the workflow env. Pages soft bandwidth is 100 GB/month —
+irrelevant at our fleet size.
 
 ## 8. Open items
 
@@ -349,7 +360,8 @@ stable asset name `web888-debian-uboot.img.xz`.
   entirely.
 - **Permalink**: `/releases/latest` always points at the newest image, so
   `https://github.com/SteamedFish/web888-debian/releases/latest/download/web888-debian-uboot.img.xz`
-  never changes. Old `img-*` releases are pruned to the newest 5
-  (`gh release delete --cleanup-tag`).
+  never changes. Old `img-*` releases are pruned: the newest 5 always stay,
+  older ones only if nobody ever downloaded them (fail-safe: undeterminable
+  download count → keep).
 - The job is gated on `vars.APT_REPO_ENABLED == 'true'` like the publish
   jobs; forks skip it.
