@@ -38,6 +38,15 @@ need_cmd() {
     fi
 }
 
+note_cmd() {
+    local cmd="$1" pkg="$2"
+    if command -v "$cmd" &>/dev/null; then
+        report "OK  $cmd" "$($cmd --version 2>/dev/null | head -n 1 || echo present)"
+    else
+        report "NOTE  $cmd" "pacman -S $pkg (only for the web888 QEMU model)"
+    fi
+}
+
 echo "== System packages =="
 need_cmd debootstrap              debootstrap
 need_cmd arm-linux-gnueabihf-gcc  arm-linux-gnueabihf-gcc
@@ -55,6 +64,18 @@ need_cmd rsync                    rsync
 need_cmd wget                     wget
 need_cmd bsdtar                   libarchive
 need_cmd git                      git
+
+echo
+echo "== Optional web888 QEMU model =="
+note_cmd ninja                    ninja
+note_cmd pkg-config               pkgconf
+if command -v pkg-config &>/dev/null; then
+    if pkg-config --exists slirp; then
+        report "OK  libslirp" "$(pkg-config --modversion slirp)"
+    else
+        report "NOTE  libslirp" "pacman -S libslirp (only for scripts/build-qemu-web888.sh)"
+    fi
+fi
 
 echo
 echo "== Project-local tools =="

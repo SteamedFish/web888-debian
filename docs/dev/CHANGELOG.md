@@ -9,6 +9,13 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Check optional web888 QEMU host dependencies
+
+### Added
+- `scripts/env-setup.sh` now reports `ninja`, `pkg-config` and `libslirp`
+  needed by the optional web888 QEMU model build without making them mandatory
+  for the base image toolchain.
+
 ## [2026-10-31] — CI trigger drift gate and image checksums
 
 ### Added
