@@ -56,3 +56,4 @@ web888-websdr_2026.1012-1+ci16_armhf 2026-10-31
 web888-websdr_2026.1012-1+ci17_armhf 2026-10-31
 web888-websdr_2026.1020-1+ci18_armhf 2026-10-31
 web888-websdr_2026.1020-1+ci19_armhf 2026-10-31
+linux-image-6.12.111-web888_6.12.111-1web888.ci22_armhf 2026-10-31
