@@ -59,3 +59,5 @@ web888-websdr_2026.1020-1+ci19_armhf 2026-10-31
 linux-image-6.12.111-web888_6.12.111-1web888.ci22_armhf 2026-10-31
 web888-redpitaya_2025.430-3+ci14_armhf 2026-10-31
 web888-websdr_2026.1020-2+ci20_armhf 2026-10-31
+web888-ng-bitstream_0.3.0-1_all 2026-10-31
+web888-web888d_0.6.0-1_armhf 2026-10-31

@@ -1282,6 +1282,34 @@ Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
  the rollback kernel. Symlinks only — no copies, no mount requirements,
  so the hook also runs correctly inside the image-build chroot.
 
+Package: web888-ng-bitstream
+Version: 0.3.0-1
+Architecture: all
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 2379
+Depends: web888-redpitaya (>= 2025.430-3)
+Filename: ./web888-ng-bitstream_0.3.0-1_all.deb
+Size: 505888
+MD5sum: 44b4f76cd1712abd303e6ca4cc7215c4
+SHA1: a574055896f1175b7d8ca4b58a3f44f1a53794a0
+SHA256: 4ad03081c571c807e6ef422f5c2138d52e42591d1b8b1f1ad5421450ab30c4cb
+Section: hamradio
+Priority: optional
+Homepage: https://github.com/jeskko/web888-ng-hw
+Description: Open FPGA bitstreams for Web-888 (web888-ng-hw v0.3.0)
+ Prebuilt open FPGA bitstreams from jeskko/web888-ng-hw v0.3.0 (CI build,
+ Vivado 2026.1, stock-compatible register map, timing met): websdr_hf.bit
+ (HF, 12 RX + 2 WF, signature 0x0E5D020C) and websdr_vhf.bit (VHF, 13 RX +
+ 2 WF, signature 0x0E5D020D; hardware-untested upstream, not selected by
+ any shipped service). Checksums and upstream build provenance
+ (SHA256SUMS, wns.txt, Vivado licence note) install alongside the
+ artifacts under /usr/share/web888-ng/firmware/.
+ .
+ Nothing here is loaded automatically: the runtime selection helper
+ /usr/lib/web888/web888-fpga-select (web888-redpitaya) decides which
+ bitstream reaches the FPGA. Stock bitstreams are NOT shipped in this
+ package; no files overlap or overwrite stock firmware or runtime state.
+
 Package: web888-redpitaya
 Version: 2025.430-2+ci10
 Architecture: armhf
@@ -1416,6 +1444,40 @@ Description: Red Pitaya app stack for Web-888 (RX-888) SDR - Debian build
  any RP app. v1 apps: sdr_receiver_hpsdr (Thetis/cuSDR/SparkSDR
  clients), sdr_receiver (raw I/Q TCP), sdr_transceiver_wide (GNU Radio
  gr-osmosdr), led_blinker (FPGA-load smoke test).
+
+Package: web888-web888d
+Version: 0.6.0-1
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 7595
+Depends: adduser, web888-redpitaya (>= 2025.430-3), web888-websdr (>= 2026.1020-2)
+Filename: ./web888-web888d_0.6.0-1_armhf.deb
+Size: 2473624
+MD5sum: 0869c20d4cd7312e0ceb7acca23d62e1
+SHA1: 1979da2b92c9b340388d58c762eae0d85de41c60
+SHA256: eb4eb955168672b399209d6e97234b7baea48ef48a5e6a864054e1838383840b
+Section: hamradio
+Priority: optional
+Homepage: https://github.com/jeskko/web888-ng
+Description: web888d SDR server for Web-888 (RX-888) - Debian build
+ From-source build of jeskko/web888-ng v0.6.0 (web888d daemon + web UI),
+ statically linked for armhf. Experimental optional third runtime mode
+ alongside WebSDR and the Red Pitaya apps: the service ships DISABLED
+ (no [Install]) and Conflicts= with web888-websdr.service and all four
+ web888-rpapp@ instances, so the FPGA, /dev/zynqsdr and TCP 8073 stay
+ exclusive.
+ .
+ The bitstream is loaded as root by /usr/lib/web888/web888-fpga-select in a
+ separate default-off oneshot unit (web888-web888d-pl.service, xdevcfg
+ access confined to it); the daemon runs unprivileged (user web888d, group
+ web888) with --bitstream none, never touching /dev/xdevcfg. State lives in
+ /var/lib/web888d; the mutable config /etc/web888d/web888d.toml is created
+ on first install (web888d-owned 0600, not a dpkg conffile). No skimmers,
+ no uploads and no admin password by default.
+ .
+ Depends on web888-redpitaya (runtime switcher and FPGA-select helper) and
+ web888-websdr (udev rule, web888 device group and stock firmware floor); an
+ open-FPGA bitstream can be provided by web888-ng-bitstream.
 
 Package: web888-websdr
 Version: 2026.1012-1+ci16

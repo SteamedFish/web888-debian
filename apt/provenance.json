@@ -1,0 +1,26 @@
+{
+  "web888-ng-bitstream_0.3.0-1_all": {
+    "sha256": "4ad03081c571c807e6ef422f5c2138d52e42591d1b8b1f1ad5421450ab30c4cb",
+    "published_at": "2026-10-31T21:39:25Z",
+    "workflow": "build-web888d-deb",
+    "run_number": 2,
+    "upstream": {
+      "web888_ng_tag": "v0.6.0",
+      "web888_ng_commit": "48e9914aac80e3f20c39838fe9b33193b6b3fb36",
+      "web888_ng_hw_tag": "v0.3.0",
+      "web888_ng_hw_commit": "767030740a2fdecfebdd383efd23330e6455ff1b"
+    }
+  },
+  "web888-web888d_0.6.0-1_armhf": {
+    "sha256": "eb4eb955168672b399209d6e97234b7baea48ef48a5e6a864054e1838383840b",
+    "published_at": "2026-10-31T21:39:25Z",
+    "workflow": "build-web888d-deb",
+    "run_number": 2,
+    "upstream": {
+      "web888_ng_tag": "v0.6.0",
+      "web888_ng_commit": "48e9914aac80e3f20c39838fe9b33193b6b3fb36",
+      "web888_ng_hw_tag": "v0.3.0",
+      "web888_ng_hw_commit": "767030740a2fdecfebdd383efd23330e6455ff1b"
+    }
+  }
+}
