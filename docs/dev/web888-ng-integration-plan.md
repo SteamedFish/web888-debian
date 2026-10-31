@@ -116,7 +116,10 @@ Method:
 3. Extend the existing `zynqsdr-smoke` path into automatically checkable
    conformance cases rather than creating an unrelated test framework.
 4. Run a fixed web888d build as a second, independent userspace consumer. It
-   remains a development test dependency, not a shipped service.
+   remains a development test dependency, not a shipped service. Keep the
+   validation footprint minimal but complete: only the server binary is an
+   external workload; HTTP uses our tiny fixture and `/ws` uses our focused
+   client, so the upstream UI/Node toolchain is not imported or required.
    Model-side implementation (2026-10-31): the opt-in `WEB888D` lane in
    `scripts/test-zynqsdr-qemu.sh` starts the pinned binary in the guest and
    `scripts/hw-test/web888d-ws-check.py` proves the `/ws` data path (proto2

@@ -89,12 +89,14 @@ bash scripts/test-zynqsdr-qemu.sh
 # Optional: additionally run the pinned upstream web888d binary in the
 # guest as an independent stock-ABI consumer (model only, opt-in):
 WEB888D=work/upstream/web888-ng/target/armv7-unknown-linux-musleabihf/release/web888d \
-WEB888D_UI_DIR=work/upstream/web888-ng/ui/dist \
   bash scripts/test-zynqsdr-qemu.sh
 ```
 
-The optional `WEB888D` step copies the fixed upstream `web888d` binary and its
-UI into the guest scratch dir, stops `web888-websdr.service`, starts
+The optional `WEB888D` step copies the fixed upstream `web888d` binary and the
+minimal `scripts/hw-test/web888d-test-ui/` HTTP fixture into the guest scratch
+dir. No Node/pnpm or upstream UI build is needed; `WEB888D_UI_DIR` remains an
+optional override for testing a real UI. The script stops
+`web888-websdr.service`, starts
 `web888d serve --backend zynqsdr --bitstream none --no-hpsdr --no-tls
 --http 127.0.0.1:8073`, polls the guest-local HTTP endpoint until ready,
 requires the process to stay alive with no fatal log line, runs the `/ws`

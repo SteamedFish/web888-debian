@@ -134,13 +134,16 @@ independent stock-ABI consumer against our in-kernel `zynqsdr` driver:
 
 ```sh
 WEB888D=work/upstream/web888-ng/target/armv7-unknown-linux-musleabihf/release/web888d \
-WEB888D_UI_DIR=work/upstream/web888-ng/ui/dist \
   scripts/test-zynqsdr-qemu.sh
 ```
 
-Both variables take absolute or repo-relative paths and must exist; without
-`WEB888D` the test behaves exactly as before (`--baremetal-only` ignores both).
-The script copies the binary and UI into a guest scratch dir, stops
+`WEB888D` takes an absolute or repo-relative path; without it the test behaves
+exactly as before (`--baremetal-only` ignores all web888d settings). The script
+uses `scripts/hw-test/web888d-test-ui/` as a minimal HTTP fixture by default,
+so Node/pnpm and the upstream UI build are not validation prerequisites.
+`WEB888D_UI_DIR` can override that fixture with a real UI build when desired;
+it does not change the ABI or `/ws` assertions. The script copies the binary
+and fixture into a guest scratch dir, stops
 `web888-websdr.service`, starts `web888d serve --backend zynqsdr --bitstream
 none --no-hpsdr --no-tls --http 127.0.0.1:8073` (no `/dev/xdevcfg` write — the
 PL model is already loaded), polls the guest-local HTTP endpoint, requires the

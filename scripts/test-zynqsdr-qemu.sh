@@ -14,9 +14,11 @@
 # with --baremetal-only): after smoke+rearm, run the pinned upstream web888d
 # binary inside the guest against our in-kernel zynqsdr driver:
 #   WEB888D=work/upstream/web888-ng/target/armv7-unknown-linux-musleabihf/release/web888d \
-#   WEB888D_UI_DIR=work/upstream/web888-ng/ui/dist \
 #     ./scripts/test-zynqsdr-qemu.sh
-# (absolute or repo-relative paths; both must exist). This validates the
+# WEB888D is absolute or repo-relative. WEB888D_UI_DIR is optional and
+# defaults to scripts/hw-test/web888d-test-ui (a tiny HTTP fixture; no
+# Node/pnpm/upstream-UI build is needed for the ABI and /ws checks).
+# This validates the
 # stock ABI against an independent consumer under the PL model — it is NOT
 # hardware verification and NOT a web888d product integration test. After
 # HTTP-ready it also proves real /ws data flow (proto2 text control plus
@@ -238,7 +240,7 @@ echo ">> rearm: $REARM --emu 127.0.0.1 $SSH_PORT"
 run_web888d_consumer() {
     local bin ui gdir=/tmp/web888d-abi-check pid rc
     bin=$WEB888D; [[ $bin == /* ]] || bin=$PWD/$bin
-    ui=${WEB888D_UI_DIR:?"WEB888D_UI_DIR is required when WEB888D is set (path to the web888d UI dist dir)"}
+    ui=${WEB888D_UI_DIR:-scripts/hw-test/web888d-test-ui}
     [[ $ui == /* ]] || ui=$PWD/$ui
     [[ -f $bin ]] || fail "WEB888D binary not found: $bin"
     [[ -d $ui ]] || fail "WEB888D_UI_DIR not found: $ui"

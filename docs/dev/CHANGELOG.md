@@ -9,6 +9,16 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Minimize web888d validation dependencies
+
+### Changed
+- The opt-in web888d ABI/data-path gate now defaults to the tiny local
+  `scripts/hw-test/web888d-test-ui/` HTTP fixture instead of requiring the
+  upstream Preact UI and its Node/pnpm build. `WEB888D_UI_DIR` remains an
+  optional override. HTTP readiness, independent `/ws` audio/waterfall
+  validation, model-tone assertions and all driver coverage are unchanged;
+  no upstream UI code is vendored.
+
 ## [2026-10-31] — Full-system zynqsdr model and web888d validation
 
 ### Added
