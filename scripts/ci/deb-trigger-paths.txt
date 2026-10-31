@@ -1,6 +1,6 @@
 # Union of the push.paths of every deb-publishing workflow:
 #   build-boot-deb.yml, build-kernel-deb.yml, build-redpitaya-deb.yml,
-#   build-websdr-deb.yml, build-thirdparty-debs.yml
+#   build-websdr-deb.yml, build-thirdparty-debs.yml, build-web888d-deb.yml
 #
 # Consumed by build-image.yml's preflight job via matches-deb-triggers.sh:
 # a push touching any of these paths fires deb builds whose publish step
@@ -8,6 +8,13 @@
 # (it would otherwise install the STALE published debs and test a
 # combination that never ships — the image rebuild arrives via the dispatch
 # once the fresh debs are in the APT repo).
+#
+# EXCEPTION — build-web888d-deb.yml (optional web888d / web888-ng bitstream):
+# its publish step deliberately does NOT dispatch `debs-published` (these
+# are maintainer packages outside the fixed image package list, so an image
+# rebuild would test nothing new). Pushes touching only its paths skip the
+# image build with NO deferred rebuild — that is intended: maintainer
+# package updates are not image triggers.
 #
 # KEEP IN SYNC with those workflows' push.paths. Drift consequences:
 #   txt MISSING a deb path  → push fires both deb build and image build
@@ -73,3 +80,13 @@ packaging/frpc/**
 packaging/noip-duc/**
 packaging/acarsdec/**
 .github/workflows/build-thirdparty-debs.yml
+
+# build-web888d-deb.yml (optional maintainer packages; publish fires NO
+# debs-published — see the header exception)
+scripts/build-web888d.sh
+scripts/build-web888d-deb.sh
+scripts/build-web888-ng-bitstream-deb.sh
+config/web888-ng/**
+packaging/web888-web888d/**
+packaging/web888-ng-bitstream/**
+.github/workflows/build-web888d-deb.yml

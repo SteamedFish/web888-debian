@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # check-trigger-paths.sh — drift gate for scripts/ci/deb-trigger-paths.txt.
 #
-# The txt file is the union of the push.paths of the five deb-publishing
+# The txt file is the union of the push.paths of the six deb-publishing
 # workflows (build-boot-deb, build-kernel-deb, build-redpitaya-deb,
-# build-websdr-deb, build-thirdparty-debs); build-image.yml's preflight
+# build-websdr-deb, build-thirdparty-debs, build-web888d-deb); build-image.yml's
+# preflight
 # consults it to skip push-triggered image builds that a deb build already
 # covers. If the txt and the workflows drift, that skip logic silently does
 # the wrong thing (see the header comment in deb-trigger-paths.txt).
@@ -28,6 +29,7 @@ WORKFLOWS=(
     build-redpitaya-deb.yml
     build-websdr-deb.yml
     build-thirdparty-debs.yml
+    build-web888d-deb.yml
 )
 
 python3 - "$TXT" "$WORKFLOWS_DIR" "${WORKFLOWS[@]}" <<'PY'

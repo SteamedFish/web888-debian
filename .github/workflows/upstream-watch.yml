@@ -1,8 +1,17 @@
-# upstream-watch.yml — daily watch over two kinds of upstream change:
+# upstream-watch.yml — daily watch over three kinds of upstream change:
 #
 #   1. New upstream releases of the third-party packages (libacars, dumphfdl,
 #      frpc, noip-duc, acarsdec): bump `version:` in packaging/<name>/upstream.pin.
-#   2. Trixie library refreshes (scripts/ci/check-deps.sh against the tracked
+#   2. The web888-ng pinned pair (web888d from jeskko/web888-ng releases, hw
+#      bitstreams from jeskko/web888-ng-hw releases): every upstream release
+#      is flagged prerelease, so scripts/ci/check-web888-ng-upstream.sh lists
+#      the full release stream (drafts excluded, semver-validated, forward-only)
+#      and advances whichever side released, keeping the other side's last pin.
+#      Pins live in config/web888-ng/pins.env (lane A owns the file). The
+#      rebuild is fired via repository_dispatch (event type
+#      `web888-ng-pin-updated`); the publisher is an optional maintainer
+#      package and deliberately does NOT dispatch `debs-published`.
+#   3. Trixie library refreshes (scripts/ci/check-deps.sh against the tracked
 #      runtime libs in packaging/deps-snapshot.conf, state in
 #      packaging/deps-snapshot.txt): third-party packages get a `pkgrev:` bump
 #      in their upstream.pin and a rebuild; our own packages
@@ -28,7 +37,10 @@
 #
 # deps-snapshot.txt lives at packaging/ root on purpose: it matches no
 # per-package push path filter (packaging/<name>/**), so watch commits never
-# cause push-trigger rebuild loops.
+# cause push-trigger rebuild loops. config/web888-ng/pins.env DOES match
+# build-web888d-deb.yml's push filter, but commits pushed with GITHUB_TOKEN
+# fire no push events at all — the pair rebuild still arrives only via the
+# explicit repository_dispatch job below.
 
 name: upstream-watch
 
@@ -54,6 +66,8 @@ jobs:
       own: ${{ steps.msg.outputs.own }}
       # non-empty when there is something to commit
       commit_msg: ${{ steps.msg.outputs.commit_msg }}
+      # 'true' when the web888-ng pinned pair advanced (config/web888-ng/pins.env)
+      web888ng: ${{ steps.ng.outputs.changed }}
     env:
       # check-upstream.sh uses it for GitHub API rate limits (optional there)
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,6 +110,38 @@ jobs:
             echo "bumped=" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Check web888-ng pinned pair (web888d + hw releases)
+        id: ng
+        run: |
+          set -euo pipefail
+          pinfile=config/web888-ng/pins.env
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          if [[ ! -f $pinfile ]]; then
+            echo "::warning::$pinfile missing (lane A owns it) — skipping web888-ng check"
+            exit 0
+          fi
+          if ! out=$(bash scripts/ci/check-web888-ng-upstream.sh --full-pin all); then
+            echo "::warning::check-web888-ng-upstream.sh failed — skipping (log above)"
+            exit 0
+          fi
+          # --full-pin emits the complete hash-verified key set only for the
+          # side(s) that advanced; merge it and RETAIN the pair partner's pins
+          # verbatim (pinned pair, never independently floated).
+          if ! grep -q '^WEB888_NG' <<<"$out"; then
+            echo "web888-ng pinned pair is up to date"
+            exit 0
+          fi
+          while IFS='=' read -r key value; do
+            [[ $key == WEB888_NG* && -n $value ]] || continue
+            if grep -q "^$key=" "$pinfile"; then
+              sed -i "s|^$key=.*|$key=$value|" "$pinfile"
+            else
+              echo "$key=$value" >> "$pinfile"
+            fi
+            echo "bumped $key -> $value"
+          done <<<"$(grep '^WEB888_NG' <<<"$out")"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
       - name: Check trixie dependency libraries
         id: deps
         run: |
@@ -103,10 +149,12 @@ jobs:
           snapshot=packaging/deps-snapshot.txt
           new=$(mktemp)
           bash scripts/ci/check-deps.sh ALL > "$new"
-          echo "bootstrap=false" >> "$GITHUB_OUTPUT"
-          echo "deps3p=none" >> "$GITHUB_OUTPUT"
-          echo "own=none" >> "$GITHUB_OUTPUT"
-          echo "deps_summary=" >> "$GITHUB_OUTPUT"
+          {
+            echo "bootstrap=false"
+            echo "deps3p=none"
+            echo "own=none"
+            echo "deps_summary="
+          } >> "$GITHUB_OUTPUT"
 
           if [[ ! -s $snapshot ]]; then
             # First run: seed the state file and commit it WITHOUT triggering
@@ -185,6 +233,10 @@ jobs:
           d='${{ steps.deps.outputs.deps_summary }}'
           [[ -n $b ]] && parts+=("bump $b")
           [[ -n $d ]] && parts+=("trixie lib refresh ($d)")
+          if [[ '${{ steps.ng.outputs.changed }}' == true ]]; then
+            bumped=$(grep '^WEB888_NG.*_VERSION=' config/web888-ng/pins.env | paste -sd' ' -)
+            parts+=("bump web888-ng pin ($bumped)")
+          fi
           [[ '${{ steps.deps.outputs.bootstrap }}' == true ]] && parts+=("bootstrap deps-snapshot.txt")
           if ((${#parts[@]})); then
             printf -v joined '%s / ' "${parts[@]}"
@@ -199,6 +251,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add packaging/*/upstream.pin packaging/deps-snapshot.txt
+          # pin bump of the web888-ng pair (lane-A-owned file; config path is
+          # in build-web888d-deb.yml's push.paths, but GITHUB_TOKEN pushes
+          # fire no push events — the rebuild arrives via the explicit
+          # repository_dispatch job below, like the deps-snapshot design)
+          [[ '${{ steps.ng.outputs.changed }}' == true ]] && git add config/web888-ng/pins.env
           git commit -m "${{ steps.msg.outputs.commit_msg }}"
           # checkout may be a detached HEAD (schedule events) — push via HEAD
           git push origin "HEAD:${{ github.ref_name }}"
@@ -235,3 +292,21 @@ jobs:
       actions: write
     uses: ./.github/workflows/build-redpitaya-deb.yml
     secrets: inherit
+
+  # web888-ng pinned pair advanced: fire a repository_dispatch for
+  # build-web888d-deb.yml. Unlike the rebuild jobs above this does NOT lead
+  # to an image rebuild — web888d/bitstream are optional packages outside
+  # the fixed image list, so their publish step fires no `debs-published`.
+  web888-ng-rebuild:
+    needs: check
+    if: needs.check.outputs.web888ng == 'true'
+    permissions:
+      actions: write   # repository_dispatch only
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fire repository_dispatch for web888-ng pin update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository }}/dispatches" \
+            -f event_type=web888-ng-pin-updated

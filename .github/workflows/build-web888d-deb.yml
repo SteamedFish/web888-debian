@@ -1,0 +1,406 @@
+# build-web888d-deb.yml — source-build and publish the OPTIONAL web888-ng
+# packages to the flat gh-pages APT repo:
+#
+#   web888d              (daemon + UI, from jeskko/web888-ng)
+#   web888-ng-bitstream  (FPGA bitstreams, from jeskko/web888-ng-hw releases)
+#
+# These are maintainer/optional packages: they are NOT in the fixed image
+# package list, so unlike every other deb publisher this workflow does NOT
+# fire `debs-published` after publishing (no image rebuild is needed or
+# wanted). Its push paths are still mirrored in scripts/ci/deb-trigger-paths.txt
+# so a push touching only these paths skips the push-triggered image build.
+#
+# Upstream pins live in config/web888-ng/pins.env (committed VERSION/COMMIT
+# plus source and asset hashes). web888d and the
+# hw bitstreams are tracked as a PINNED PAIR: upstream-watch.yml advances
+# whichever side released, keeping the other side's last pin.
+#
+# Triggers:
+#   push (master)        — path-filtered (build scripts, pins, packaging,
+#                          this workflow); a push touching only these paths
+#                          skips the image build via deb-trigger-paths.txt
+#   workflow_dispatch    — rebuild the committed, hash-verified pins
+#   repository_dispatch  — event type `web888-ng-pin-updated`, fired by
+#                          upstream-watch.yml after it pushed a pin bump
+#                          (GITHUB_TOKEN pushes trigger no workflows, hence
+#                          the explicit dispatch)
+#
+# Publish safety (beyond the shared update-apt-repo.sh path):
+#   * scripts/ci/guard-apt-publish.sh refuses a same-filename-different-
+#     content upload (version must move via the Debian revision or pin);
+#   * apt/provenance.json accumulates per-deb records (sha256, upstream
+#     tag/commit, workflow run) as rollback evidence — old entries survive
+#     both the KEEP_VERSIONS pruning and same-version rebuild attempts.
+#
+# Build scripts (scripts/build-web888d.sh, scripts/build-web888d-deb.sh,
+# scripts/build-web888-ng-bitstream-deb.sh) and packaging/ are owned by
+# another lane; this workflow only orchestrates them.
+
+name: build-web888d-deb
+
+on:
+  push:
+    branches: [master]
+    # Mirrored in scripts/ci/deb-trigger-paths.txt (build-image.yml preflight
+    # skips push-triggered image builds when a push hits these paths) -
+    # keep in sync when adding/removing paths.
+    paths:
+      - 'scripts/build-web888d.sh'
+      - 'scripts/build-web888d-deb.sh'
+      - 'scripts/build-web888-ng-bitstream-deb.sh'
+      - 'config/web888-ng/**'
+      - 'packaging/web888-web888d/**'
+      - 'packaging/web888-ng-bitstream/**'
+      - '.github/workflows/build-web888d-deb.yml'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [web888-ng-pin-updated]
+
+permissions:
+  contents: write   # publish job pushes gh-pages; NO debs-published dispatch
+                     # (actions: write deliberately absent — optional
+                     # maintainer packages must not trigger image builds)
+
+concurrency:
+  group: build-web888-ng
+  cancel-in-progress: false
+
+env:
+  DEBIAN_MIRROR: https://cdn-aws.deb.debian.org/debian
+
+jobs:
+  # Read the committed, hash-verified upstream pair for build provenance.
+  pins:
+    runs-on: ubuntu-24.04
+    outputs:
+      ng_tag: ${{ steps.resolve.outputs.ng_tag }}
+      ng_commit: ${{ steps.resolve.outputs.ng_commit }}
+      hw_tag: ${{ steps.resolve.outputs.hw_tag }}
+      hw_commit: ${{ steps.resolve.outputs.hw_commit }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read committed pins
+        id: resolve
+        run: |
+          set -euo pipefail
+          pinfile=config/web888-ng/pins.env
+          [[ -f $pinfile ]] || { echo "::error::$pinfile missing" >&2; exit 1; }
+          # shellcheck disable=SC1090 # repo-committed, hash-verified pins
+          source "$pinfile"
+          ng_tag=${WEB888_NG_VERSION:+v${WEB888_NG_VERSION#v}}
+          ng_commit=${WEB888_NG_COMMIT:-}
+          hw_tag=${WEB888_NGHW_VERSION:+v${WEB888_NGHW_VERSION#v}}
+          hw_commit=${WEB888_NGHW_COMMIT:-}
+          [[ -n $ng_tag && -n $ng_commit && -n $hw_tag && -n $hw_commit ]] || {
+            echo "::error::$pinfile is incomplete" >&2
+            exit 1
+          }
+          {
+            echo "ng_tag=$ng_tag"
+            echo "ng_commit=$ng_commit"
+            echo "hw_tag=$hw_tag"
+            echo "hw_commit=$hw_commit"
+          } >> "$GITHUB_OUTPUT"
+
+  # push events only: skip rebuilds whose inputs are unchanged since the last
+  # publish (recorded in apt/build-manifest.json on gh-pages). dispatch events
+  # always build.
+  preflight:
+    needs: pins
+    runs-on: ubuntu-24.04
+    outputs:
+      hash_web888d: ${{ steps.web888d.outputs.hash }}
+      skip_web888d: ${{ steps.web888d.outputs.skip }}
+      hash_bitstream: ${{ steps.bitstream.outputs.hash }}
+      skip_bitstream: ${{ steps.bitstream.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: web888d
+        run: >-
+          bash scripts/ci/preflight-skip.sh web888d
+          scripts/build-web888d.sh
+          scripts/build-web888d-deb.sh
+          config/web888-ng
+          packaging/web888-web888d
+          .github/workflows/build-web888d-deb.yml
+      - id: bitstream
+        run: >-
+          bash scripts/ci/preflight-skip.sh web888-ng-bitstream
+          scripts/build-web888-ng-bitstream-deb.sh
+          config/web888-ng
+          packaging/web888-ng-bitstream
+          .github/workflows/build-web888d-deb.yml
+
+  build-web888d:
+    needs: [pins, preflight]
+    if: ${{ needs.preflight.outputs.skip_web888d != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      NG_TAG: ${{ needs.pins.outputs.ng_tag }}
+      NG_COMMIT: ${{ needs.pins.outputs.ng_commit }}
+      HW_TAG: ${{ needs.pins.outputs.hw_tag }}
+      HW_COMMIT: ${{ needs.pins.outputs.hw_commit }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            debootstrap qemu-user-static binfmt-support rsync git dpkg-dev \
+            curl jq podman file
+
+      - name: Set up Node 24 + pnpm 11
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install -g pnpm@11
+
+      - name: Set up Rust + wasm target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Build the web888d daemon + UI from source
+        run: bash scripts/build-web888d.sh
+
+      - name: Create the armhf build chroot
+        run: bash scripts/mk-websdr-chroot.sh
+
+      - name: Sync the Debian version to the upstream pin
+        run: |
+          set -euo pipefail
+          source config/web888-ng/pins.env
+          current=$(dpkg-parsechangelog -l packaging/web888-web888d/debian/changelog -S Version)
+          [[ $current == "$WEB888_NG_VERSION"-* ]] || \
+            bash scripts/ci/stamp-changelog.sh packaging/web888-web888d/debian "$WEB888_NG_VERSION-1"
+
+      - name: Assemble the web888d deb
+        run: bash scripts/build-web888d-deb.sh
+
+      - name: Package sanity checks
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(output/web888d/*.deb)
+          ((${#debs[@]})) || { echo "no web888d deb produced" >&2; exit 1; }
+          for deb in "${debs[@]}"; do
+            echo "== $deb"
+            dpkg-deb --info "$deb" | grep -E '^(Package|Version|Architecture|Maintainer):'
+            [[ $(dpkg-deb --field "$deb" Architecture) == armhf ]] \
+              || { echo "architecture is not armhf" >&2; exit 1; }
+            dpkg-deb --contents "$deb" >/dev/null
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debs-web888d
+          path: output/web888d/*.deb
+
+  build-bitstream:
+    needs: [pins, preflight]
+    if: ${{ needs.preflight.outputs.skip_bitstream != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NG_TAG: ${{ needs.pins.outputs.ng_tag }}
+      NG_COMMIT: ${{ needs.pins.outputs.ng_commit }}
+      HW_TAG: ${{ needs.pins.outputs.hw_tag }}
+      HW_COMMIT: ${{ needs.pins.outputs.hw_commit }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            debootstrap qemu-user-static binfmt-support rsync git dpkg-dev curl jq
+
+      - name: Create the armhf build chroot
+        run: bash scripts/mk-websdr-chroot.sh
+
+      - name: Sync the Debian version to the upstream pin
+        run: |
+          set -euo pipefail
+          source config/web888-ng/pins.env
+          current=$(dpkg-parsechangelog -l packaging/web888-ng-bitstream/debian/changelog -S Version)
+          [[ $current == "$WEB888_NGHW_VERSION"-* ]] || \
+            bash scripts/ci/stamp-changelog.sh packaging/web888-ng-bitstream/debian "$WEB888_NGHW_VERSION-1"
+
+      - name: Build the web888-ng bitstream deb
+        run: bash scripts/build-web888-ng-bitstream-deb.sh
+
+      - name: Package sanity checks
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(output/web888-ng/*.deb)
+          ((${#debs[@]})) || { echo "no bitstream deb produced" >&2; exit 1; }
+          for deb in "${debs[@]}"; do
+            echo "== $deb"
+            dpkg-deb --info "$deb" | grep -E '^(Package|Version|Architecture):'
+            dpkg-deb --contents "$deb" >/dev/null
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debs-web888-ng-bitstream
+          path: output/web888-ng/*.deb
+
+  # Publish debs + APT metadata through the shared gh-pages mechanism.
+  # Deliberately NO `debs-published` repository_dispatch at the end: these
+  # optional packages are not image inputs, so image builds are none of
+  # this workflow's business (that is also why its paths live in
+  # deb-trigger-paths.txt — the push-triggered image build is skipped, not
+  # deferred).
+  publish:
+    needs: [pins, preflight, build-web888d, build-bitstream]
+    if: ${{ always() && vars.APT_REPO_ENABLED == 'true'
+      && needs.pins.result == 'success'
+      && needs.preflight.result == 'success'
+      && needs.build-web888d.result != 'failure'
+      && needs.build-web888d.result != 'cancelled'
+      && needs.build-bitstream.result != 'failure'
+      && needs.build-bitstream.result != 'cancelled'
+      && (needs.preflight.outputs.skip_web888d != 'true'
+          || needs.preflight.outputs.skip_bitstream != 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # serialize APT-repo publishes across all workflows — concurrent writers
+    # to gh-pages would race the git push and the Packages/Release index.
+    concurrency:
+      group: apt-repo-publish
+      cancel-in-progress: false
+    steps:
+      # Publish tooling (scripts/ci/*) intentionally tracks master HEAD, not the
+      # trigger sha: a publish-script fix must not require a full rebuild round.
+      - name: Check out master (publish tooling)
+        uses: actions/checkout@v5
+        with:
+          ref: master
+
+      - name: Check out gh-pages into repo/
+        run: |
+          mkdir -p repo
+          cd repo
+          git init -q
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q origin gh-pages 2>/dev/null; then
+            git checkout -q gh-pages
+            # keep the existing tree: the repo accumulates packages from
+            # every publisher workflow; update-apt-repo.sh prunes per package.
+          else
+            git checkout -q --orphan gh-pages
+            # fresh branch: drop anything that is not .git
+            find . -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          fi
+
+      - name: Install repo tooling
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends dpkg-dev apt-utils
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: debs-web888d
+          path: debs/
+        continue-on-error: true
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: debs-web888-ng-bitstream
+          path: debs/
+        continue-on-error: true
+
+      # Refuse same-version-different-content uploads before anything
+      # touches the index; byte-identical re-runs collapse to a no-op.
+      - name: Collision-guard incoming debs
+        id: guard
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(debs/*.deb)
+          if ((${#debs[@]} == 0)); then
+            echo "result=noop" >> "$GITHUB_OUTPUT"
+            echo "no debs to publish (both builds skipped or artifacts missing)"
+            exit 0
+          fi
+          bash scripts/ci/guard-apt-publish.sh debs/ repo/ apt
+
+      - uses: crazy-max/ghaction-import-gpg@v7
+        if: steps.guard.outputs.result == 'publish'
+        with:
+          gpg_private_key: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
+
+      - name: Update the APT repo
+        if: steps.guard.outputs.result == 'publish'
+        run: APT_GPG_KEY_ID=${{ secrets.APT_REPO_GPG_KEY_ID }} bash scripts/ci/update-apt-repo.sh debs/ repo/ apt
+
+      # Rollback/provenance evidence: one JSON entry per published deb,
+      # keyed by filename; entries are never rewritten in place, so the
+      # history of every payload that ever hit the repo survives even
+      # after update-apt-repo.sh prunes old versions.
+      - name: Record publish provenance
+        if: steps.guard.outputs.result == 'publish'
+        env:
+          NG_TAG: ${{ needs.pins.outputs.ng_tag }}
+          NG_COMMIT: ${{ needs.pins.outputs.ng_commit }}
+          HW_TAG: ${{ needs.pins.outputs.hw_tag }}
+          HW_COMMIT: ${{ needs.pins.outputs.hw_commit }}
+        run: |
+          set -euo pipefail
+          prov=repo/apt/provenance.json
+          [[ -f $prov ]] || echo '{}' > "$prov"
+          for deb in debs/*.deb; do
+            base=$(basename "$deb")
+            sum=$(sha256sum "$deb" | cut -d' ' -f1)
+            jq --arg stem "${base%.deb}" --arg sha "$sum" \
+               --arg date "$(date -u +%FT%TZ)" \
+               --arg wf "${{ github.workflow }}" \
+               --arg run "${{ github.run_number }}" \
+               --arg ng "$NG_TAG" --arg ngc "$NG_COMMIT" \
+               --arg hw "$HW_TAG" --arg hwc "$HW_COMMIT" \
+              '.[$stem] = {sha256: $sha, published_at: $date, workflow: $wf,
+                           run_number: ($run | tonumber),
+                           upstream: {web888_ng_tag: $ng, web888_ng_commit: $ngc,
+                                      web888_ng_hw_tag: $hw, web888_ng_hw_commit: $hwc}}' \
+              "$prov" > "$prov.tmp"
+            mv "$prov.tmp" "$prov"
+          done
+
+      # Record the input hashes so a later push touching only unchanged
+      # inputs skips the rebuild (preflight-skip.sh).
+      - name: Record the published inputs hash
+        if: steps.guard.outputs.result == 'publish'
+        run: |
+          set -euo pipefail
+          manifest=repo/apt/build-manifest.json
+          [[ -f $manifest ]] || echo '{}' > "$manifest"
+          jq --arg d '${{ needs.preflight.outputs.hash_web888d }}' \
+             --arg b '${{ needs.preflight.outputs.hash_bitstream }}' \
+            '.web888d = $d | .["web888-ng-bitstream"] = $b' "$manifest" > "$manifest.tmp"
+          mv "$manifest.tmp" "$manifest"
+
+      - name: Commit and push gh-pages
+        if: steps.guard.outputs.result == 'publish'
+        run: |
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "==> no repo changes — nothing to publish"
+            exit 0
+          fi
+          pkgs=$(find ./apt -maxdepth 1 -name '*.deb' -printf '%f\n' | cut -d_ -f1 | sort -u | paste -sd, -)
+          git commit -m "apt-repo: add $pkgs from ${{ github.workflow }} run ${{ github.run_number }}"
+          git push origin gh-pages
+          # Intentionally NO `debs-published` repository_dispatch here:
+          # web888d/bitstream are optional maintainer packages, not image
+          # inputs — publishing them must not trigger an image rebuild.
+          echo "published (no image dispatch — optional maintainer packages)"

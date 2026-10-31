@@ -5,7 +5,7 @@
 #
 # Gates, in order:
 #   1. deb-trigger-paths drift check — scripts/ci/deb-trigger-paths.txt must
-#      stay the exact union of the five deb workflows' push.paths
+#      stay the exact union of the six deb workflows' push.paths
 #      (check-trigger-paths.sh).
 #   2. zynqsdr driver ABI gate — check-zynqsdr-abi.sh pins the ioctl ABI
 #      shared between the out-of-tree driver and scripts/hw-test.
