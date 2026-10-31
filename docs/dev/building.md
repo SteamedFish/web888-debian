@@ -97,6 +97,27 @@ production DTB to match QEMU):
   is therefore the real FSBL-handoff test — keep the stock TF card as the
   rollback.
 
+### Optional `zynqsdr` PL-model gate
+
+The vendored web888-ng-hw model adds a second, independent emulator without
+changing the mandatory stock QEMU gates above. Building it requires `ninja`,
+`pkg-config` and the system `libslirp` development package in addition to the
+base toolchain:
+
+```sh
+scripts/build-qemu-web888.sh
+scripts/test-zynqsdr-qemu.sh --baremetal-only  # model-only, 13 checks
+scripts/test-zynqsdr-qemu.sh                   # + our Debian kernel/rootfs/driver
+```
+
+The full command needs `sshpass`, `output/zImage`, `output/web888.dtb`,
+`output/web888-debian-uboot.img` and the armhf tools under `scripts/hw-test/`.
+It boots the SD image with snapshot writes by default and drives the guest over
+forwarded SSH. The machine starts with the PL model already loaded: never write
+`/dev/xdevcfg` in this emulator. Model success does not verify devcfg, FPGA
+timing, Si5351/ADC behaviour or hardware bus safety. Sources, exact versions and
+licences are in `resources/qemu-web888/PROVENANCE.md`.
+
 ## Artifacts
 
 Everything lands in `output/` (gitignored):

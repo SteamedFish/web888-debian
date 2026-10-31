@@ -30,6 +30,7 @@ this is a hard project rule).
   The bare-metal gate passes all 13 checks locally; full system and hardware
   validation remain pending. The existing stock `scripts/test-qemu.sh` gate is
   unchanged, and the model never emulates or permits `/dev/xdevcfg` writes.
+  Usage and model limitations are documented in `docs/dev/building.md`.
 
 ## [2026-10-31] — Plan web888-ng validation and optional web888d integration
 
