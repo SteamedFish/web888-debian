@@ -244,6 +244,41 @@ The KiwiSDR lineage (this is a KiwiSDR fork) historically uses `mod=`/`pbw=`/
 `max_dB=`/`/kiwi/<n>`, which leans toward variant A — but **verify**, do not
 assume.
 
+## web888d protocol 2 (`/ws`) — a different protocol on the same port
+
+The whole reference above describes the **stock Web-888/KiwiSDR** protocol.
+jeskko/web888-ng's `web888d` serves a **different, incompatible WebSocket
+protocol** on the same port 8073: one endpoint `GET /ws` (no `/kiwi/<n>`
+path, no subprotocol/extensions/auth in a scratch config), JSON text control
+messages instead of `SET`/`MSG`, and different binary frames. Facts below
+follow the pinned jeskko/web888-ng v0.6.0, commit
+`48e9914aac80e3f20c39838fe9b33193b6b3fb36` (`crates/web/src/proto.rs`,
+`crates/web/tests/session.rs`, as recorded in
+[`zynqsdr-abi-validation.md`](../dev/zynqsdr-abi-validation.md)) and were
+cross-checked against the local `work/upstream/web888-ng` checkout; verify
+against the pinned tree before relying on exact field details. Do not mix
+them with the stock tables above.
+
+**Session flow:** connect → server sends text `hello`, then `state`, then
+`lease` (a receiver lease; `granted:false,position:n` queues) → client sends
+`{"type":"hello","proto":2,"codecs":["pcm16"]}` → binary audio/waterfall
+streams without further request. Narrow the waterfall immediately (default
+`decim:2` is the full 0..ADC/2 view): `{"type":"wf","center_hz":…,"decim":4096,"bins":256,"fps":2}`. With the
+122.88 MHz ADC this gives `bin_hz = 122880000/4096/256 = 117.1875 Hz` (a
+30000 Hz, 256-bin view), not `bin_hz=30000`.
+
+**Server text messages** (tagged `type`): `hello` (fields: `proto:2`,
+`server`, `codec`, `audio_rate:12000`, `radio{backend,variant,adc_hz,rx_rate,rf_lo,rf_hi,wf_decim_min,wf_decim_max}`, `limits`, `session`, `class`, `spots?`), `state` (dial/mode/passband/AGC/wf request/share/listen/name), `lease{granted,position}`, `users`, `skimmers`, `spots`, `status`, `pong{t}`, `busy`, `error`. Client messages: `hello`, `tune`, `mode`, `audio`, `wf`, `ping{t}`, `share`, `listen`, `spots`, `name`.
+
+**Binary frames** (little endian; first byte is the kind):
+
+| Kind | Layout | Notes |
+|---|---|---|
+| 1 audio | `<BBHII f` header (16 B): kind,flags,`n`(u16),`seq`(u32),`rate`(u32),`rssi_db`(f32) + `n`×PCM16 (total `16+2n`) | `n`=240 @ rate 12000; flags: 1 overload, 2 gap (samples lost), 4 stereo (interleaved, `n` counts both channels' samples) |
+| 2 waterfall | `<BBHI d d f f d` header (40 B): kind,flags,`bins`(u16),`seq`(u32),`first_hz`(f64),`bin_hz`(f64),`db0`(f32),`db_step`(f32),`time_ms`(f64) + `bins`×u8 (total `40+bins`) | levels are `db0 + v*db_step`; flags: 1 overload, 2 new_gen (first line of a new tuning — skip earlier lines of the old view), 4 stale (repeated line, no new samples) |
+
+Implemented client: `scripts/hw-test/web888d-ws-check.py` (stdlib only).
+
 ## References
 
 - WebSocket RFC 6455

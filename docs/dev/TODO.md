@@ -54,15 +54,23 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       fix driver divergences with host/QEMU/hardware regression evidence.
       See `web888-ng-integration-plan.md`.
   - [x] Pin and reuse the web888-ng-hw QEMU 11.1.2 machine/PL model with full
-        provenance; bare-metal model gate passes all 13 checks.
+        provenance; bare-metal model gate passes all 12 checks.
   - [x] Lock all 15 stock ioctls, four packed structs and the WF flag against
         the vendored web888-ng-hw UAPI on host and armhf; consolidate consumers
         on one header and add the static-checks CI workflow.
   - [x] Fix the evidence-backed S1 RX/WF rearm consumer-offset defect and add
-        deterministic model regression tests (runtime/negative-control gates
-        remain open below).
-  - [ ] Boot our Debian kernel/rootfs on that model and run the shared
-        `zynqsdr` conformance/rearm corpus; then complete the hardware gate.
+        deterministic model regression tests; fixed-driver positive control
+        and pre-S1 negative control both passed in the full-system model.
+  - [x] Boot our Debian kernel/rootfs on that model and run the shared
+        `zynqsdr` conformance/rearm corpus (full-system model gate passed).
+  - [ ] Repeat the S1 rearm, shared smoke corpus and web888d consumer check on
+        hardware; do not mark Phase 1 complete until this gate passes.
+  - [x] Optional opt-in `WEB888D` lane in `scripts/test-zynqsdr-qemu.sh`:
+        run the pinned upstream web888d in the guest and prove the `/ws`
+        data path (proto2 control + binary audio/waterfall,
+        `scripts/hw-test/web888d-ws-check.py`, deterministic 10 MHz model
+        tone asserted). Model-only evidence — the hardware run and any
+        product-integration decision remain open below/Phase 2.
 - [ ] **Phase 2 (gated by Phase 1): optional web888d mode** — source-built
       experimental deb, default off, HF + stock bitstream only, with three-way
       WebSDR/RP/web888d switching and verified return to WebSDR. No open-FPGA,

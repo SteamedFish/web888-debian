@@ -1,10 +1,10 @@
 # web888-ng evaluation and optional web888d integration plan
 
-> Status: **Phase 1 implementation in progress** (2026-10-31). Phase 2 is not
-> authorised. Phase 1 must produce useful driver and test improvements even if
-> Phase 2 never ships. Current implementation commits are local test milestones,
-> not releases; user-facing packages still require the repository's QEMU/hardware
-> evidence and operator approval.
+> Status: **Phase 1 local implementation and full-system model gates passed;
+> hardware gate pending** (2026-10-31). Phase 2 is not authorised. Phase 1 has
+> produced useful driver and test improvements even if Phase 2 never ships.
+> Current implementation commits are local test milestones, not releases;
+> user-facing packages still require hardware evidence and operator approval.
 
 ## 1. Purpose and strategy
 
@@ -117,6 +117,12 @@ Method:
    conformance cases rather than creating an unrelated test framework.
 4. Run a fixed web888d build as a second, independent userspace consumer. It
    remains a development test dependency, not a shipped service.
+   Model-side implementation (2026-10-31): the opt-in `WEB888D` lane in
+   `scripts/test-zynqsdr-qemu.sh` starts the pinned binary in the guest and
+   `scripts/hw-test/web888d-ws-check.py` proves the `/ws` data path (proto2
+   control + binary audio/waterfall, deterministic model tone). This is
+   QEMU-model evidence only; the hardware run is still required for the
+   Phase 1 gate.
 5. Record observable inputs and outputs: ioctl results, byte counts, sample
    layout, signals/errors and reopen behaviour.
 
@@ -135,7 +141,9 @@ Deliverables:
 - Repeatable conformance tests.
 - Driver fixes and regression evidence.
 - A web888d interoperability report distinguishing Web UI/HPSDR data-path
-  success from a mere process or port startup.
+  success from a mere process or port startup (the `/ws` data-path checker is
+  `scripts/hw-test/web888d-ws-check.py`; model-side results feed the report,
+  hardware results remain to be captured).
 
 ### 1B. Evaluate and adapt the QEMU FPGA model
 
@@ -188,7 +196,7 @@ Implemented model harness (local milestone, 2026-10-31):
   see its `PROVENANCE.md` for the tarball hash and licences.
 - `scripts/build-qemu-web888.sh` builds only `arm-softmmu` from pinned QEMU
   11.1.2 into `work/qemu-web888/`; it never replaces the system QEMU.
-- `scripts/test-zynqsdr-qemu.sh --baremetal-only` passes all 13 model checks,
+- `scripts/test-zynqsdr-qemu.sh --baremetal-only` passes all 12 model checks,
   including signature, CFG, deterministic RX/WF DMA and PPS. The full system
   mode boots our own Debian image and is a separate gate; a bare-metal pass is
   not evidence that our kernel driver works.
@@ -226,7 +234,9 @@ Proceed to product integration only when:
   decision and test;
 - agreed conformance cases pass, including reopen/reset paths;
 - web888d has exercised our driver's real RX/WF data path successfully, or any
-  remaining blocker is explicitly understood and scoped;
+  remaining blocker is explicitly understood and scoped (model-side `/ws`
+  evidence exists via the optional `WEB888D` lane; hardware evidence still
+  required);
 - driver fixes have regression coverage and no stock WebSDR/RP regression;
 - hardware smoke passes;
 - the QEMU track either provides stable promised coverage or has a documented

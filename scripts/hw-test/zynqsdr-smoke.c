@@ -366,7 +366,9 @@ int main(int argc, char **argv)
 		      errno == ETIMEDOUT || errno == EIO || errno == EINTR,
 		      "RX_READ after failed rmmod (hardware: readed>=0 or transient errno)");
 	else
-		CHECK(rc == 0, "RX_READ still works after failed rmmod");
+		/* do_rx_read() returns a byte count, not the ioctl status.  The
+		 * live model may legitimately have new samples ready here. */
+		CHECK(rc >= 0, "RX_READ still works after failed rmmod");
 
 	close(fd);
 

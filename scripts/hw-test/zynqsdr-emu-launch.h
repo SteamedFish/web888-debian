@@ -169,6 +169,10 @@ static int zynqsdr_ssh_run(const char *host, const char *port,
 	const char *pass = getenv("ZYNQSDR_SSH_PASS");
 	const char *extra = getenv("ZYNQSDR_SSH_OPTS");
 	const char *sshpass_bin;
+
+	/* The documented default must also apply when the env var is unset. */
+	if (!pass)
+		pass = "changeme";
 	char target[600];
 	char *args[32];
 	int argc = 0, status;

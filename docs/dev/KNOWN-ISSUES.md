@@ -100,7 +100,14 @@ These constrain what the pre-flash gate can cover:
 - QEMU's xdevcfg model hard-hangs the guest on bitstream WRITE →
   `load-bitstream` runtime checks are hardware-only (host-side mocks
   cover the fail-closed paths).
-- FSBL → U-Boot handoff is not emulatable → full-U-Boot SSBL chain is
+- The vendored bare-metal PL test's RX frame-rate check is timing-sensitive:
+  one 2026-10-31 run reported 24 frames/100 ms (and failed) while an immediate
+  rerun and the subsequent full-system runs reported ~1190 and passed. Keep
+  the check strict; rerun transient host-scheduling failures, but investigate
+  rather than masking any repeatable under-count. This does not affect the
+  separate in-kernel driver/web888d model results and is not hardware evidence.
+- FSBL → U-Boot handoff is not emulatable on the **stock** QEMU gate →
+  full-U-Boot SSBL chain is
   verified in QEMU only from U-Boot onward; the FSBL handoff is a
   hardware gate. The QEMU gate never executes the FSBL at all
   (`scripts/test-qemu.sh` direct-boots `output/u-boot.bin` via
@@ -110,8 +117,15 @@ These constrain what the pre-flash gate can cover:
   only (passed 2026-08-15, see the FSBL=source CHANGELOG entry). The
   pre-publish smoke jobs in the deb publisher workflows
   (`scripts/ci/qemu-smoke-deb.sh`, 2026-08-17) inherit this: a broken
-  FSBL inside `web888-boot` passes the smoke gate and is only caught on
-  hardware.
+  FSBL in those chains is caught on hardware only. Exception: the
+  optional web888-ng-hw model gate (`scripts/test-zynqsdr-qemu.sh`)
+  boots through the boot ROM since 2026-10-31 — it extracts the FSBL
+  first stage from the image's BOOT.BIN and starts CPU0 at the reset
+  vector (`-M web888,boot-mode=sd` + loader device), so the FSBL→SSBL
+  handoff *is* exercised there (under the web888 machine's SLCR/DDR
+  model, not the stock Zynq model's); the stock gate above is unchanged.
+  The deb-packaged FSBL inside `web888-boot` still passes the smoke gate
+  and is only caught on hardware.
 - QEMU masks blank-PL AXI hangs (its Zynq model returns 0 for unmapped GP
   reads) — hardware does not; see `zynqsdr-port-notes.md` §11 for the
   load-bearing probe-must-not-touch-PL rule.

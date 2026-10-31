@@ -9,6 +9,30 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Full-system zynqsdr model and web888d validation
+
+### Added
+- The complete web888-model gate now builds fresh host/armhf test tools into
+  `work/qemu-web888/tools/`, boots the assembled Debian image through its
+  BOOT.BIN/FSBL, and passes the full smoke and RX/WF0/WF1 rearm corpus. The
+  opt-in web888d lane then passes HTTP and real `/ws` audio/waterfall data;
+  the final run received 584 audio frames and 7 narrow WF lines and located
+  the model tone 0.25 bins from 10 MHz. A snapshot-boot negative control with
+  the pre-S1 module produced the expected RX=131072 and WF=16384 stale-ring
+  failures, proving the regression test rejects the old driver. Evidence and
+  the remaining hardware gate are recorded in `zynqsdr-abi-validation.md`.
+
+### Fixed
+- The host-side smoke/rearm launcher now actually applies its documented
+  `changeme` default when `ZYNQSDR_SSH_PASS` is unset, instead of silently
+  falling back to interactive ssh. The smoke test's failed-rmmod check now
+  accepts any non-negative RX byte count on the live model (the helper returns
+  bytes, not ioctl status), removing a timing-dependent false failure.
+- web888d guest startup backgrounds only the daemon (with stdin closed), so
+  ssh returns instead of waiting on the whole background command list. HTTP
+  status expansion is correctly guest-side, and startup/log/WebSocket ssh
+  wrappers use kill-after timeouts so a failed model run cannot hang forever.
+
 ## [2026-10-31] — Fresh local WebSDR install without third-party artifacts
 
 ### Fixed
@@ -16,6 +40,76 @@ this is a hard project rule).
   the optional `output/thirdparty/` directory does not exist. A fresh local
   build can install WebSDR and resolve its dependencies from the configured
   APT repositories; a locally built acarsdec deb is still staged when present.
+
+## [2026-10-31] — Boot the web888 QEMU system gate through the boot ROM
+
+### Fixed
+- `scripts/test-zynqsdr-qemu.sh` system mode booted `-M web888` with only the
+  SD drive: the machine never got a kernel/dtb/FSBL, so the full-system run
+  sat at a blank serial (one NIC warning) until killed. It now implements the
+  upstream `--bootrom` flow (`work/upstream/web888-ng-hw/emu/run.sh`): sfdisk
+  finds the image's first-partition offset, mcopy pulls `BOOT.BIN` from the
+  FAT (from `output/web888-debian-uboot.img`, so the gate verifies the
+  assembled chain — not `output/fsbl`), the Zynq boot header (`XNLX` magic at
+  0x24; first-stage offset/length at 0x30/0x34) yields the FSBL, and QEMU
+  starts with `-M web888,boot-mode=sd` plus
+  `-device loader,file=<fsbl>,addr=0x0,force-raw=on` (snapshot stays on).
+  Extraction scratch is the bounded `work/qemu-web888/bootrom` dir, removed by
+  the EXIT trap; `sfdisk`/`mcopy`/`python3` become system-mode prerequisites
+  and are reported as optional deps by `scripts/env-setup.sh`
+  (`docs/dev/building.md` documents the flow).
+
+## [2026-10-31] — web888d /ws data-path proof in the QEMU consumer check
+
+### Added
+- `scripts/hw-test/web888d-ws-check.py`: stdlib-only WebSocket protocol-2
+  client (fresh GPL-2.0-or-later implementation of the wire facts, attributed
+  to the pinned web888-ng v0.6.0 `crates/web/src/proto.rs` and
+  `crates/web/tests/session.rs`, cross-checked against the local checkout).
+  It proves real data flow through an independent stock-ABI consumer: RFC 6455
+  101 handshake with `Sec-WebSocket-Accept` on `/ws`, masked client frames,
+  ping/pong and close handling, fragmentation reassembly, protocol-2 text
+  control (hello proto2 / backend zynqsdr / audio_rate 12000, state, lease
+  granted) and binary streams — audio kind 1 (`<BBHII f`, n=240 @ 12 kHz,
+  finite RSSI, increasing seq) and waterfall kind 2 (`<BBHI d d f f d`,
+  256 bins). `--check-model-tone` additionally asserts the QEMU model's
+  deterministic 10 MHz tone (df=117.1875 Hz, strongest narrow-view bin within
+  one bin of centre; stale/default full-view frames excluded); without the
+  flag it can smoke any web888d instance (e.g. the `sim` backend on the host,
+  another port). Verified against the fixed binary's `sim` backend under
+  qemu-user (175 audio frames, 7 narrow WF lines, pong OK; model-tone flag
+  correctly rejects the non-zynqsdr backend).
+- The opt-in `WEB888D` lane in `scripts/test-zynqsdr-qemu.sh` now runs this
+  check on the guest's python3 (piped to `python3 -` over ssh, bounded by
+  `timeout 180` on both ends) after HTTP-ready and before stopping web888d,
+  failing the lane with the existing guest-log dump on error.
+
+### Changed
+- Docs: `building.md` and `zynqsdr-abi-validation.md` describe the data-path
+  proof and keep the explicit scope (QEMU model only — no hardware, no
+  web888d product-integration claim); `protocol-api.md` gains a sourced
+  web888d protocol-2 `/ws` subsection distinct from the stock Kiwi protocol;
+  `TODO.md` and `web888-ng-integration-plan.md` record the model-side
+  evidence with the hardware gate still open.
+
+## [2026-10-31] — Optional web888d consumer check in the QEMU system test
+
+### Added
+- `scripts/test-zynqsdr-qemu.sh` gained an opt-in independent stock-ABI
+  consumer check: with `WEB888D=<abs-or-repo-path-to-binary>` and the
+  required `WEB888D_UI_DIR` set, the script copies the pinned upstream
+  web888-ng `web888d` and its UI into a guest scratch dir after the normal
+  smoke+rearm, stops `web888-websdr.service`, starts
+  `web888d serve --backend zynqsdr --bitstream none --no-hpsdr --no-tls
+  --http 127.0.0.1:8073`, polls the guest-local HTTP endpoint until ready,
+  requires the process to stay alive with no fatal log line, then stops it.
+  Fully optional (default behaviour unchanged; `--baremetal-only` ignores
+  both variables); no service, package or default mode is added, and the
+  guest is still booted with snapshot writes. This validates that an
+  unmodified stock-ABI consumer starts against the in-kernel zynqsdr driver
+  under the QEMU PL model — it is not hardware verification and not a
+  web888d product-integration claim. Usage documented in
+  `docs/dev/building.md` and `docs/dev/zynqsdr-abi-validation.md`.
 
 ## [2026-10-31] — Lock the zynqsdr ABI and fix stream rearm
 
@@ -62,7 +156,7 @@ this is a hard project rule).
   arm-softmmu build under `work/qemu-web888/`, without replacing system QEMU.
 - `scripts/test-zynqsdr-qemu.sh`: bare-metal model gate plus a separate full
   Debian system-test path for our kernel/dtb/rootfs and `zynqsdr` tests.
-  The bare-metal gate passes all 13 checks locally; full system and hardware
+  The bare-metal gate passes all 12 checks locally; full system and hardware
   validation remain pending. The existing stock `scripts/test-qemu.sh` gate is
   unchanged, and the model never emulates or permits `/dev/xdevcfg` writes.
   Usage and model limitations are documented in `docs/dev/building.md`.

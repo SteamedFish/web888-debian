@@ -69,6 +69,9 @@ echo
 echo "== Optional web888 QEMU model =="
 note_cmd ninja                    ninja
 note_cmd pkg-config               pkgconf
+note_cmd sfdisk                   util-linux
+note_cmd mcopy                    mtools
+note_cmd python3                  python
 if command -v pkg-config &>/dev/null; then
     if pkg-config --exists slirp; then
         report "OK  libslirp" "$(pkg-config --modversion slirp)"

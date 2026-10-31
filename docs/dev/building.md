@@ -106,17 +106,57 @@ base toolchain:
 
 ```sh
 scripts/build-qemu-web888.sh
-scripts/test-zynqsdr-qemu.sh --baremetal-only  # model-only, 13 checks
+scripts/test-zynqsdr-qemu.sh --baremetal-only  # model-only, 12 checks
 scripts/test-zynqsdr-qemu.sh                   # + our Debian kernel/rootfs/driver
 ```
 
-The full command needs `sshpass`, `output/zImage`, `output/web888.dtb`,
-`output/web888-debian-uboot.img` and the armhf tools under `scripts/hw-test/`.
-It boots the SD image with snapshot writes by default and drives the guest over
-forwarded SSH. The machine starts with the PL model already loaded: never write
+The full command needs `sshpass`, `sfdisk`, `mcopy` (mtools) and `python3`
+on the host, plus `output/zImage`, `output/web888.dtb` and
+`output/web888-debian-uboot.img`. It builds fresh host and armhf smoke/rearm
+binaries from `scripts/hw-test/` into `work/qemu-web888/tools/`, so a stale
+prebuilt test binary cannot mask a driver or test-source change.
+The script extracts `BOOT.BIN` from the image's FAT partition (as the board's
+boot ROM reads it), pulls the FSBL first stage from the Zynq boot header, and
+boots the image with `-M web888,boot-mode=sd` plus a loader device for the
+FSBL at the CPU0 reset vector — the gate therefore exercises the assembled
+image chain (same `--bootrom` flow as upstream `web888-ng-hw/emu/run.sh`),
+not a side `output/fsbl` artifact. It boots the SD image with snapshot
+writes by default and drives the guest over forwarded SSH. The machine starts with the PL model already loaded: never write
 `/dev/xdevcfg` in this emulator. Model success does not verify devcfg, FPGA
 timing, Si5351/ADC behaviour or hardware bus safety. Sources, exact versions and
 licences are in `resources/qemu-web888/PROVENANCE.md`.
+
+#### Optional web888d consumer check
+
+After the smoke and rearm tests, the system test can additionally run the
+pinned upstream `web888d` binary (jeskko/web888-ng) inside the guest as an
+independent stock-ABI consumer against our in-kernel `zynqsdr` driver:
+
+```sh
+WEB888D=work/upstream/web888-ng/target/armv7-unknown-linux-musleabihf/release/web888d \
+WEB888D_UI_DIR=work/upstream/web888-ng/ui/dist \
+  scripts/test-zynqsdr-qemu.sh
+```
+
+Both variables take absolute or repo-relative paths and must exist; without
+`WEB888D` the test behaves exactly as before (`--baremetal-only` ignores both).
+The script copies the binary and UI into a guest scratch dir, stops
+`web888-websdr.service`, starts `web888d serve --backend zynqsdr --bitstream
+none --no-hpsdr --no-tls --http 127.0.0.1:8073` (no `/dev/xdevcfg` write — the
+PL model is already loaded), polls the guest-local HTTP endpoint, requires the
+process to stay alive with no fatal log line, then proves real `/ws` data flow
+with the guest's own python3 stdlib (`scripts/hw-test/web888d-ws-check.py`
+piped to `python3 -` over ssh): RFC 6455 handshake on `/ws`, protocol-2 text
+control (hello proto2/backend zynqsdr/audio_rate 12000, state, lease granted)
+and binary little-endian audio frames (kind 1, n=240 @ 12 kHz, increasing
+seq) plus narrow waterfall frames (kind 2, 256 bins), with the deterministic
+QEMU model tone asserted (strongest narrow-view WF bin within 1 bin of the
+10 MHz centre, df=117.1875 Hz; stale/default full-view frames excluded). It then
+stops web888d. This validates that an independent, unmodified stock-ABI
+consumer can stream real data against the in-kernel driver under the model —
+it is **not** hardware verification and **not** a web888d product integration
+test (no service or package is installed; the image boots with snapshot
+writes).
 
 ## Artifacts
 
