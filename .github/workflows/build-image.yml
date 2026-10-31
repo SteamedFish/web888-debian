@@ -153,6 +153,14 @@ jobs:
           xz -T"$(nproc)" -6 -v output/web888-debian-uboot.img
           ls -lh output/web888-debian-uboot.img.xz
 
+      - name: Generate SHA256SUMS
+        run: |
+          # Checksum travels as a separate release asset so `gh release
+          # view` / downloader scripts can verify without recomputing.
+          cd output
+          sha256sum web888-debian-uboot.img.xz > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Collect installed package versions for the release notes
         run: |
           {
@@ -184,7 +192,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG=img-$(date -u +%Y%m%d-%H%M%SZ)
-          gh release create "$TAG" output/web888-debian-uboot.img.xz \
+          gh release create "$TAG" output/web888-debian-uboot.img.xz output/SHA256SUMS \
             --title "Web-888 Debian card image $TAG" \
             --notes-file release-notes.md
           echo "released: $TAG"

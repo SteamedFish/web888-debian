@@ -9,6 +9,14 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — CI trigger drift gate and image checksums
+
+### Added
+- `scripts/ci/check-trigger-paths.sh` compares the five deb publishers'
+  `push.paths` union with `scripts/ci/deb-trigger-paths.txt` in both directions;
+  its fixture test proves that both a missing and an extra pattern fail.
+- Image releases now include `SHA256SUMS` for the compressed flash image.
+
 ## [2026-10-31] — Reuse the web888-ng-hw QEMU PL model
 
 ### Added
