@@ -40,6 +40,9 @@ this is a hard project rule).
   `6.12.113-web888`, `/boot/zImage.prev` points at 6.12.111, all zynqsdr
   hardware smoke and rearm checks pass, WebSDR returns `E2E_OK`, and
   `systemctl --failed` is empty.
+- This security update intentionally refreshes the image Release after the
+  new kernel and boot debs reach the APT repository; it is not a package-only
+  rollout.
 
 ## [2026-11-01] — Package-only CI rollouts without an image Release
 
