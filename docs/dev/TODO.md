@@ -46,6 +46,18 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
   2026-10-12 to master `4dfecc46` (2026-09-27) — see
   `web888-kiwisdr-cherry-pick-plan.md` and `config/websdr/cherry-picks/`
 
+## web888-ng evaluation and optional integration
+
+- [ ] **Phase 1: validate and improve our own stack** — independently verify
+      the `zynqsdr` ABI with web888-ng evidence and web888d as a second
+      userspace consumer; evaluate/adapt the web888-ng-hw QEMU FPGA model;
+      fix driver divergences with host/QEMU/hardware regression evidence.
+      See `web888-ng-integration-plan.md`.
+- [ ] **Phase 2 (gated by Phase 1): optional web888d mode** — source-built
+      experimental deb, default off, HF + stock bitstream only, with three-way
+      WebSDR/RP/web888d switching and verified return to WebSDR. No open-FPGA,
+      channelizer, VHF or full feature-parity commitment.
+
 ## Red Pitaya follow-ups
 
 - [ ] U2: upstream userspace cherry-picks survey (pavel-demin 2024-12 →

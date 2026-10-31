@@ -9,6 +9,17 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Plan web888-ng validation and optional web888d integration
+
+### Added
+- `docs/dev/web888-ng-integration-plan.md`: a planning-only, two-phase route.
+  Phase 1 uses web888-ng as independent `zynqsdr` ABI evidence, a second
+  userspace test workload and a possible QEMU FPGA model to improve our driver
+  and regression infrastructure. Phase 2, gated by Phase 1, adds web888d as an
+  experimental, default-off HF server option with three-way runtime switching
+  and verified return to WebSDR. No implementation or release is authorised by
+  the plan. Indexed in `docs/dev/README.md` and tracked in `docs/dev/TODO.md`.
+
 ## [2026-10-21] — CI: age-aware APT repo retention
 
 ### Changed
