@@ -24,7 +24,10 @@ sudo cp "$DEB" "$ROOTFS"/tmp/debs/
 # acarsdec (web888-websdr Depends) is our own third-party package; stage the
 # locally built deb too when present so images work before/without the APT
 # repo carrying it (fresh repo bootstrap, local-only builds).
-ACARS_DEB=$(find output/thirdparty -maxdepth 1 -name 'acarsdec_*_armhf.deb' 2>/dev/null | sort --version-sort | tail --lines=1)
+ACARS_DEB=""
+if [[ -d output/thirdparty ]]; then
+  ACARS_DEB=$(find output/thirdparty -maxdepth 1 -name 'acarsdec_*_armhf.deb' 2>/dev/null | sort --version-sort | tail --lines=1)
+fi
 [[ -n $ACARS_DEB ]] && sudo cp "$ACARS_DEB" "$ROOTFS"/tmp/debs/
 
 # suppress service start/restart inside the chroot, keep enablement

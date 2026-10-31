@@ -9,6 +9,14 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Fresh local WebSDR install without third-party artifacts
+
+### Fixed
+- `scripts/install-websdr.sh` no longer exits under `set -e`/`pipefail` when
+  the optional `output/thirdparty/` directory does not exist. A fresh local
+  build can install WebSDR and resolve its dependencies from the configured
+  APT repositories; a locally built acarsdec deb is still staged when present.
+
 ## [2026-10-31] — Lock the zynqsdr ABI and fix stream rearm
 
 ### Added
