@@ -154,6 +154,11 @@ and a fresh flash kept networkd enabled; renamed to `80-web888.preset` and
 the QEMU check now asserts (any of the five printing `enabled` fails the
 gate). Remove this section once a rebuilt image is flashed and
 `systemctl --failed` comes back empty.
+Hardware note (2026-10-31, Phase 1 kernel test, not a fresh-image flash):
+`chrony-wait.service` timed out because all configured network time sources
+had reachability 0 and GPS had no antenna. WebSDR/RP functional gates still
+passed, but this run is not evidence that the fresh-image `systemctl
+--failed` requirement is satisfied.
 
 ## 8. The board has no USB-A socket — only two Type-C ports, and adapter quality matters
 

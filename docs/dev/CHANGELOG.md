@@ -9,6 +9,22 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Phase 1 hardware validation completed
+
+### Added
+- Installed the QEMU-tested `6.12.111-2` kernel on the operator's board,
+  rebooted, and verified the running `zynqsdr.ko.xz` hash matched the tested
+  package. Hardware smoke and RX/WF0/WF1 rearm passed. The pinned web888d
+  then passed HTTP and `/ws` against the in-kernel driver (174 audio frames,
+  7 narrow WF lines, pong), using `--bitstream none` and no devcfg write.
+- WebSDR returned after web888d with `E2E_OK`; one `sdr_receiver` round trip
+  returned 65536 live TCP1001 bytes (73.105% nonzero, stdev 18976.35), then
+  returned to WebSDR with another `E2E_OK`. Phase 1 is therefore complete;
+  Phase 2 has not been started or authorised. The board had no antenna, so
+  these are ABI/stream/mode results, not RF-level assertions. A separate
+  `chrony-wait` timeout caused by unreachable NTP sources is documented and
+  is not claimed as a fresh-image `systemctl --failed` pass.
+
 ## [2026-10-31] — Minimize web888d validation dependencies
 
 ### Changed

@@ -1,10 +1,9 @@
 # web888-ng evaluation and optional web888d integration plan
 
-> Status: **Phase 1 local implementation and full-system model gates passed;
-> hardware gate pending** (2026-10-31). Phase 2 is not authorised. Phase 1 has
-> produced useful driver and test improvements even if Phase 2 never ships.
-> Current implementation commits are local test milestones, not releases;
-> user-facing packages still require hardware evidence and operator approval.
+> Status: **Phase 1 complete, including hardware validation** (2026-10-31).
+> Phase 2 is not authorised or started. Phase 1 produced useful driver and
+> test improvements even if Phase 2 never ships. Implementation commits are
+> local test milestones, not releases; no GitHub push has occurred.
 
 ## 1. Purpose and strategy
 
@@ -123,9 +122,9 @@ Method:
    Model-side implementation (2026-10-31): the opt-in `WEB888D` lane in
    `scripts/test-zynqsdr-qemu.sh` starts the pinned binary in the guest and
    `scripts/hw-test/web888d-ws-check.py` proves the `/ws` data path (proto2
-   control + binary audio/waterfall, deterministic model tone). This is
-   QEMU-model evidence only; the hardware run is still required for the
-   Phase 1 gate.
+   control + binary audio/waterfall, deterministic model tone). The hardware
+   run subsequently passed with the same independent client (no RF-level
+   assertion because the board had no antenna), completing the Phase 1 gate.
 5. Record observable inputs and outputs: ioctl results, byte counts, sample
    layout, signals/errors and reopen behaviour.
 
@@ -145,8 +144,8 @@ Deliverables:
 - Driver fixes and regression evidence.
 - A web888d interoperability report distinguishing Web UI/HPSDR data-path
   success from a mere process or port startup (the `/ws` data-path checker is
-  `scripts/hw-test/web888d-ws-check.py`; model-side results feed the report,
-  hardware results remain to be captured).
+  `scripts/hw-test/web888d-ws-check.py`; model and hardware results are in
+  `zynqsdr-abi-validation.md`).
 
 ### 1B. Evaluate and adapt the QEMU FPGA model
 
@@ -238,8 +237,8 @@ Proceed to product integration only when:
 - agreed conformance cases pass, including reopen/reset paths;
 - web888d has exercised our driver's real RX/WF data path successfully, or any
   remaining blocker is explicitly understood and scoped (model-side `/ws`
-  evidence exists via the optional `WEB888D` lane; hardware evidence still
-  required);
+  evidence exists via the optional `WEB888D` lane and the subsequent
+  hardware run);
 - driver fixes have regression coverage and no stock WebSDR/RP regression;
 - hardware smoke passes;
 - the QEMU track either provides stable promised coverage or has a documented
