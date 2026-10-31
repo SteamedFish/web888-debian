@@ -9,6 +9,15 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-11-01] — Package-only CI rollouts without an image Release
+
+### Added
+- A HEAD commit message containing `[no image]` now suppresses only the
+  image build/release path: deb workflows still build and publish their APT
+  packages, while the push-triggered image run and its `debs-published`
+  follow-up are skipped. `workflow_dispatch` on `build-image` remains the
+  explicit override.
+
 ## [2026-11-01] — Optional web888d packages and explicit FPGA selection
 
 ### Added

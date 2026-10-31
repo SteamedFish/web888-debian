@@ -9,6 +9,7 @@
 # fire `debs-published` after publishing (no image rebuild is needed or
 # wanted). Its push paths are still mirrored in scripts/ci/deb-trigger-paths.txt
 # so a push touching only these paths skips the push-triggered image build.
+# A HEAD commit containing `[no image]` remains build/publish-only here too.
 #
 # Upstream pins live in config/web888-ng/pins.env (committed VERSION/COMMIT
 # plus source and asset hashes). web888d and the

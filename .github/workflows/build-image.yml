@@ -27,6 +27,11 @@
 #     the recovery path when a deb workflow self-skips (inputs hash
 #     unchanged) and no dispatch ever fires.
 #
+# Package-only pushes: when HEAD contains `[no image]`, automatic push and
+# debs-published runs skip the image build/release. Deb workflows still
+# build and publish their packages. workflow_dispatch is the explicit
+# override for rebuilding the image later.
+#
 # /releases/latest always points at the freshest image; assets keep a stable
 # name so .../releases/latest/download/web888-debian-uboot.img.xz is a
 # permalink. Old img-* releases are pruned: the newest 5 always stay, older
@@ -84,6 +89,14 @@ jobs:
       - id: decide
         run: |
           set -euo pipefail
+          # Package-only publish: deb workflows still build and publish their
+          # APT packages, but this commit does not refresh the image Release.
+          # A manual workflow_dispatch is always an explicit override.
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" ]] && \
+             [[ "$(git log -1 --format=%B)" == *"[no image]"* ]]; then
+            echo "::notice::HEAD requests a package-only publish — skipping the image release"
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           if [[ "${{ github.event_name }}" != "push" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
           fi

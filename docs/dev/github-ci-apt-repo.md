@@ -351,6 +351,13 @@ stable asset name `web888-debian-uboot.img.xz`.
   dispatch. Deb *inputs* (write-dtb.sh, build-kernel-6.12.sh, web888.dts)
   are deliberately excluded: listing them would double-trigger one image
   build per push on top of the publisher's dispatch.
+- **Package-only push** (`[no image]` in the HEAD commit message): deb
+  workflows still build and publish their APT packages, but both the
+  push-triggered image run and the later `debs-published` dispatch skip the
+  image job. This permits a source/package roll-out without a new GitHub
+  Release. Keep the marker at master HEAD until all deb workflows have
+  dispatched; a later normal commit is enough to allow future releases, or
+  run `build-image` manually as the explicit override.
 - **CDN index race**: the APT repo sits behind Cloudflare, so right after
   a gh-pages publish an edge node can briefly serve a stale `Packages.gz`
   against the new `Release` file, and apt hard-fails ("File has unexpected

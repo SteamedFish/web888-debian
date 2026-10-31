@@ -2,6 +2,9 @@
 # chroot on GitHub-hosted ubuntu-24.04 and publish it to the flat gh-pages
 # APT repo. Version: committed changelog version + "+ci${GITHUB_RUN_NUMBER}"
 # (CI checkout only, never committed). See docs/dev/github-ci-apt-repo.md.
+#
+# A HEAD commit containing `[no image]` still builds and publishes this deb;
+# build-image.yml suppresses only the follow-up image Release.
 
 name: build-websdr-deb
 
