@@ -150,71 +150,24 @@
 #define ZYNQSDR_NUM_GPIOS	5
 
 /* ------------------------------------------------------------------ */
-/* Userspace ABI — verbatim from RaspSDR/server zynq/ioctl.h (the ABI  */
-/* authority; struct/field names must match what websdr compiles       */
-/* against). Magic 'Z', commands 0-12 and 20-21, plus one flag.        */
+/* Userspace ABI — single source of truth in config/kernel/            */
+/* zynqsdr_uapi.h (packed layouts, fixed-width types, the 15 stock     */
+/* ioctls). Struct/field names must match what websdr compiles against */
+/* (RaspSDR/server zynq/ioctl.h).                                      */
 /* ------------------------------------------------------------------ */
-
-#define ZYNQSDR_AD8370_SET	_IOW('Z', 0, __u32)
-
-/* 0 - HF Mode, 1 - Airband mode */
-#define ZYNQSDR_MODE_SET	_IOW('Z', 1, __u32)
-
-/* 0 - EXT CLK, 1 - INT CLK */
-#define ZYNQSDR_CLK_SET		_IOW('Z', 2, __u32)
-
-/* get FPGA DNA */
-#define ZYNQSDR_GET_DNA		_IOR('Z', 3, __u64)
-
-/* start RX, u16 is decimate */
-#define ZYNQSDR_RX_START	_IOW('Z', 4, __u32)
-
-/* set RX parameter */
-struct zynqsdr_rx_param_op {
-	__u32 channel;
-	__u64 freq;
-} __packed;
-#define ZYNQSDR_RX_PARAM	_IOW('Z', 5, struct zynqsdr_rx_param_op)
-
-/* read RX data */
-struct zynqsdr_rx_read_op {
-	__u32 address;	/* userspace virtual address of destination buffer */
-	__u32 length;	/* requested length in bytes */
-	__u32 readed;	/* driver fills: bytes actually transferred */
-} __packed;
-#define ZYNQSDR_RX_READ		_IOWR('Z', 6, struct zynqsdr_rx_read_op)
-
-/* get/set GPIO mask */
-#define ZYNQSDR_SET_GPIO_MASK	_IOW('Z', 7, __u32)
-#define ZYNQSDR_GET_GPIO_MASK	_IOR('Z', 8, __u32)
-
-/* get FPGA signature */
-#define ZYNQSDR_GET_SIGNATURE	_IOR('Z', 9, __u32)
-
-/* u32 low bits are the channel, high bits are flags */
-#define ZYNQSDR_WF_READ_CONTINUES	0x00010000
-
-#define ZYNQSDR_WF_START	_IOW('Z', 10, __u32)
-
-/* set waterfall frequency and decimate */
-struct zynqsdr_wf_param_op {
-	__u16 channel;
-	__u16 decimate;
-	__u64 freq;
-} __packed;
-#define ZYNQSDR_WF_PARAM	_IOW('Z', 11, struct zynqsdr_wf_param_op)
-
-/* read waterfall data, one-shot or continuous */
-struct zynqsdr_wf_read_op {
-	__u16 channel;
-	__u32 address;	/* userspace virtual address */
-	__u32 length;	/* requested length in bytes */
-	__u32 readed;	/* driver fills: bytes actually transferred */
-} __packed;
-#define ZYNQSDR_WF_READ		_IOWR('Z', 12, struct zynqsdr_wf_read_op)
-
-#define ZYNQSDR_PPS_START	_IOW('Z', 20, __u32)
-#define ZYNQSDR_PPS_READ	_IOR('Z', 21, __u32)
+#if defined(__has_include)
+# if __has_include("zynqsdr_uapi.h")
+#  include "zynqsdr_uapi.h"		/* kernel build trees that copy it next to this file */
+# elif __has_include("../../../../config/kernel/zynqsdr_uapi.h")
+   /* Rollback chain (work/linux-xlnx, drivers/char -> repo root): keeps the
+    * linux-xlnx 6.6 build working without duplicating the definitions. */
+#  include "../../../../config/kernel/zynqsdr_uapi.h"
+# else
+#  include "zynqsdr_uapi.h"		/* canonical "file not found" error */
+# endif
+#else
+# include "zynqsdr_uapi.h"
+#endif
 
 /**
  * struct zynqsdr_dev - per-device state (one instance)
@@ -512,6 +465,17 @@ static long zynqsdr_do_ioctl(struct zynqsdr_file *zfile,
 		iowrite16((__u16)arg, zdev->config + ZYNQSDR_CFG_RX_DECIMATE);
 		zfile->rx_decimate = (__u16)arg;
 		zfile->rx.armed = true;
+		/*
+		 * S1: the engine restart makes the FPGA producer re-enter
+		 * the ring at the head, so the consumer position must be
+		 * re-synced on EVERY successful (re)arm — after the
+		 * parameter validation, the ring allocation and all MMIO
+		 * have succeeded, right before the success return. The
+		 * per-file ioctl mutex serializes this against concurrent
+		 * RX_READs (zynqsdr_stream_arm's own offset=0 on first
+		 * allocation is untouched).
+		 */
+		zfile->rx.offset = 0;
 		return 0;
 	}
 
@@ -631,6 +595,11 @@ static long zynqsdr_do_ioctl(struct zynqsdr_file *zfile,
 			  ZYNQSDR_RESET_WF(chan),
 			  zdev->config + ZYNQSDR_CFG_RESET);
 		st->armed = true;
+		/* S1: same re-sync as RX_START — the producer restarts at the
+		 * ring head on every arm, so drop any stale consumer offset
+		 * only now, after MMIO completed and armed is set, just
+		 * before the success return. */
+		st->offset = 0;
 		return 0;
 	}
 

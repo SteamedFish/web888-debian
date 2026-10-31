@@ -55,6 +55,12 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       See `web888-ng-integration-plan.md`.
   - [x] Pin and reuse the web888-ng-hw QEMU 11.1.2 machine/PL model with full
         provenance; bare-metal model gate passes all 13 checks.
+  - [x] Lock all 15 stock ioctls, four packed structs and the WF flag against
+        the vendored web888-ng-hw UAPI on host and armhf; consolidate consumers
+        on one header and add the static-checks CI workflow.
+  - [x] Fix the evidence-backed S1 RX/WF rearm consumer-offset defect and add
+        deterministic model regression tests (runtime/negative-control gates
+        remain open below).
   - [ ] Boot our Debian kernel/rootfs on that model and run the shared
         `zynqsdr` conformance/rearm corpus; then complete the hardware gate.
 - [ ] **Phase 2 (gated by Phase 1): optional web888d mode** — source-built

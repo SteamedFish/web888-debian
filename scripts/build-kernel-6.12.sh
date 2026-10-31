@@ -96,6 +96,9 @@ fi
 # on valid input; observed as a repo-discovery anomaly).
 cp config/kernel/xilinx_devcfg.c "$KDIR/drivers/char/xilinx_devcfg.c"
 cp config/kernel/zynqsdr.c "$KDIR/drivers/char/zynqsdr.c"
+# UABI single source of truth — must sit next to the driver for the
+# #include "zynqsdr_uapi.h" to resolve (see zynqsdr.c header comment).
+cp config/kernel/zynqsdr_uapi.h "$KDIR/drivers/char/zynqsdr_uapi.h"
 if ! grep --quiet "config XILINX_DEVCFG" "$KDIR/drivers/char/Kconfig"; then
     patch -p1 -d "$KDIR" < config/kernel/0001-char-kconfig-makefile-xilinx-devcfg.patch
 fi

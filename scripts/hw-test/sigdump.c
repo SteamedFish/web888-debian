@@ -2,8 +2,10 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <stdint.h>
-#define ZYNQSDR_GET_DNA       _IOR('Z', 3, uint64_t)
-#define ZYNQSDR_GET_SIGNATURE _IOR('Z', 9, uint32_t)
+
+/* public ABI — single source of truth */
+#include "../../config/kernel/zynqsdr_uapi.h"
+
 int main(void) {
     int fd = open("/dev/zynqsdr", O_RDONLY);
     if (fd < 0) { perror("open"); return 1; }

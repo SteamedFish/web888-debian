@@ -101,6 +101,15 @@ scripts/flash-image.sh /dev/sdX output/web888-debian-uboot.img
 - 原厂 TF 卡保持不动，作为已知可用的回退方案。
 - 没有串口：每个镜像先在 QEMU 中启动测试通过后才允许上硬件。
 
+## 致谢
+
+感谢 [jeskko/web888-ng](https://github.com/jeskko/web888-ng) 与
+[jeskko/web888-ng-hw](https://github.com/jeskko/web888-ng-hw) 提供独立的
+`/dev/zynqsdr` ABI 参考实现和 Web-888 QEMU/PL 模型，本项目的验证测试据此完善。
+收录的上游源码保留原始许可证，来源与修改记录见
+`resources/reference/web888-ng-hw/PROVENANCE.md` 和
+`resources/qemu-web888/PROVENANCE.md`。
+
 ## 许可证
 
 **GPL-2.0-or-later** —— 见 [`LICENSE`](LICENSE)。SPDX 标识符：

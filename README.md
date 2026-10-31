@@ -112,6 +112,15 @@ first boot, and finding the device on your network.
 - The stock TF card is kept untouched as the known-good rollback.
 - No serial console: every image is boot-tested in QEMU before touching hardware.
 
+## Acknowledgements
+
+Thanks to [jeskko/web888-ng](https://github.com/jeskko/web888-ng) and
+[jeskko/web888-ng-hw](https://github.com/jeskko/web888-ng-hw) for the
+independent `/dev/zynqsdr` ABI reference and the Web-888 QEMU/PL model used
+by our validation tests. Vendored sources retain their upstream licenses and
+are documented in `resources/reference/web888-ng-hw/PROVENANCE.md` and
+`resources/qemu-web888/PROVENANCE.md`.
+
 ## License
 
 **GPL-2.0-or-later** — see [`LICENSE`](LICENSE). SPDX-License-Identifier:

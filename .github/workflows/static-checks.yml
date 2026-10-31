@@ -1,0 +1,94 @@
+# static-checks.yml — fast static gates for CI-facing scripts and the
+# hardware-test C sources. Runs on pushes/PRs touching the checked surface
+# plus manual dispatch; everything here is seconds-to-minutes, no hardware,
+# no QEMU, no web888d build.
+#
+# Gates, in order:
+#   1. deb-trigger-paths drift check — scripts/ci/deb-trigger-paths.txt must
+#      stay the exact union of the five deb workflows' push.paths
+#      (check-trigger-paths.sh).
+#   2. zynqsdr driver ABI gate — check-zynqsdr-abi.sh pins the ioctl ABI
+#      shared between the out-of-tree driver and scripts/hw-test.
+#   3. shellcheck -S error + bash -n over every tracked shell script.
+#   4. Python syntax compile over every tracked .py under scripts/.
+#   5. Cross-compile of every host-built hw-test C/C++ source (static
+#      arm-linux-gnueabihf, into a temp dir) so a broken test tool fails
+#      here instead of at the hardware gate.
+name: static-checks
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/static-checks.yml'
+      - '.github/workflows/*.yml'
+      - 'scripts/**'
+      - 'config/**'
+      - 'resources/reference/web888-ng-hw/**'
+      - 'resources/qemu-web888/**'
+  pull_request:
+    paths:
+      - '.github/workflows/static-checks.yml'
+      - '.github/workflows/*.yml'
+      - 'scripts/**'
+      - 'config/**'
+      - 'resources/reference/web888-ng-hw/**'
+      - 'resources/qemu-web888/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install check tooling
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+            shellcheck python3-yaml gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+
+      - name: deb-trigger-paths drift check
+        run: bash scripts/ci/check-trigger-paths.sh
+
+      - name: zynqsdr driver ABI check
+        run: bash scripts/ci/check-zynqsdr-abi.sh
+
+      - name: shellcheck (severity error) on tracked shell scripts
+        run: |
+          mapfile -t sh_files < <(git ls-files '*.sh')
+          echo "checking ${#sh_files[@]} scripts"
+          shellcheck -S error "${sh_files[@]}"
+
+      - name: bash -n syntax check on tracked shell scripts
+        run: |
+          mapfile -t sh_files < <(git ls-files '*.sh')
+          for f in "${sh_files[@]}"; do
+            bash -n "$f"
+          done
+          echo "bash -n OK on ${#sh_files[@]} scripts"
+
+      - name: Python syntax check on tracked scripts
+        run: |
+          mapfile -t py_files < <(git ls-files 'scripts/*.py' 'scripts/**/*.py')
+          echo "checking ${#py_files[@]} python files"
+          python3 -m py_compile "${py_files[@]}"
+
+      - name: Cross-compile hw-test tools (static armhf, temp dir)
+        run: |
+          set -euo pipefail
+          out="$(mktemp -d)"
+          trap 'rm -rf "$out"' EXIT
+          cd scripts/hw-test
+          arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/zynqsdr-smoke" zynqsdr-smoke.c
+          arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/sigdump" sigdump.c
+          arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/pldump" pldump.c
+          arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/mmap-test" mmap-test.c
+          arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/hw-probe" hw-probe.c
+          arm-linux-gnueabihf-g++ -static -O2 -L. -o "$out/si5351-init" \
+            si5351/main.cpp si5351/si5351.cpp si5351/i2c.cpp
+          file "$out"/*

@@ -19,6 +19,7 @@
  * Prerequisite: nothing else may hold /dev/zynqsdr (single-opener). Stop websdr
  * first: `systemctl stop web888-websdr`.
  */
+#define _DEFAULT_SOURCE	/* usleep under -std=c11 */
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -28,6 +29,15 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+
+/* public ABI — single source of truth; local definitions are forbidden
+ * (enforced by scripts/ci/check-zynqsdr-abi.sh) */
+#include "../../config/kernel/zynqsdr_uapi.h"
+
+/* RX_STOP is NOT part of the public ABI (see zynqsdr_uapi.h); it is a
+ * private/probe-only command — defined here, harmless if the driver
+ * rejects it with ENOTTY. */
+#define RX_STOP		_IOW('Z', 14, uint32_t)
 
 /* direct PL register peek via /dev/mem, to see the RX engine state
  * (reset bit, decimate, DMA addr, start bytes) and the status-page fifo
@@ -54,21 +64,6 @@ static void dump_pl(const char *tag) {
 	printf("  [%s] RESET=0x%04x DECIM=0x%04x RX_DMA_ADDR=0x%08x  fifo(128B units)=%u\n",
 		tag, cfg_reset(), cfg_decim(), cfg_dma(), st_fifo());
 }
-
-#define RX_START	_IOW('Z', 4, uint32_t)
-#define RX_STOP		_IOW('Z', 14, uint32_t) /* if present; harmless if absent */
-
-struct rx_read_op {
-	uint32_t address;
-	uint32_t length;
-	uint32_t readed;
-} __attribute__((packed));
-#define RX_READ		_IOWR('Z', 6, struct rx_read_op)
-
-#define SET_GPIO_MASK	_IOW('Z', 7, uint32_t)
-#define MODE_SET	_IOW('Z', 1, uint32_t)
-#define AD8370_SET	_IOW('Z', 0, uint32_t)
-#define CLK_SET		_IOW('Z', 2, uint32_t)
 
 #define RX_DECIM 40   /* websdr: rx_decim=10240, arg = 10240/256 = 40 */
 #define BUFSZ    19456
@@ -123,22 +118,22 @@ int main(void)
 	 * MODE=HF(0), atten=0dB, int clk. The driver reads these ioctls as a
 	 * raw unsigned long arg (NOT a dereferenced pointer), so pass the value
 	 * directly — see zynqsdr.c RX_START handler + zynqsdr-smoke.c usage. */
-	ioctl(fd, MODE_SET, 0);     /* HF */
-	ioctl(fd, AD8370_SET, 0);   /* 0 dB */
-	ioctl(fd, CLK_SET, 1);      /* internal clock */
+	ioctl(fd, ZYNQSDR_MODE_SET, 0);     /* HF */
+	ioctl(fd, ZYNQSDR_AD8370_SET, 0);   /* 0 dB */
+	ioctl(fd, ZYNQSDR_CLK_SET, 1);      /* internal clock */
 
 	printf("Arming RX (decim=%d)...\n", RX_DECIM);
-	int rc = ioctl(fd, RX_START, RX_DECIM);
+	int rc = ioctl(fd, ZYNQSDR_RX_START, RX_DECIM);
 	if (rc) { printf("RX_START failed: %s\n", strerror(errno)); close(fd); return 1; }
 	dump_pl("after RX_START");
 
 	int total = 0;
 	for (int r = 0; r < N_READS; r++) {
-		struct rx_read_op op = { (uint32_t)(uintptr_t)buf[r], BUFSZ, 0 };
+		struct zynqsdr_rx_read_op op = { (uint32_t)(uintptr_t)buf[r], BUFSZ, 0 };
 		/* poll a few times: producer may need a moment to fill the ring */
 		int tries = 0;
 		do {
-			rc = ioctl(fd, RX_READ, &op);
+			rc = ioctl(fd, ZYNQSDR_RX_READ, &op);
 			if (rc) { printf("RX_READ[%d] error: %s\n", r, strerror(errno)); break; }
 			if (op.readed > 0) break;
 			usleep(100000); /* 100 ms */

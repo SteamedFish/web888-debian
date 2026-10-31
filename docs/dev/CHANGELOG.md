@@ -9,6 +9,26 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Lock the zynqsdr ABI and fix stream rearm
+
+### Added
+- `config/kernel/zynqsdr_uapi.h` is the single stock-UAPI definition shared by
+  the driver and userspace tests. Host/armhf ABI locks pin all 15 ioctls, four
+  packed layouts and the WF flag against a hash-pinned, unmodified
+  web888-ng-hw v0.3.0 reference header with full provenance and attribution.
+- `zynqsdr-rearm-test` and the shared QEMU host/guest launcher add strict
+  deterministic RX/WF rearm regression coverage. The validation matrix and
+  remaining runtime unknowns are recorded in `zynqsdr-abi-validation.md`.
+- `static-checks.yml` adds fast CI for trigger drift, ABI locks, shell/Python
+  syntax and armhf hardware-test compilation.
+
+### Fixed
+- S1: every successful `RX_START`/`WF_START` rearm now resets that stream's
+  consumer offset after MMIO/arm succeeds, preventing stale ring-tail reads by
+  independent stock-ABI consumers such as web888d. The driver and regression
+  test build cleanly; full-system model, old-driver negative control and
+  hardware gates remain pending and are not claimed as verified.
+
 ## [2026-10-31] — Check optional web888 QEMU host dependencies
 
 ### Added
