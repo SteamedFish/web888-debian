@@ -241,59 +241,78 @@ Proceed to product integration only when:
 
 ## 5. Phase 2 — optional web888d product integration
 
-### 2A. Reproducible source build and deb
+### 2A. Reproducible source build and optional debs
 
-Proposed artifacts (adjust names to existing build conventions):
+Artifacts:
 
-- `packaging/web888-web888d/`
-- `scripts/build-web888d.sh`
-- `scripts/build-web888d-deb.sh`
-- `scripts/install-web888d.sh`
-- `.github/workflows/build-web888d-deb.yml`
+- `packaging/web888-web888d/` and `packaging/web888-ng-bitstream/`;
+- `config/web888-ng/versions.env` for the paired upstream pins and hashes;
+- `scripts/build-web888d.sh`, `scripts/build-web888d-deb.sh` and
+  `scripts/build-web888-ng-bitstream-deb.sh`;
+- independent upstream-watch/build/APT workflows that never emit the image
+  build's `debs-published` event.
 
 Tasks:
 
-- Pin the exact web888d version already validated in Phase 1; do not float on
-  `main`.
-- Source-build the static `armv7-unknown-linux-musleabihf` daemon and the UI.
-  Upstream binaries are comparison inputs only, not release inputs.
-- Install the daemon, `/usr/share/web888d/ui/`, a minimal
-  `/etc/web888d/web888d.toml`, and state under `/var/lib/web888d`.
-- Select `zynqsdr` and explicitly set
-  `/usr/share/web888/firmware/websdr_hf.bit`.
-- Initially reuse `web888-websdr` for the `web888` user, udev rules and stock
-  bitstream. A common-package split is a separate later refactor.
-- Ship no default skimmers/uploads and no default password.
-- Update the build/APT/CI trigger-path manifests without enabling the service.
-- Record source, lockfiles, hashes, copyright and GPL-3.0-or-later notices.
+- Pin the exact web888d/web888-ng-hw pair validated in Phase 1; track upstream
+  prerelease tags explicitly rather than floating on `main` or using
+  `/releases/latest`.
+- Source-build the static `armv7-unknown-linux-musleabihf` daemon and matching
+  UI. Upstream FPGA release artifacts may be redistributed with exact hashes
+  and provenance because a Vivado build is not available in ordinary deb CI.
+- Install the daemon, `/usr/share/web888d/ui/` and mutable config/state under
+  `/var/lib/web888d`; do not make the admin-rewritten TOML a dpkg conffile.
+- Keep `web888-web888d`, `web888-ng-bitstream` and all open FPGA artifacts out
+  of the default image package list. Stock bitstreams remain owned by
+  `web888-websdr`.
+- Ship no default skimmers/uploads and no default password. Record sources,
+  lockfiles, hashes, copyright and upstream license notices.
 
-Package gate: reproducible build/install/remove, and installing the deb does
-not change the running or next-boot WebSDR mode.
+Package gate: reproducible build/install/remove, and installing or upgrading a
+deb does not change the running/next-boot mode, selected FPGA or active
+services.
 
-### 2B. systemd and three-way switching
+### 2B. systemd, FPGA selection and switching
 
-- Add `web888-web888d.service` without `[Install]`; keep it default-off.
-- Grant only required devices/capabilities. Add start-rate limiting to avoid
-  repeated PL-load crash loops; size memory limits from measurements.
-- Add explicit conflicts in all three directions, including the RP template
-  drop-in; do not rely on template globs in `Conflicts=`.
-- Extend `packaging/web888-redpitaya/web888-mode` with `web888d`, correct
-  `status`, `list`, `stop`, usage, and stop-before-start ordering for every
-  transition.
-- Initially let web888d load its bitstream once; do not add a second competing
-  devcfg write. Add a common Si5351/prog-done pre-start helper only if hardware
-  evidence requires it.
-- Preserve an uncomplicated return to WebSDR after any web888d failure.
+- Add default-off `web888-web888d.service` running as independent user
+  `web888d` with supplementary group `web888`, no sudo/capabilities and no
+  `/dev/xdevcfg` device allowance. Add start-rate limiting and size memory
+  limits from measurements.
+- Keep the shared helper in the existing `web888-redpitaya` runtime package,
+  which already owns `web888-mode`; avoid duplicate PL owners. Its `select`
+  operation only stages a choice, while `load` is the single web888d PL writer.
+  WebSDR remains its own PL writer so its HF/VHF behavior is not rewritten.
+- web888d uses a separate root oneshot `web888-web888d-pl.service` for `load`,
+  waits for `prog_done`, then forces `--bitstream none`. The daemon unit never
+  receives an xdevcfg allowance; a same-unit `ExecStartPre=+` is not sufficient
+  because it remains subject to the main unit's `DevicePolicy=closed`.
+  WebSDR consumes an explicitly staged HF snapshot through its existing
+  firmware lookup, with stock fallback unchanged.
+- Default to stock HF. `web888-mode APP` retains the current FPGA selection;
+  `APP --fpga stock` restores stock. Changing FPGA validates and stages first,
+  then stops all SDR stacks before any PL load even when the app name is
+  unchanged. Reject FPGA selection for RP modes and preserve all
+  stop/status/list transitions.
+- Experimental `web888-ng-hf` works with web888d or stock WebSDR only after
+  both `--experimental` and a root-owned acknowledgement naming the exact
+  profile + SHA256. Snapshot the consented artifact into root-owned
+  `/var/lib/web888-fpga/`; apt updates cannot silently change it. Open VHF and
+  channelizer are not offered in this phase.
+- Add explicit conflicts in all directions, including every RP instance;
+  preserve an uncomplicated return to stock WebSDR after any failure.
 
 Invariants: at most one active stack and one `/dev/zynqsdr` opener; installation
 alone has no runtime effect; a failed optional server never disables the
-default stack permanently.
+default stack permanently; `prog_done` is a readiness check, not a bitstream
+identity check.
 
 ### 2C. Product verification
 
 Host/package:
 
 - `systemd-analyze verify` and deb install/remove tests;
+- prove package installation/upgrade cannot alter the selected or snapshotted
+  FPGA, and that a new upstream digest invalidates the old experimental ack;
 - extend `scripts/test-redpitaya-mode.sh` for every transition, status and
   stop case, including ordering and permission checks;
 - run upstream tests relevant to the pinned source.
@@ -308,6 +327,11 @@ QEMU:
 
 Hardware:
 
+- install only the optional debs and confirm no service/mode/FPGA selection
+  changes until an explicit `web888-mode` command;
+- verify stock-HF web888d first, then the two separately acknowledged
+  web888-ng-HF combinations (web888d and stock WebSDR), returning to stock
+  WebSDR after each; keep open VHF/channelizer out of the acceptance matrix;
 - verify actual browser audio/waterfall and HPSDR IQ, not just HTTP 200 or an
   open UDP socket;
 - compare a known carrier against WebSDR and check for fixed proportional
@@ -374,3 +398,42 @@ Rollout order:
 - Documentation accurately lists limitations and recovery.
 - No service, skimmer or upload is enabled by default.
 - Provenance, source and licensing requirements are satisfied.
+
+## 8. Phase 2 implementation and hardware record (2026-11-01)
+
+The local Phase 2 implementation and its requested hardware matrix are
+complete. The optional packages remain uninstalled by the image and nothing
+was pushed to GitHub.
+
+- Installing `web888-redpitaya` 2025.430-3, `web888-websdr` 2026.1020-2,
+  `web888-web888d` 0.6.0-1 and `web888-ng-bitstream` 0.3.0-1 left stock
+  WebSDR active and both web888d units static/inactive. A missing experimental
+  acknowledgement rejected the requested switch without stopping WebSDR.
+- Stock-HF web888d ran as `web888d:web888d` with every capability set at zero.
+  HTTPS returned 200; the independent protocol-2 check passed with 174 audio
+  frames and seven narrow waterfall frames. HPSDR P1 discovery succeeded and
+  the pinned `p1probe` received 1145 packets (47975 samples/s for one receiver)
+  with zero sequence gaps. A transient unit with the daemon's device policy
+  proved that opening `/dev/xdevcfg` is denied; the service user can atomically
+  replace its mutable config.
+- Open-HF + web888d passed with 175 audio frames and seven narrow waterfall
+  frames. Open-HF + stock WebSDR passed real audio and waterfall `E2E_OK`.
+  The exact-digest snapshot was root-owned 0444. Replacing the apt-managed
+  source artifact did not alter that snapshot; a later application switch
+  continued to use the original open-HF snapshot. The source was then restored.
+- `sdr_receiver` returned 65536 TCP1001 bytes (89.772% nonzero, 256 distinct
+  values, stdev 74.51), demonstrating the RP transition from the experimental
+  selection. Returning to stock removed the open snapshot and restored WebSDR
+  with another `E2E_OK`. Final state: WebSDR active, stock selected,
+  `prog_done=1`, no failed Web-888 application units.
+- Hardware exposed two unit-sandbox defects before the successful runs. A root
+  `ExecStartPre=+` could not write xdevcfg under the main unit's
+  `DevicePolicy=closed`; PL loading therefore moved to the separate root
+  oneshot. Its `/run/lock` directory then required an explicit writable path
+  under `ProtectSystem=strict`. Both fixes have package sentinels and were
+  retested on hardware.
+
+No antenna was attached, so these are application/data-path results, not RF
+frequency or signal-quality assertions. Multi-client concurrency, skimmers,
+long soak/reboot campaigns and MemoryMax sizing remain rollout work, not
+claims of this local implementation phase.

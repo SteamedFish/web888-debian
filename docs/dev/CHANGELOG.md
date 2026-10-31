@@ -9,6 +9,40 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-11-01] — Optional web888d packages and explicit FPGA selection
+
+### Added
+- Added source-built, default-off `web888-web888d` and pinned
+  `web888-ng-bitstream` packages. web888d runs as a dedicated non-root user
+  with no capabilities or `/dev/xdevcfg` access; a separate root oneshot PL
+  unit loads the selected bitstream and waits for `prog_done`. Mutable configuration
+  is owned by the service user so admin saves and upgrades work without making
+  the rest of `/etc` writable.
+- Added `web888-fpga-select` and third-mode `web888-mode` switching. Stock HF
+  remains the default. The open-HF profile requires both `--experimental` and
+  root-owned consent for the exact SHA256, then loads a root-owned snapshot so
+  an apt upgrade cannot silently change the selected FPGA. Selection and
+  digest validation happen before the running stack is stopped; every PL load
+  remains stop-before-start. Unsupported channelizer and open-VHF combinations
+  are not exposed as modes.
+- Added pinned-pair upstream release tracking, reproducible optional deb
+  workflows and APT collision/provenance guards. These optional packages are
+  excluded from the image package list and never emit `debs-published`, so
+  their builds and APT updates do not trigger image builds.
+
+### Verified
+- On hardware, default-off installation preserved stock WebSDR and missing
+  experimental consent failed without stopping it. Stock-HF web888d passed
+  HTTPS, protocol-2 audio/waterfall and HPSDR P1 IQ (1145 packets, zero gaps)
+  as a zero-capability non-root daemon; both open-HF combinations also passed
+  real data checks. RP `sdr_receiver` returned 65536 live bytes. Final stock
+  WebSDR restoration passed `E2E_OK`; details are in
+  `web888-ng-integration-plan.md` §8.
+- Fixed two hardware-discovered PL-unit sandbox defects: moved loading out of
+  the daemon's device-confined unit into a separate root oneshot, and allowed
+  its `/run/lock` directory under `ProtectSystem=strict`. The daemon still has
+  no xdevcfg allowance.
+
 ## [2026-10-31] — chrony: NTP pool is no longer `offline` (no-RTC clocks never synced)
 
 ### Fixed

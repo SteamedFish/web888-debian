@@ -54,6 +54,10 @@ project rebuilds the boot chain so the board runs normal Debian:
   to the packaged services.
 - **Red Pitaya coexistence** (`web888-redpitaya`) — `web888-mode` switches
   between WebSDR and RP apps at runtime, no reflashing.
+- **Optional web888d / open FPGA packages** — apt-only `web888-web888d` and
+  `web888-ng-bitstream`, not preinstalled. web888d runs as its own non-root
+  user; stock FPGA remains the default, with digest-gated experimental
+  web888-ng HF combinations. See [`docs/user/web888d.md`](docs/user/web888d.md).
 - **Bootloader shipped as a deb** (`web888-boot`) — on-device U-Boot/FSBL
   upgrades are a single `apt install`.
 - **Prebuilt flashable images on GitHub Releases** — CI builds and
@@ -78,7 +82,7 @@ features above are verified stable. Open work and known defects live in
 docs/       research/ + dev/ + user/ documentation (tracked)
 scripts/    build / repack / QEMU / flash scripts (tracked)
 config/     kernel & u-boot configs, devicetree, driver sources (tracked)
-packaging/  debian packaging: web888-boot, web888-websdr, web888-redpitaya (tracked)
+packaging/  debian packaging: boot, WebSDR, Red Pitaya, optional web888d/FPGA (tracked)
 resources/  vendored non-generated build inputs (tracked)
 work/       build trees (gitignored)
 output/     flashable artifacts (gitignored)
@@ -116,8 +120,9 @@ first boot, and finding the device on your network.
 
 Thanks to [jeskko/web888-ng](https://github.com/jeskko/web888-ng) and
 [jeskko/web888-ng-hw](https://github.com/jeskko/web888-ng-hw) for the
-independent `/dev/zynqsdr` ABI reference and the Web-888 QEMU/PL model used
-by our validation tests. Vendored sources retain their upstream licenses and
+independent `/dev/zynqsdr` ABI reference, the Web-888 QEMU/PL model used by
+our validation tests, and the optional web888d/open-FPGA packages. Vendored
+sources and redistributed artifacts retain their upstream licenses and
 are documented in `resources/reference/web888-ng-hw/PROVENANCE.md` and
 `resources/qemu-web888/PROVENANCE.md`.
 

@@ -6,7 +6,8 @@ developing it — see `../dev/`).
 | Document | Contents |
 |---|---|
 | [flashing.md](flashing.md) | **Start here.** Flash the image to a TF card, first boot, finding the device, rollback |
-| [usage.md](usage.md) | Daily operation: SSH/web access, WebSDR service, WebSDR↔Red Pitaya mode switching, updates, backup |
+| [usage.md](usage.md) | Daily operation: SSH/web access, WebSDR service, application mode switching, updates, backup |
+| [web888d.md](web888d.md) | Optional web888d deb, non-root service, stock-default and digest-gated experimental FPGA combinations |
 | [quick-reference.md](quick-reference.md) | Hardware quick facts: LEDs, TF card, power, GPS, antennas, specs, keyboard shortcuts |
 | [troubleshooting.md](troubleshooting.md) | Problem solving for the Debian image (stock-firmware procedures quarantined in Part 2) |
 

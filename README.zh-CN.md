@@ -45,6 +45,10 @@ Red Pitaya 软件栈共存（切换需重新刷卡）。本项目从头重建启
 - **管理界面配置动态域名 + 反向代理** —— No-IP DUC 与 FRP，接通镜像内置服务。
 - **Red Pitaya 共存**（`web888-redpitaya`）—— `web888-mode` 在 WebSDR 与 RP 应用
   之间运行时切换，无需重新刷卡。
+- **可选 web888d / 开放 FPGA 软件包** —— `web888-web888d` 与
+  `web888-ng-bitstream` 仅通过 APT 提供，不预装。web888d 使用独立非 root 用户；
+  默认仍使用 stock FPGA，web888-ng HF 组合需要绑定 SHA256 的实验确认。见
+  [`docs/user/web888d.md`](docs/user/web888d.md)。
 - **Bootloader 以 deb 形式发布**（`web888-boot`）—— 设备上升级 U-Boot/FSBL
   只需一次 `apt install`。
 - **GitHub Releases 上的预构建镜像** —— CI 构建并对完整卡镜像做 QEMU 启动测试，
@@ -68,7 +72,7 @@ Red Pitaya 软件栈共存（切换需重新刷卡）。本项目从头重建启
 docs/       research/ + dev/ + user/ 文档（入库）
 scripts/    构建 / 重打包 / QEMU / 刷机脚本（入库）
 config/     内核与 u-boot 配置、设备树、驱动源码（入库）
-packaging/  debian 打包：web888-boot、web888-websdr、web888-redpitaya（入库）
+packaging/  debian 打包：boot、WebSDR、Red Pitaya、可选 web888d/FPGA（入库）
 resources/  收录的非生成构建输入（入库）
 work/       构建目录（不入库）
 output/     可刷写产物（不入库）
@@ -105,8 +109,9 @@ scripts/flash-image.sh /dev/sdX output/web888-debian-uboot.img
 
 感谢 [jeskko/web888-ng](https://github.com/jeskko/web888-ng) 与
 [jeskko/web888-ng-hw](https://github.com/jeskko/web888-ng-hw) 提供独立的
-`/dev/zynqsdr` ABI 参考实现和 Web-888 QEMU/PL 模型，本项目的验证测试据此完善。
-收录的上游源码保留原始许可证，来源与修改记录见
+`/dev/zynqsdr` ABI 参考实现、Web-888 QEMU/PL 模型，以及可选的
+web888d/开放 FPGA 软件包；本项目的验证测试也据此完善。收录的上游源码和再分发
+产物保留原始许可证，来源与修改记录见
 `resources/reference/web888-ng-hw/PROVENANCE.md` 和
 `resources/qemu-web888/PROVENANCE.md`。
 

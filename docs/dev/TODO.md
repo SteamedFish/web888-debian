@@ -78,10 +78,24 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
         result as historical evidence only. Current validation uses no
         web888d binary, `/ws` client, UI, Node/pnpm or Rust; product integration
         remains Phase 2.
-- [ ] **Phase 2 (gated by Phase 1): optional web888d mode** — source-built
-      experimental deb, default off, HF + stock bitstream only, with three-way
-      WebSDR/RP/web888d switching and verified return to WebSDR. No open-FPGA,
-      channelizer, VHF or full feature-parity commitment.
+- [x] **Phase 2 (gated by Phase 1): optional web888d mode** — COMPLETE
+      2026-11-01 as a local, apt-only implementation with the requested
+      hardware matrix. Channelizer and open-VHF modes remain unsupported;
+      broader RF/concurrency/soak rollout work is not claimed.
+  - [x] Build default-off `web888-web888d` and pinned `web888-ng-bitstream`
+        debs; run web888d as a dedicated non-root user with no capabilities or
+        xdevcfg access, and keep mutable config service-writable across upgrades.
+  - [x] Add three-way switching plus exact-digest experimental open-HF selection
+        for web888d and WebSDR. Stock stays default; consent, immutable snapshots,
+        fail-before-stop validation and all selector/mode fixtures pass (47/47).
+  - [x] Add pinned-pair upstream tracking and optional APT publication with
+        collision/provenance guards and no image-build dispatch; local actionlint,
+        upstream fixtures, live pin check and trigger-path drift gates pass.
+  - [x] On hardware, verified default-off installation, stock-HF web888d and
+        return to WebSDR, both experimental open-HF combinations, immutable
+        snapshot behavior, service conflicts, non-root/device permissions,
+        admin config writes, HPSDR IQ with zero sequence gaps, and RP transition.
+        Evidence: `web888-ng-integration-plan.md` §8.
 
 ## Red Pitaya follow-ups
 

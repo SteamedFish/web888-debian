@@ -69,10 +69,10 @@ ssh -p 22 root@<device-ip> 'systemctl status web888-websdr.service'
 - **Unit inactive/failed:** `journalctl -u web888-websdr.service -n 200` —
   the last lines usually name the cause (config JSON syntax error, FPGA
   load failure, port already bound).
-- **An RP app is running instead:** `web888-mode` shows the current mode;
-  `web888-mode websdr` switches back. The two share the FPGA and cannot
-  run simultaneously (the systemd units have `Conflicts=`, so this cannot
-  happen by accident — only by an explicit mode switch).
+- **An RP app or web888d is running instead:** `web888-mode` shows the current
+  mode; `web888-mode websdr` switches back. These stacks share the FPGA and
+  cannot run simultaneously. For optional web888d/open-FPGA selection and
+  recovery, see [web888d.md](web888d.md).
 - **Port open but browser fails:** try another browser / incognito window;
   the UI rate-limits rapid reconnects (wait a few seconds and reload).
 

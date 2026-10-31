@@ -155,23 +155,25 @@ Logs: `journalctl -u web888-websdr | grep -E 'DUC:|proxy register'`
 (helper + config render), `journalctl -u noip-duc` / `journalctl -u
 frpc` (the daemons themselves).
 
-## Switching between WebSDR and Red Pitaya apps
+## Switching between WebSDR, web888d and Red Pitaya apps
 
-If the `web888-redpitaya` package is installed, the unit can run either
-WebSDR **or** one Red Pitaya application at a time (they share the FPGA):
+The unit runs one SDR application stack at a time because they share the FPGA
+and `/dev/zynqsdr`:
 
 ```sh
-web888-mode                 # show current mode
-web888-mode list            # list installed RP apps
+web888-mode                 # show current mode and selected FPGA
+web888-mode list            # list installed modes/RP apps
 web888-mode websdr          # switch to WebSDR (the default mode)
+web888-mode web888d         # optional web888d, after apt install web888-web888d
 web888-mode <app>           # switch to an RP app, e.g. web888-mode sdr_transceiver_hpsdr
 web888-mode stop            # stop everything (FPGA left as-is)
 ```
 
 The switch is a **runtime** operation — no reflashing, no reboot. The
-systemd units have `Conflicts=` declarations, so bare `systemctl start` is
-also safe; `web888-mode` just adds correct ordering (stop the other side
-before touching the FPGA).
+systemd units have `Conflicts=` declarations; `web888-mode` adds the required
+stop-before-select/load/start ordering. web888d is not installed by default.
+Its non-root service, apt installation and digest-gated experimental
+web888-ng FPGA combinations are documented in [web888d.md](web888d.md).
 
 RP app bitstreams live in `/usr/share/web888-redpitaya/apps/<app>/<app>.bit`.
 Clock-restore behavior on switching is controlled by
@@ -191,7 +193,9 @@ reboot                         # only needed for kernel/bootloader updates
 | Package | Contains |
 |---|---|
 | `web888-websdr` | WebSDR server, extensions, FPGA bitstreams, systemd unit |
-| `web888-redpitaya` | Red Pitaya app ports, `web888-mode`, switch config |
+| `web888-redpitaya` | Red Pitaya app ports, `web888-mode`, FPGA selection/loading helpers, switch config |
+| `web888-web888d` | **Optional, not preinstalled:** web888d, UI and default-off non-root service |
+| `web888-ng-bitstream` | **Optional, not preinstalled:** experimental web888-ng FPGA artifacts |
 | `web888-boot` | FSBL + U-Boot + `boot.scr`/`uEnv.txt`/`web888.dtb` (postinst safely rewrites the FAT firmware partition) |
 | `linux-image-6.12.100-web888` | Kernel |
 

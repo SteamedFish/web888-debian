@@ -187,3 +187,20 @@ scripts/build-boot-deb.sh        # 9b. web888-boot deb (payload = 8g/8h/9 output
 scripts/install-boot-deb.sh      # 9c. install deb into rootfs (postinst skips in chroot)
 scripts/build-image.sh uboot     # 10. final card image (FAT payload from the deb)
 ```
+
+### Optional web888d / web888-ng FPGA debs
+
+These commands are deliberately outside `build-all.sh` and the image install
+sequence:
+
+```sh
+scripts/build-web888d.sh                 # source-built daemon + UI in work/
+scripts/build-web888d-deb.sh             # output/web888d/*.deb
+scripts/build-web888-ng-bitstream-deb.sh # output/web888-ng-bitstream/*.deb
+```
+
+`config/web888-ng/versions.env` pins the paired upstream versions and hashes.
+The resulting packages are published to APT but are not installed into the
+default image; installing them must not change the active service or FPGA
+selection. See `../user/web888d.md` for runtime selection and experimental
+consent.
