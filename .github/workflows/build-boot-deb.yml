@@ -1,5 +1,5 @@
 # build-boot-deb.yml — build web888-boot_*_armhf.deb (source-built FSBL +
-# mainline U-Boot v2026.07 SSBL packed into boot.bin, plus boot.scr/uEnv.txt
+# mainline U-Boot v2026.10 SSBL packed into boot.bin, plus boot.scr/uEnv.txt
 # and web888.dtb compiled from config/web888.dts) on GitHub-hosted
 # ubuntu-24.04 and publish it to the flat gh-pages APT repo.
 #

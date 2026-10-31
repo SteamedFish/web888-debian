@@ -117,6 +117,18 @@ and GPS had no antenna; this unrelated environmental failure is not counted
 as a pass for the separate fresh-image `systemctl --failed` gate. Final mode
 was `websdr`, with no web888d process left running.
 
+## Kernel 6.12.113 revalidation (2026-11-01)
+
+The CVE-2026-98432 update replaced the kernel with
+`linux-image-6.12.113-web888_6.12.113-1web888_armhf.deb` (SHA256
+`78be246803d1a78003882d55f099ad50e0589d25a85cfe1a02cfd041ff145edc`). The
+rebuilt image reached the QEMU login prompt, and the board rebooted into
+`6.12.113-web888` with `/boot/zImage.prev -> vmlinuz-6.12.111-web888`.
+`zynqsdr-smoke.armhf --hw` and `zynqsdr-rearm.armhf --hw` both passed with the
+same expected messages, WebSDR returned `E2E_OK`, and `systemctl --failed`
+was empty. U-Boot remained at the latest pinned
+`2026.10-g5508406582f6-dirty`. The same no-antenna caveat applies.
+
 ## Repeatable gates
 
 ```bash

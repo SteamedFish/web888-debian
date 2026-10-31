@@ -9,6 +9,38 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-11-01] — Kernel 6.12.113 fixes CVE-2026-98432; U-Boot re-audited
+
+### Fixed
+- Bumped the Debian-source kernel pin from 6.12.111-1 to 6.12.113-1, the
+  first trixie release carrying the IPv4 TCP `ireq_opt`/`inet_opt` RCU-delay
+  fix for CVE-2026-98432 (DSA-6568-1). The source contains the two
+  `kfree_rcu(..., rcu)` calls in `net/ipv4/af_inet.c` and
+  `net/ipv4/tcp_ipv4.c`; normal IPv4 TCP was exposed and is now fixed.
+- `scripts/build-kernel-6.12.sh` now refuses to reuse a source tree whose
+  top-level Makefile version differs from `KVER`, preventing a pin bump from
+  silently rebuilding the previous kernel.
+- Fixed the optional web888d/bitstream CI package sanity step: it parsed
+  `dpkg-deb --info` output whose control fields carry a leading space, so
+  both successful builds failed at the field check. It now reads fields with
+  `dpkg-deb --field` and asserts the expected `armhf`/`all` architecture.
+
+### Changed
+- Re-audited U-Boot upstream: v2026.10 remains the newest stable release and
+  is already pinned; the board already reports
+  `2026.10-g5508406582f6-dirty`. Stale v2026.07/6.12.100 documentation was
+  corrected. The one post-v2026.10 BMP CVE is unreachable because
+  `CONFIG_VIDEO` is disabled.
+
+### Verified
+- Built `linux-image-6.12.113-web888_6.12.113-1web888_armhf.deb` (SHA256
+  `78be246803d1a78003882d55f099ad50e0589d25a85cfe1a02cfd041ff145edc`),
+  booted its rebuilt image through the stock QEMU gate to `web888 login:`,
+  installed it on the board, and rebooted. The board reports
+  `6.12.113-web888`, `/boot/zImage.prev` points at 6.12.111, all zynqsdr
+  hardware smoke and rearm checks pass, WebSDR returns `E2E_OK`, and
+  `systemctl --failed` is empty.
+
 ## [2026-11-01] — Package-only CI rollouts without an image Release
 
 ### Added

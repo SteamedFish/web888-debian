@@ -197,7 +197,7 @@ reboot                         # only needed for kernel/bootloader updates
 | `web888-web888d` | **Optional, not preinstalled:** web888d, UI and default-off non-root service |
 | `web888-ng-bitstream` | **Optional, not preinstalled:** experimental web888-ng FPGA artifacts |
 | `web888-boot` | FSBL + U-Boot + `boot.scr`/`uEnv.txt`/`web888.dtb` (postinst safely rewrites the FAT firmware partition) |
-| `linux-image-6.12.100-web888` | Kernel |
+| `linux-image-6.12.113-web888` | Kernel |
 
 Kernel upgrades repoint the `/boot/zImage` symlink automatically; no file
 copying is involved. Config files under `/etc/web888/` and

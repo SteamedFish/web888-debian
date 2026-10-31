@@ -10,7 +10,7 @@ exactly such a node; comment at web888.dts:111-126). Without this patch
 usb0 is dead on mainline/Debian 6.12. His two DTS hunks (pynqz1, zybo-z7)
 are intentionally NOT adopted — we ship our own dts.
 
-Verified: applies cleanly to Debian linux-source 6.12.100-1;
+Verified: applies cleanly to Debian linux-source 6.12.113-1;
 compiles clean (phy-ulpi.o exports ulpi_phy_probe/usbphy_set_vbus).
 diff --git a/drivers/usb/chipidea/ci_hdrc_usb2.c b/drivers/usb/chipidea/ci_hdrc_usb2.c
 index 97379f653..b6c294cd1 100644

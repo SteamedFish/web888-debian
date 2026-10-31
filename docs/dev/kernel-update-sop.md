@@ -1,7 +1,7 @@
 # Kernel update SOP (step 6, Debian-source 6.12)
 
 How to move the Web-888 Debian image to a new trixie `linux-source-6.12`
-point release (e.g. 6.12.100 → 6.12.101), from source fetch to a verified
+point release (e.g. 6.12.111 → 6.12.113), from source fetch to a verified
 ship. Assumes the step-6 chain: Debian-source kernel built as `.deb`s on
 the host, full U-Boot as SSBL. The kernel boots from the **ext4 rootfs**
 (`/boot/zImage`, a symlink managed by the `zz-web888-zimage` kernel hook);
@@ -14,6 +14,10 @@ touch it.
 - The **exact** Debian revision is pinned in `scripts/build-kernel-6.12.sh`
   (`KVER` / `KREV` variables at the top). Never build "whatever is newest" —
   bump the pin deliberately, in its own commit.
+- `work/linux-debian-6.12` is reused across runs. After changing `KVER`,
+  move or remove the old tree; the build now probes its top-level Makefile
+  and aborts if it does not match the pin, rather than silently rebuilding
+  the previous kernel.
 - The live pool drops superseded point releases, so the fetch falls back to
   `snapshot.debian.org` at the `KSNAP` timestamp pinned next to `KVER`/`KREV`.
   When bumping the pin, refresh `KSNAP` from
@@ -94,7 +98,7 @@ touch it.
   on the spot. The kernel and its modules MUST travel together — the deb
   carries both; a hand-copied zImage without matching `/lib/modules` boots
   but has no modules. `uEnv.txt` can override `kernel_file` (e.g.
-  `kernel_file=vmlinuz-6.12.101-web888`) to pin one installed version.
+  `kernel_file=vmlinuz-6.12.113-web888`) to pin one installed version.
 
 ## Rollback
 

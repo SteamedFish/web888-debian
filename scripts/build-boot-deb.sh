@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build web888-boot_*.deb from output/ (boot-uboot.bin + fsbl.bin +
 # u-boot.bin + boot.scr + config/u-boot/uEnv.txt + web888.dtb).
-# Result: output/boot/web888-boot_2026.07-1_armhf.deb
+# Result: output/boot/web888-boot_2026.10-1_armhf.deb
 #
 # web888-boot ships the Debian (uboot-chain) bootloader: the packed
 # boot.bin (source-built FSBL + mainline U-Boot SSBL) plus its

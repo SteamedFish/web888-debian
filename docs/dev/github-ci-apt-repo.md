@@ -133,10 +133,10 @@ the flat-repo marker — there is no `dists/` tree.
 
 | Package | Source | Trigger paths | Version scheme |
 |---|---|---|---|
-| `linux-image-6.12.100-web888` | Debian-source 6.12 (`scripts/build-kernel-6.12.sh`, pinned KVER/KREV) + `config/kernel/**` | kernel script, `config/kernel/**`, `config/kernel-web888-6.12.fragment`, `scripts/ci/**` | `<KVER>-<KREV>web888.ci<N>` via `KDEB_PKGVERSION` |
+| `linux-image-6.12.113-web888` | Debian-source 6.12 (`scripts/build-kernel-6.12.sh`, pinned KVER/KREV) + `config/kernel/**` | kernel script, `config/kernel/**`, `config/kernel-web888-6.12.fragment`, `scripts/ci/**` | `<KVER>-<KREV>web888.ci<N>` via `KDEB_PKGVERSION` |
 | `web888-websdr` | RaspSDR/server pinned in `config/websdr/upstream.pin` | `config/websdr/**`, `packaging/web888-websdr/**`, websdr scripts, stock bitstreams, `scripts/ci/**` | changelog version `+ci<N>` (stamp, not committed) |
 | `web888-redpitaya` | RaspSDR/red-pitaya-notes pinned in `config/redpitaya/upstream.pin` | `config/redpitaya/**`, `packaging/web888-redpitaya/**`, redpitaya scripts, `scripts/hw-test/si5351/**`, `resources/redpitaya-bits/**`, `scripts/ci/**` | changelog version `+ci<N>` |
-| `web888-boot` | vendored embeddedsw FSBL + mainline U-Boot v2026.07 (`config/u-boot/**`) | u-boot/fsbl/bootbin/boot-deb scripts, `config/u-boot/**`, `packaging/web888-boot/**`, `resources/reference/{embeddedsw-zynq-fsbl,redpitaya-fsbl-hooks}/**`, `scripts/ci/**` | changelog version `+ci<N>` |
+| `web888-boot` | vendored embeddedsw FSBL + mainline U-Boot v2026.10 (`config/u-boot/**`) | u-boot/fsbl/bootbin/boot-deb scripts, `config/u-boot/**`, `packaging/web888-boot/**`, `resources/reference/{embeddedsw-zynq-fsbl,redpitaya-fsbl-hooks}/**`, `scripts/ci/**` | changelog version `+ci<N>` |
 | `libacars`, `dumphfdl`, `frpc`, `noip-duc`, `acarsdec` | pinned upstream tags in `packaging/<name>/upstream.pin` | `packaging/<name>/**`, `scripts/ci/**`, thirdparty workflow | `<pin version>-<pkgrev>` (+ CI run number inside `build-thirdparty-deb.sh`) |
 
 `<N>` = `GITHUB_RUN_NUMBER`. Stamping happens in the CI checkout only via

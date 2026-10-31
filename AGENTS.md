@@ -9,10 +9,10 @@ Web-888 SDR (Zynq-7010, 512 MB RAM), root filesystem on the TF card instead of R
 with the closed-source driver/FPGA stack, WebSDR, and Red Pitaya software working
 under Debian, switchable at runtime.
 
-Boot chain: stock FSBL → **full U-Boot v2026.07** (SSBL) → boot.scr/uEnv.txt
+Boot chain: stock FSBL → **full U-Boot v2026.10** (SSBL) → boot.scr/uEnv.txt
 + dtb on the FAT firmware partition (`/boot/firmware`) → **Debian-source
 6.12 kernel** ext4-loaded from the rootfs `/boot/zImage` symlink (host-built
-pinned deb, `6.12.100-web888`; see `docs/dev/kernel-update-sop.md`).
+pinned deb, `6.12.113-web888`; see `docs/dev/kernel-update-sop.md`).
 The linux-xlnx 6.6 + stub-SSBL chain stays
 buildable as rollback (`CHAIN=stub KERNEL=6.6 build-all.sh`).
 

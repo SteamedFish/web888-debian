@@ -20,7 +20,7 @@ English documentation: [README.md](README.md). **快速开始：**
 原厂 Web-888 系统内核裁剪严重、整个系统运行在极小的内存 tmpfs 上，且无法与
 Red Pitaya 软件栈共存（切换需重新刷卡）。本项目从头重建启动链，让设备运行标准 Debian：
 
-- **Debian 源码 6.12 内核**（主机侧构建的固定版本 deb，`6.12.100-web888`）——
+- **Debian 源码 6.12 内核**（主机侧构建的固定版本 deb，`6.12.113-web888`）——
   功能完整：ext4、网络、FPGA devcfg，多数 USB 设备开箱即用；
   linux-xlnx 6.6 链路保留为回滚方案。
 - **完整 U-Boot + 源码构建的 FSBL** —— `boot.scr`/`uEnv.txt`/dtb 位于小型 FAT

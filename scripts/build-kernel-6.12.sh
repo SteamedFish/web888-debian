@@ -2,13 +2,13 @@
 # build-kernel-6.12.sh — step 6 P1: Debian-source 6.12 kernel for the Web-888,
 # packaged as .debs (step 6 — see docs/dev/kernel-update-sop.md).
 #
-# Source: Debian linux source package 6.12.100-1 (trixie security pool), fetched
+# Source: Debian linux source package 6.12.113-1 (trixie security pool), fetched
 # from deb.debian.org and extracted with dpkg-source into work/linux-debian-6.12.
 # Config: Debian armmp hierarchy (debian/config/{config,kernelarch-arm/config,
 # armhf/config}) merged by the source package's own kconfig.py, plus
 # config/kernel-web888-6.12.fragment (Zynq platform + board deltas).
 # Product: linux-image/linux-headers/linux-libc-dev .debs → output/kernel/
-# (make bindeb-pkg, ikwzm's flow), plus output/kernel/zImage-6.12.100-web888
+# (make bindeb-pkg, ikwzm's flow), plus output/kernel/zImage-6.12.113-web888
 # for the boot.bin repack (stub chain unchanged: gzip zImage @0x02008000).
 #
 # Run from the repo root. Requirements: arm-linux-gnueabihf-gcc, dpkg-source,
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-KVER=6.12.111
+KVER=6.12.113
 KREV=1
 # snapshot.debian.org timestamp whose main archive still carries
 # linux_${KVER}-${KREV} — the live pool drops superseded point releases
@@ -24,7 +24,7 @@ KREV=1
 # When bumping KVER/KREV, refresh this from
 # https://snapshot.debian.org/mr/package/linux/${KVER}-${KREV}/srcfiles?fileinfo=1
 # (pick a 'debian' archive entry's first_seen).
-KSNAP=20261011T144745Z
+KSNAP=20261029T211301Z
 KDIR=work/linux-debian-6.12
 DL=work/downloads/linux-${KVER}
 CROSS=arm-linux-gnueabihf-
@@ -80,6 +80,15 @@ if [[ ! -d $KDIR ]]; then
     done
     dpkg-source --no-check -x "$DL/linux_${KVER}-${KREV}.dsc" "$KDIR"
 fi
+# A pin bump must never silently rebuild the previous tree. The kernel's
+# top-level Makefile survives bindeb-pkg's debian/ rewrite, so it is a
+# reliable version probe even after a previous build.
+have=$(make -s -C "$KDIR" kernelversion 2>/dev/null)
+[[ $have == "$KVER" ]] || {
+    echo "Error: $KDIR contains Linux $have, but the pin is $KVER." >&2
+    echo "       Move/remove the old tree and work/kconfig-${have}-snapshot, then retry." >&2
+    exit 1
+}
 
 # DEB_SOURCE=apt (build-all.sh): the kernel deb comes from the APT repo, so
 # only the source tree is needed here — write-dtb.sh compiles web888.dts
@@ -241,6 +250,11 @@ make -C "$KDIR" ARCH=arm CROSS_COMPILE="$CROSS" -j"$JOBS" < /dev/null
 # packaging/*/debian/control.
 export DEBFULLNAME="SteamedFish"
 export DEBEMAIL="steamedfish@hotmail.com"
+# Deterministic local package revision. Without this, mkdebian's build-version
+# counter (.version) makes a reused tree emit -2, -3, ... while CI emits
+# <KVER>-<KREV>web888.ci<N>; a local -2 would sort above the CI package and
+# block later APT upgrades. CI exports its own value, preserved here.
+export KDEB_PKGVERSION="${KDEB_PKGVERSION:-${KVER}-${KREV}web888}"
 # Regenerate the kernel's minimal debian/ with the identity above. Invoke
 # mkdebian DIRECTLY: `make debian` is a silent no-op here (the top Makefile
 # does not expose scripts/Makefile.package's `debian` target, and the

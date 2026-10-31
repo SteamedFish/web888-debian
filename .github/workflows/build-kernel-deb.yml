@@ -1,4 +1,4 @@
-# build-kernel-deb.yml — build linux-image-6.12.100-web888_*_armhf.deb on
+# build-kernel-deb.yml — build linux-image-6.12.113-web888_*_armhf.deb on
 # GitHub-hosted ubuntu-24.04 and publish it to the flat gh-pages APT repo.
 #
 # Version scheme: KDEB_PKGVERSION="<KVER>-<KREV>web888.ci${GITHUB_RUN_NUMBER}"

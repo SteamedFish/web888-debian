@@ -191,7 +191,7 @@ jobs:
           ((${#debs[@]})) || { echo "no web888d deb produced" >&2; exit 1; }
           for deb in "${debs[@]}"; do
             echo "== $deb"
-            dpkg-deb --info "$deb" | grep -E '^(Package|Version|Architecture|Maintainer):'
+            dpkg-deb --field "$deb" Package Version Architecture Maintainer
             [[ $(dpkg-deb --field "$deb" Architecture) == armhf ]] \
               || { echo "architecture is not armhf" >&2; exit 1; }
             dpkg-deb --contents "$deb" >/dev/null
@@ -243,7 +243,9 @@ jobs:
           ((${#debs[@]})) || { echo "no bitstream deb produced" >&2; exit 1; }
           for deb in "${debs[@]}"; do
             echo "== $deb"
-            dpkg-deb --info "$deb" | grep -E '^(Package|Version|Architecture):'
+            dpkg-deb --field "$deb" Package Version Architecture
+            [[ $(dpkg-deb --field "$deb" Architecture) == all ]] \
+              || { echo "architecture is not all" >&2; exit 1; }
             dpkg-deb --contents "$deb" >/dev/null
           done
 

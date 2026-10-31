@@ -191,9 +191,9 @@ pre-cleanup archive branch.
   systemd template. Round-trip gate ×10 + 1 h soak passed on hardware
   (2026-08-07).
 - **Debian-source kernel + full U-Boot (step 6)** — host-built pinned
-  kernel deb `6.12.100-web888` (Debian linux-source-6.12 + armmp config
+  kernel deb `6.12.113-web888` (Debian linux-source-6.12 + armmp config
   + Web-888 drivers + ULPI patch, lean config default), full U-Boot
-  v2026.07 as SSBL behind the source-built FSBL; boot.scr/uEnv.txt/dtb
+  v2026.10 as SSBL behind the source-built FSBL; boot.scr/uEnv.txt/dtb
   on the FAT firmware partition (`/boot/firmware`), kernel ext4-loaded
   from the rootfs `/boot/zImage` symlink; QEMU gates passed, hardware
   smoke/E2E/round-trip/reboot-loop passed on the dev unit.

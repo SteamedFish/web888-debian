@@ -4,7 +4,7 @@
 #
 # Shipped by web888-boot; invoked from the linux-image postinst through
 # run-parts /etc/kernel/postinst.d with:
-#   $1 = kernel release (e.g. 6.12.100-web888)
+#   $1 = kernel release (e.g. 6.12.113-web888)
 #   $2 = installed image path (/boot/vmlinuz-<krel>)
 #
 # boot.scr ext4-loads /boot/zImage from the rootfs (fallback

@@ -3,5 +3,5 @@
 # rootfs (default: zImage, a symlink the web888-boot kernel hook points
 # at the newest installed kernel). To boot one specific installed
 # version:
-#kernel_file=vmlinuz-6.12.101-web888
+#kernel_file=vmlinuz-6.12.113-web888
 #bootargs_extra=ignore_loglevel

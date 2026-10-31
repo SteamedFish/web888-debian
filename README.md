@@ -25,7 +25,7 @@ The stock Web-888 OS has a crippled kernel, runs entirely from a small RAM
 tmpfs, and cannot coexist with the Red Pitaya stack without reflashing. This
 project rebuilds the boot chain so the board runs normal Debian:
 
-- **Debian-source 6.12 kernel** (host-built pinned deb, `6.12.100-web888`) —
+- **Debian-source 6.12 kernel** (host-built pinned deb, `6.12.113-web888`) —
   fully featured: ext4, networking, FPGA devcfg, and out-of-the-box support
   for most USB devices. The linux-xlnx 6.6 chain stays buildable as rollback.
 - **Full U-Boot + source-built FSBL** — `boot.scr`/`uEnv.txt`/dtb on a small

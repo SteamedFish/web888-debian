@@ -9,7 +9,7 @@ the **Building** section of the top-level `README.md`.
 
 | Chain | Build command | What it is |
 |---|---|---|
-| `uboot` (default, production) | `scripts/build-all.sh` | Source-built FSBL → full mainline U-Boot v2026.07 as SSBL → `boot.scr`/`uEnv.txt` on FAT → Debian-source 6.12 kernel |
+| `uboot` (default, production) | `scripts/build-all.sh` | Source-built FSBL → full mainline U-Boot v2026.10 as SSBL → `boot.scr`/`uEnv.txt` on FAT → Debian-source 6.12.113 kernel |
 | `stub` (rollback) | `CHAIN=stub KERNEL=6.6 scripts/build-all.sh` | Source-built FSBL → minimal stub SSBL → legacy linux-xlnx 6.6 kernel |
 
 The U-Boot chain is what ships. The stub chain stays buildable as the
@@ -50,7 +50,7 @@ All knobs are environment variables; none are required.
 | Variable | Values | Default | Effect |
 |---|---|---|---|
 | `CHAIN` | `uboot` \| `stub` | `uboot` | Boot chain to assemble (table above). `stub` maps to the legacy bootbin/image mode `final`. |
-| `KERNEL` | `6.12` \| `6.6` | `6.12` | Kernel flow: `6.12` = Debian linux-source, pinned deb `6.12.100-web888`; `6.6` = legacy linux-xlnx tree. |
+| `KERNEL` | `6.12` \| `6.6` | `6.12` | Kernel flow: `6.12` = Debian linux-source, pinned deb `6.12.113-web888`; `6.6` = legacy linux-xlnx tree. |
 | `FSBL` | `source` \| `stock` | `source` | FSBL packed into boot.bin: `source` = built from the vendored embeddedsw zynq_fsbl tree via `build-fsbl.sh` (hardware-verified; needs `arm-none-eabi-gcc`); `stock` = blob extracted from the stock boot.bin (escape hatch). Also honored by `build-bootbin.sh` directly. |
 | `DEB_SOURCE` | `apt` \| `local` | `apt` | Where the project debs come from: `apt` installs them from the CI-published APT repo (`web888.steamedfish.org/apt`; requires `CHAIN=uboot KERNEL=6.12` — the repo only publishes that chain); `local` builds every deb from source (the manual per-step path below). |
 | `DEBIAN_MIRROR` | URL | `mirrors.tuna.tsinghua.edu.cn/debian` | debootstrap/apt mirror for the rootfs. Also consumed by `env-setup.sh`, `build-initramfs.sh`, `mk-websdr-chroot.sh`. |
@@ -180,7 +180,7 @@ scripts/build-websdr-deb.sh      # 8c. web888-websdr deb (armhf chroot)
 scripts/install-websdr.sh        # 8d. install deb into rootfs
 scripts/build-redpitaya-deb.sh   # 8e. web888-redpitaya deb
 scripts/install-redpitaya.sh     # 8f. install deb (units disabled by default)
-scripts/build-uboot.sh           # 8g. U-Boot v2026.07 (CHAIN=uboot only; auto-clones work/u-boot)
+scripts/build-uboot.sh           # 8g. U-Boot v2026.10 (CHAIN=uboot only; auto-clones work/u-boot)
 scripts/build-fsbl.sh            # 8h. source-built FSBL (FSBL=source only)
 scripts/build-bootbin.sh uboot   #  9. boot.bin assembly
 scripts/build-boot-deb.sh        # 9b. web888-boot deb (payload = 8g/8h/9 outputs + dtb)

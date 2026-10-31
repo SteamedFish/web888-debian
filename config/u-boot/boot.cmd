@@ -8,7 +8,7 @@
 # for the env import below. bootargs live HERE, not in the dtb.
 #
 # uEnv.txt on the FAT partition overrides any of these (env import), e.g.
-#   kernel_file=vmlinuz-6.12.101-web888   (boot one installed version)
+#   kernel_file=vmlinuz-6.12.113-web888   (boot one installed version)
 #   bootargs_extra=earlycon ignore_loglevel
 setenv kernel_file zImage
 setenv dtb_file web888.dtb

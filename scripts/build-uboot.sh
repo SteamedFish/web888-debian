@@ -4,7 +4,7 @@
 # partition of boot.bin; kernel/dtb come from the FAT partition via
 # boot.scr/uEnv.txt, replacing the 52-byte stub chain.
 #
-# Tree: work/u-boot (mainline v2026.07, pinned in config/u-boot/upstream.pin;
+# Tree: work/u-boot (mainline v2026.10, pinned in config/u-boot/upstream.pin;
 # fetch-upstream-src.sh u-boot clones it on first run). Tracked sources in
 # config/u-boot/ are materialized into the gitignored tree — same pattern
 # as build-kernel.sh; use patch(1), not git apply (host anomaly).
