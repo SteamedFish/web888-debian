@@ -21,3 +21,5 @@ wget-log*
 
 # Python bytecode (scripts/hw-test/ws-e2e.py)
 __pycache__/
+
+.slim/deepwork/
