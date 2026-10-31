@@ -1,0 +1,20 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure)
+    # the bitstreams are data files (loaded by the root helper at runtime),
+    # never a systemd unit: just re-verify integrity after every install or
+    # upgrade. A mismatch means a corrupted download or a tampered archive,
+    # which must fail loudly rather than reach the FPGA.
+    if [ -f /usr/share/web888-ng/firmware/web888-ng-bitstream.sha256 ]; then
+      (cd /usr/share/web888-ng/firmware && \
+        sha256sum -c web888-ng-bitstream.sha256 >/dev/null) \
+        || { echo "web888-ng-bitstream: checksum verification failed" >&2; exit 1; }
+    fi
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

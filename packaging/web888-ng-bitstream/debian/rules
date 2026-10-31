@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+# bitstreams are downloaded, hash-verified and staged by
+# scripts/build-web888-ng-bitstream-deb.sh; this package only arranges files
+override_dh_auto_configure:
+override_dh_auto_build:
+override_dh_auto_test:
+override_dh_auto_install:

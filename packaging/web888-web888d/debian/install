@@ -1,0 +1,5 @@
+bin/web888d usr/bin
+ui usr/share/web888d
+web888d.toml.default usr/share/web888d
+web888-web888d.service lib/systemd/system
+web888-web888d-pl.service lib/systemd/system

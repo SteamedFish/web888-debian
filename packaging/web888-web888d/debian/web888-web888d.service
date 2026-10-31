@@ -1,0 +1,73 @@
+[Unit]
+Description=web888d SDR server (web888-ng, experimental)
+# Experimental optional third runtime mode (Phase 2). Default OFF: the unit
+# deliberately has no [Install] section; start it explicitly or via the
+# switching helper once that exists.
+Documentation=https://github.com/jeskko/web888-ng
+After=network-online.target
+Wants=network-online.target
+# FPGA/PL and /dev/zynqsdr exclusivity, both directions, all four RP
+# instances named explicitly (systemd cannot glob template instances in
+# Conflicts=; see packaging/web888-redpitaya/web888-rpapp@.service).
+Conflicts=web888-websdr.service \
+          web888-rpapp@led_blinker.service \
+          web888-rpapp@sdr_receiver.service \
+          web888-rpapp@sdr_receiver_hpsdr.service \
+          web888-rpapp@sdr_transceiver_wide.service
+# The privileged PL load is a separate default-off oneshot unit: the main
+# unit's DevicePolicy=closed cannot be escaped with '+' (root does not
+# bypass the cgroup device filter), so /dev/xdevcfg is only ever opened by
+# web888-web888d-pl.service running as root. Requires= starts the oneshot on
+# EVERY explicit start of this unit (it returns to inactive after success,
+# unlike RemainAfterExit services), so selection changes and stop/start
+# cycles re-load the PL. An internal Restart=on-failure (web888d crash or
+# the admin's exit-75 restart) re-runs ExecStart only, NOT the Requires=
+# transaction, so those do not reload the PL.
+Requires=web888-web888d-pl.service
+After=web888-web888d-pl.service
+# Crash-loop guard ([Unit] keys, NOT [Service]): bounds restart attempts of
+# this unit; the PL unit has its own StartLimit so a failing load cannot
+# churn the PL either.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=web888d
+Group=web888d
+# /dev/zynqsdr is root:web888 via the web888-websdr udev rule.
+SupplementaryGroups=web888
+# The daemon never loads a bitstream (lane B's web888-fpga-select does, as
+# root, in web888-web888d-pl.service) and must never open /dev/xdevcfg.
+ExecStart=/usr/bin/web888d serve \
+    --config /etc/web888d/web888d.toml \
+    --backend zynqsdr \
+    --bitstream none \
+    --ui-dir /usr/share/web888d/ui \
+    --state-dir /var/lib/web888d
+# on-failure (not always): a clean administrative stop stays stopped.
+# Exit 75 (admin "restart") is a failure by design; see [Unit] for why this
+# internal restart does not re-trigger the PL loader.
+Restart=on-failure
+RestartSec=5
+RestartSteps=5
+RestartMaxDelaySec=30
+# Hardening: the daemon needs one device node, no privileges and no writes
+# outside /var/lib/web888d (TLS cert, state) and /etc/web888d (admin-saved
+# config, web888d-owned 0600 — see the package postinst).
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/etc/web888d
+ProtectHome=true
+PrivateTmp=true
+StateDirectory=web888d
+LimitCORE=0
+DevicePolicy=closed
+DeviceAllow=/dev/zynqsdr rw
+
+# NO [Install] section: never auto-enabled (Phase 2 default-off requirement).
+
+# Intentionally NO MemoryMax here until Phase 2C measurements on the 512 MB
+# unit size it (integration plan 2B).

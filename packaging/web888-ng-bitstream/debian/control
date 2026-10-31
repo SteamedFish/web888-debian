@@ -1,0 +1,25 @@
+Source: web888-ng-bitstream
+Section: hamradio
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/jeskko/web888-ng-hw
+License: GPL-3.0+
+
+Package: web888-ng-bitstream
+Architecture: all
+Depends: ${misc:Depends}, web888-redpitaya (>= 2025.430-3)
+Description: Open FPGA bitstreams for Web-888 (web888-ng-hw v0.3.0)
+ Prebuilt open FPGA bitstreams from jeskko/web888-ng-hw v0.3.0 (CI build,
+ Vivado 2026.1, stock-compatible register map, timing met): websdr_hf.bit
+ (HF, 12 RX + 2 WF, signature 0x0E5D020C) and websdr_vhf.bit (VHF, 13 RX +
+ 2 WF, signature 0x0E5D020D; hardware-untested upstream, not selected by
+ any shipped service). Checksums and upstream build provenance
+ (SHA256SUMS, wns.txt, Vivado licence note) install alongside the
+ artifacts under /usr/share/web888-ng/firmware/.
+ .
+ Nothing here is loaded automatically: the runtime selection helper
+ /usr/lib/web888/web888-fpga-select (web888-redpitaya) decides which
+ bitstream reaches the FPGA. Stock bitstreams are NOT shipped in this
+ package; no files overlap or overwrite stock firmware or runtime state.

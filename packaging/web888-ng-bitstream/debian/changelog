@@ -1,0 +1,9 @@
+web888-ng-bitstream (0.3.0-1) unstable; urgency=medium
+
+  * Initial package: open FPGA bitstreams from jeskko/web888-ng-hw v0.3.0
+    (commit 767030740a2fdecfebdd383efd23330e6455ff1b, CI Vivado 2026.1
+    build): websdr_hf.bit + websdr_vhf.bit with checksums and upstream
+    provenance under /usr/share/web888-ng/firmware/. Nothing loads these
+    automatically; stock bitstreams are not included (Phase 2 lane A).
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sun, 01 Nov 2026 12:00:00 +0800

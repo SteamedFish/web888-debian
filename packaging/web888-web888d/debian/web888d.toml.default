@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# web888d configuration for the Web-888 Debian image (shipped as
+# /usr/share/web888d/web888d.toml.default; the postinst copies it to
+# /etc/web888d/web888d.toml only when none exists, so dpkg never clobbers
+# admin edits and the mutable file is not a dpkg conffile).
+#
+# web888d serves HPSDR Protocol 1 (UDP 1024) and the web UI (HTTPS+HTTP on
+# 8073 — the same port WebSDR uses; the two servers never run together, see
+# the service's Conflicts=). Every option can be overridden from the admin
+# UI; `web888d serve --print-config` shows the effective configuration.
+
+[radio]
+# The stock-ABI kernel driver /dev/zynqsdr (web888-redpitaya ships the
+# driver + helper). The bitstream is loaded before the daemon starts by
+# /usr/lib/web888/web888-fpga-select (ExecStartPre of the service); the
+# daemon must not touch /dev/xdevcfg, hence "none" here and on the command
+# line (the CLI flag wins in any case).
+backend = "zynqsdr"
+bitstream = "none"
+
+# No skimmers, no spot uploads, no passwords by default (Phase 2
+# requirements): everything else is upstream defaults.

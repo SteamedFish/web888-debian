@@ -1,0 +1,31 @@
+Source: web888-web888d
+Section: hamradio
+Priority: optional
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/jeskko/web888-ng
+License: GPL-3.0+
+
+Package: web888-web888d
+Architecture: armhf
+Depends: ${misc:Depends}, adduser, web888-redpitaya (>= 2025.430-3), web888-websdr (>= 2026.1020-2)
+Description: web888d SDR server for Web-888 (RX-888) - Debian build
+ From-source build of jeskko/web888-ng v0.6.0 (web888d daemon + web UI),
+ statically linked for armhf. Experimental optional third runtime mode
+ alongside WebSDR and the Red Pitaya apps: the service ships DISABLED
+ (no [Install]) and Conflicts= with web888-websdr.service and all four
+ web888-rpapp@ instances, so the FPGA, /dev/zynqsdr and TCP 8073 stay
+ exclusive.
+ .
+ The bitstream is loaded as root by /usr/lib/web888/web888-fpga-select in a
+ separate default-off oneshot unit (web888-web888d-pl.service, xdevcfg
+ access confined to it); the daemon runs unprivileged (user web888d, group
+ web888) with --bitstream none, never touching /dev/xdevcfg. State lives in
+ /var/lib/web888d; the mutable config /etc/web888d/web888d.toml is created
+ on first install (web888d-owned 0600, not a dpkg conffile). No skimmers,
+ no uploads and no admin password by default.
+ .
+ Depends on web888-redpitaya (runtime switcher and FPGA-select helper) and
+ web888-websdr (udev rule, web888 device group and stock firmware floor); an
+ open-FPGA bitstream can be provided by web888-ng-bitstream.

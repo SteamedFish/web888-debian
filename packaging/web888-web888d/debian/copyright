@@ -1,0 +1,27 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: web888-ng
+Source: https://github.com/jeskko/web888-ng
+Comment:
+ Pinned to tag v0.6.0 (annotated tag 242bf1fab3434070d1783c56b6e6949011e4ae94,
+ commit 48e9914aac80e3f20c39838fe9b33193b6b3fb36). Source tarball hash is
+ pinned in config/web888-ng/pins.env; the daemon and UI are built from
+ source by scripts/build-web888d.sh (upstream CI binaries are comparison
+ inputs only, never release inputs).
+ .
+ The web UI bundles preact, @preact/signals and esbuild-produced code;
+ crates/jtty keeps the MIT notice of jtty-cuf
+ (https://github.com/j0uni/jtty-cuf), a Rust port of which ships in
+ crates/jtty and crates/jtty-wasm.
+
+Files: *
+Copyright: 2024-2026 Jarkko Vääräniemi (OH8HQL) and contributors
+License: GPL-3.0-or-later
+Comment:
+ The upstream COPYING file is the GNU GPL version 3. jtty-cuf-derived
+ files carry the MIT licence notice in their headers.
+
+Files: debian/*
+Copyright: 2026 SteamedFish
+License: GPL-2.0-or-later
+Comment:
+ Packaging for the Web-888 Debian image; follows the project licence.

@@ -1,0 +1,40 @@
+[Unit]
+Description=Load the selected FPGA bitstream for web888d (root, one-shot)
+# Privileged half of web888-web888d.service: programs the PL via
+# /dev/xdevcfg as root. Kept in a separate unit because a main-unit
+# ExecStartPre=+ CANNOT open /dev/xdevcfg: the '+' prefix only widens
+# user/permission bits, not the cgroup device filter — DevicePolicy=closed
+# in the main unit denied the xdevcfg write on hardware.
+#
+# Pulled in exclusively by web888-web888d.service's Requires= (no [Install],
+# never enabled on its own). Deliberately NO Conflicts= here: a direct
+# manual `systemctl start` of this unit must NOT silently tear down a
+# running WebSDR/RP stack — instead web888-fpga-select itself refuses to
+# load while a conflicting SDR service is active (fail closed).
+PartOf=web888-web888d.service
+# A failed PL load (missing consent, conflicting service, prog_done timeout)
+# must not be retried in a tight loop against the devcfg.
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+User=root
+Group=root
+ExecStart=/usr/lib/web888/web888-fpga-select load
+# Only /dev/xdevcfg, nothing else: the helper's remaining touchpoints are
+# sysfs (prog_done), /run/lock and its state dir.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+# state dir (snapshot/selection) plus the lock directory: the helper
+# creates /run/lock/web888-fpga.lock itself (exec 9>"$LOCK"), and
+# ProtectSystem=strict mounts /run read-only too. The directory, not the
+# file, is listed because the file does not exist at unit start.
+ReadWritePaths=/var/lib/web888-fpga /run/lock
+DevicePolicy=closed
+DeviceAllow=/dev/xdevcfg rw
+
+# NO [Install] section: started only via web888-web888d.service's Requires=.

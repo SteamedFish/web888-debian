@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  purge)
+    # drop the independent user/group created in postinst (state dir is
+    # removed by dh_installsystemd's tmpfiles/state handling only when
+    # empty; remove leftovers explicitly)
+    deluser web888d web888 >/dev/null 2>&1 || true
+    deluser --system web888d >/dev/null 2>&1 || true
+    delgroup --system web888d >/dev/null 2>&1 || true
+    rm -rf /var/lib/web888d
+    # /etc/web888d/web888d.toml was created by postinst, not dpkg: remove
+    # it here so purge leaves no trace
+    rm -f /etc/web888d/web888d.toml
+    rmdir /etc/web888d 2>/dev/null || true
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

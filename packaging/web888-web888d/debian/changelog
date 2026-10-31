@@ -1,0 +1,10 @@
+web888-web888d (0.6.0-1) unstable; urgency=medium
+
+  * Initial package: web888d 0.6.0 (jeskko/web888-ng v0.6.0, commit
+    48e9914aac80e3f20c39838fe9b33193b6b3fb36), source-built static
+    armv7-musl daemon + web UI. Experimental, default-off third runtime
+    mode (Phase 2 lane A); no [Install], Conflicts= with WebSDR and all
+    RP instances, bitstream loaded by web888-fpga-select with
+    --bitstream none.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sun, 01 Nov 2026 12:00:00 +0800

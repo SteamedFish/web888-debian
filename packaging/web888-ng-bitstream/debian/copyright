@@ -1,0 +1,28 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: web888-ng-hw
+Source: https://github.com/jeskko/web888-ng-hw
+Comment:
+ Pinned to tag v0.3.0 (annotated tag 8b7ab5061ad6be5cd24322dd8912b6551e25350a,
+ commit 767030740a2fdecfebdd383efd23330e6455ff1b). The shipped .bit files are
+ the upstream v0.3.0 release assets (CI-built with Vivado 2026.1 from that
+ tag; asset hashes pinned in config/web888-ng/pins.env and re-verified
+ against the upstream SHA256SUMS asset at build time). Building Vivado from
+ source is not possible on this infrastructure; the upstream CI artifacts
+ are used as-is with their published digests.
+ .
+ The channelizer bitstream (websdr_pfb.bit) is deliberately NOT shipped: it
+ needs the open driver, while these two target the stock-compatible
+ register map served by the web888-redpitaya kernel driver.
+
+Files: *
+Copyright: 2024-2026 Jarkko Vääräniemi (OH8HQL) and contributors
+License: GPL-3.0-or-later
+Comment:
+ The upstream COPYING file is the GNU GPL version 3; the FPGA sources
+ (fpga/rtl, constraints) producing these bitstreams are GPL-3.0-or-later.
+
+Files: debian/*
+Copyright: 2026 SteamedFish
+License: GPL-2.0-or-later
+Comment:
+ Packaging for the Web-888 Debian image; follows the project licence.

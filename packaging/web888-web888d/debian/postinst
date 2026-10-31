@@ -1,0 +1,41 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure)
+    # independent user; /dev/zynqsdr access comes from the supplementary
+    # web888 group (udev rule in web888-websdr)
+    if ! getent group web888d >/dev/null; then
+      addgroup --system web888d
+    fi
+    if ! getent passwd web888d >/dev/null; then
+      adduser --system --ingroup web888d --home /var/lib/web888d \
+        --no-create-home --disabled-login web888d
+    fi
+    adduser web888d web888 >/dev/null 2>&1 || true
+    install -d -o web888d -g web888d /var/lib/web888d
+    # mutable config: the daemon (user web888d) rewrites it atomically
+    # (temp file + rename in the same directory), so the directory must be
+    # web888d-writable and the file web888d-owned — ProtectSystem=strict +
+    # ReadWritePaths=/etc/web888d only lifts the mount-namespace read-only
+    # flag, NOT Unix permissions. 0750 dir / 0600 config keep /etc otherwise
+    # closed to the daemon (and to other unprivileged users).
+    install -d -o web888d -g web888d -m 0750 /etc/web888d
+    if [ ! -e /etc/web888d/web888d.toml ]; then
+      install -o web888d -g web888d -m 0600 \
+        /usr/share/web888d/web888d.toml.default /etc/web888d/web888d.toml
+    else
+      # upgrade from an install where the config was root-owned: hand it to
+      # the daemon without touching contents (it may carry admin edits)
+      chown web888d:web888d /etc/web888d/web888d.toml
+      chmod 0600 /etc/web888d/web888d.toml
+    fi
+    # never enabled/started by this package (Phase 2 default-off); just let
+    # systemd notice the new unit file
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

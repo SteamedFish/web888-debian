@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+# daemon binary and UI are prebuilt by scripts/build-web888d.sh (cross
+# armv7-unknown-linux-musleabihf + pnpm); this package only arranges files
+override_dh_auto_configure:
+override_dh_auto_build:
+override_dh_auto_test:
+override_dh_auto_install:
+
+# unit is installed as a plain file via dh_install (never enabled, no
+# [Install]); nothing for dh_installsystemd to manage
+override_dh_installsystemd:
