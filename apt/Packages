@@ -1282,6 +1282,44 @@ Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
  the rollback kernel. Symlinks only — no copies, no mount requirements,
  so the hook also runs correctly inside the image-build chroot.
 
+Package: web888-boot
+Version: 2026.10-1+ci28
+Architecture: armhf
+Maintainer: SteamedFish <steamedfish@hotmail.com>
+Installed-Size: 1949
+Filename: ./web888-boot_2026.10-1+ci28_armhf.deb
+Size: 370252
+MD5sum: 14a347c466053d8c7fb1458b639fb161
+SHA1: 05741209d7cf198e4c47f820da7835df7c25a292
+SHA256: ecdfa80a1faaaed28a6c97aa7ab2978127d63767dc050660382f9e3ebb7356c9
+Section: admin
+Priority: optional
+Homepage: https://github.com/steamedfish/web888-debian
+Description: Web-888 (RX-888) SDR boot chain - FSBL + U-Boot for Debian
+ Bootloader package for the Web-888 Debian image (uboot chain): the
+ packed boot.bin (source-built Xilinx zynq_fsbl + mainline U-Boot as
+ SSBL), the individual FSBL / U-Boot binaries, the compiled boot.scr,
+ and the default uEnv.txt, staged under /usr/lib/web888-boot/.
+ .
+ On configure, the payload is installed onto the FAT firmware partition
+ mounted at /boot/firmware: boot.bin and boot.scr are replaced via
+ temp-file + sync + rename with one-generation .bak backups; uEnv.txt
+ is only installed when absent (it is the on-device kernel-selection
+ knob and user edits are never overwritten). When
+ /boot/firmware/boot.bin does not exist (chroot / image build, or an
+ old-layout device with the FAT at /boot) the install step is skipped,
+ so the package is safe during rootfs assembly and on legacy images.
+ .
+ Only the uboot boot chain is supported; the stub chain embeds
+ kernel+dtb inside boot.bin and stays rollback-only.
+ .
+ The package also ships /etc/kernel/postinst.d/zz-web888-zimage, which
+ points the /boot/zImage symlink (the fixed name boot.scr ext4-loads
+ from the rootfs) at /boot/vmlinuz-<kver> whenever a kernel package is
+ installed or upgraded, rotating the previous target to zImage.prev as
+ the rollback kernel. Symlinks only — no copies, no mount requirements,
+ so the hook also runs correctly inside the image-build chroot.
+
 Package: web888-ng-bitstream
 Version: 0.3.0-1
 Architecture: all

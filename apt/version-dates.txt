@@ -61,3 +61,4 @@ web888-redpitaya_2025.430-3+ci14_armhf 2026-10-31
 web888-websdr_2026.1020-2+ci20_armhf 2026-10-31
 web888-ng-bitstream_0.3.0-1_all 2026-10-31
 web888-web888d_0.6.0-1_armhf 2026-10-31
+web888-boot_2026.10-1+ci28_armhf 2026-10-31
