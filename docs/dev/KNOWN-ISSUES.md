@@ -385,3 +385,41 @@ Operations notes:
   hand-editing `admin.json` `airband` without resetting
   `websdr.json` `freq_offset` leaves the UI frequency scale shifted
   by +98.304 MHz (HF signals under airband labels).
+
+---
+
+## 12. GPS time chain: no NMEA on the operator's board, and websdr.bin leaks gpsd clients
+
+Observed 2026-10-31 on the operator's board (kernel `6.12.111-web888`, same
+image layout as CI), while investigating "the clock stays at the image build
+epoch" (fixed separately: the NTP pool is no longer `offline`, see CHANGELOG):
+
+- **No data on the GPS UART.** With `gpsd` stopped, `/dev/ttyPS1` (9600 raw)
+  returned **0 bytes in 6 s**; `/dev/ttyS1..S3` likewise 0 bytes.
+  `ntpshmmon -n 2` (12 s) yields no samples even though the SysV SHM keys
+  `NTP0..NTP4` exist and `gpsd` has them attached (`ipcs -m`, `nattch` 1-3).
+  `/sys/class/pps/pps0/assert` is frozen at a single edge
+  (`1776109376.312871994#1`), so there are no 1PPS interrupts either.
+- **Consequence in chrony:** both `refclock SHM 0` and `refclock PPS /dev/pps0`
+  sit at `#?` / Reach 0. `chronyd` *did* select GPS earlier — journal shows
+  `Selected source GPS` on 2026-10-20 — so the software path has worked on
+  this board before.
+- **The admin UI is misleading.** KiwiSDR `/status` reports
+  `gps=(0.000000, 0.000000)` (no fix) while `gps_good=19` / `fixes=8` remain
+  non-zero: those are cumulative counters from the earlier session, not live
+  state. A healthy-looking UI is therefore not evidence of a fix.
+- **`websdr.bin` leaks gpsd subscribers.** After a `systemctl restart gpsd`,
+  `ss -tn | grep :2947` reaches **134 ESTAB** within seconds, nearly all owned
+  by `websdr.bin` (pid holds many client sockets). `gpsd` then logs
+  `Client ::1 connect on fd N -no subscriber slots available` every ~5 s and
+  new consumers (including `python` probes) get **no JSON at all**, only the
+  `DEVICES` banner if a slot happens to free up. Restarting `gpsd` clears it
+  temporarily; the flood returns immediately.
+
+Next steps: (a) check the GPS antenna/module power and UART wiring on the
+board — with no NMEA bytes at all this is hardware-side until proven
+otherwise; (b) treat `websdr.bin`'s gpsd connect loop as a vendor-binary
+defect (watch the socket count after a fix returns — with a live fix the
+client may settle to one connection); (c) do **not** rely on the UI's
+`gps_good`/`fixes` counters as a health signal, and do not build alerts on
+them.

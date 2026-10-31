@@ -7,6 +7,12 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 
 ## Hardware gates (pending board access)
 
+- [ ] **GPS time chain on the operator board** — GPS UART `/dev/ttyPS1`
+      returns 0 bytes and `/dev/pps0` has a single frozen assert, so both
+      chrony refclocks are dead and only NTP keeps the clock sane
+      (KNOWN-ISSUES §12). Next: verify antenna/fix at the hardware level, then
+      re-check `ntpshmmon` + `chronyc sources` for a live GPS source and whether
+      `websdr.bin` stops its gpsd connect flood once a fix exists.
 - [ ] **Fresh-image hardware validation** — one reflash of the current CI
       image covers all pending hardware gates at once: `systemctl --failed`
       must come back empty (KNOWN-ISSUES §7: first-boot preset fix +
