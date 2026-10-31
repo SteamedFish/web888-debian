@@ -9,6 +9,20 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Reuse the web888-ng-hw QEMU PL model
+
+### Added
+- `resources/qemu-web888/`: byte-for-byte vendored Web-888 machine/PL model and
+  bare-metal test from jeskko/web888-ng-hw v0.3.0, retaining upstream licences
+  and recording the exact commit, tarball SHA-256 and modification list.
+- `scripts/build-qemu-web888.sh`: pinned, checksum-verified QEMU 11.1.2
+  arm-softmmu build under `work/qemu-web888/`, without replacing system QEMU.
+- `scripts/test-zynqsdr-qemu.sh`: bare-metal model gate plus a separate full
+  Debian system-test path for our kernel/dtb/rootfs and `zynqsdr` tests.
+  The bare-metal gate passes all 13 checks locally; full system and hardware
+  validation remain pending. The existing stock `scripts/test-qemu.sh` gate is
+  unchanged, and the model never emulates or permits `/dev/xdevcfg` writes.
+
 ## [2026-10-31] — Plan web888-ng validation and optional web888d integration
 
 ### Added

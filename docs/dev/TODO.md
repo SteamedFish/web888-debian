@@ -53,6 +53,10 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
       userspace consumer; evaluate/adapt the web888-ng-hw QEMU FPGA model;
       fix driver divergences with host/QEMU/hardware regression evidence.
       See `web888-ng-integration-plan.md`.
+  - [x] Pin and reuse the web888-ng-hw QEMU 11.1.2 machine/PL model with full
+        provenance; bare-metal model gate passes all 13 checks.
+  - [ ] Boot our Debian kernel/rootfs on that model and run the shared
+        `zynqsdr` conformance/rearm corpus; then complete the hardware gate.
 - [ ] **Phase 2 (gated by Phase 1): optional web888d mode** — source-built
       experimental deb, default off, HF + stock bitstream only, with three-way
       WebSDR/RP/web888d switching and verified return to WebSDR. No open-FPGA,

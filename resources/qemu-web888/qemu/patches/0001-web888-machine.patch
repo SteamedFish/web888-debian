@@ -1,0 +1,168 @@
+diff -u a/hw/arm/Kconfig b/hw/arm/Kconfig
+--- a/hw/arm/Kconfig
++++ b/hw/arm/Kconfig
+@@ -292,6 +292,8 @@
+     select XILINX_SPIPS
+     select XLNX_ZYNQ_DDRC
+     select ZYNQ_DEVCFG
++    select I2C
++    select AT24C
+ 
+ config ARM_V7M
+     bool
+diff -u a/hw/arm/meson.build b/hw/arm/meson.build
+--- a/hw/arm/meson.build
++++ b/hw/arm/meson.build
+@@ -15,7 +15,7 @@
+ arm_common_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa-ref.c'))
+ arm_common_ss.add(when: 'CONFIG_STELLARIS', if_true: files('stellaris.c'))
+ arm_common_ss.add(when: 'CONFIG_STM32VLDISCOVERY', if_true: files('stm32vldiscovery.c'))
+-arm_common_ss.add(when: 'CONFIG_ZYNQ', if_true: files('xilinx_zynq.c'))
++arm_common_ss.add(when: 'CONFIG_ZYNQ', if_true: files('xilinx_zynq.c', 'web888.c'))
+ arm_common_ss.add(when: 'CONFIG_SABRELITE', if_true: files('sabrelite.c'))
+ 
+ arm_common_ss.add(when: 'CONFIG_ARM_V7M', if_true: files('armv7m.c'))
+diff -u a/hw/arm/xilinx_zynq.c b/hw/arm/xilinx_zynq.c
+--- a/hw/arm/xilinx_zynq.c
++++ b/hw/arm/xilinx_zynq.c
+@@ -42,6 +42,7 @@
+ #include "target/arm/cpu-qom.h"
+ #include "qapi/visitor.h"
+ #include "hw/arm/xilinx_zynq.h"
++#include "hw/arm/web888.h"
+ 
+ /* board base frequency: 33.333333 MHz */
+ #define PS_CLK_FREQUENCY (100 * 1000 * 1000 / 3)
+@@ -105,14 +106,14 @@
+ 
+ static struct arm_boot_info zynq_binfo = {};
+ 
+-static void gem_init(uint32_t base, qemu_irq irq)
++static void gem_init(uint32_t base, qemu_irq irq, int phy_addr)
+ {
+     DeviceState *dev;
+     SysBusDevice *s;
+ 
+     dev = qdev_new(TYPE_CADENCE_GEM);
+     qemu_configure_nic_device(dev, true, NULL);
+-    object_property_set_int(OBJECT(dev), "phy-addr", 7, &error_abort);
++    object_property_set_int(OBJECT(dev), "phy-addr", phy_addr, &error_abort);
+     s = SYS_BUS_DEVICE(dev);
+     sysbus_realize_and_unref(s, &error_fatal);
+     sysbus_mmio_map(s, 0, base);
+@@ -211,6 +212,7 @@
+     qemu_irq pic[GIC_EXT_IRQS];
+     int n;
+     unsigned int smp_cpus = machine->smp.cpus;
++    bool web888 = object_dynamic_cast(OBJECT(machine), TYPE_WEB888_MACHINE);
+ 
+     /* max 2GB ram */
+     if (machine->ram_size > 2 * GiB) {
+@@ -225,6 +227,11 @@
+                                 &error_fatal);
+         object_property_set_int(cpuobj, "reset-cbar", MPCORE_PERIPHBASE,
+                                 &error_fatal);
++        if (web888 && n > 0) {
++            /* released by the SLCR A9_CPU_RST_CTRL, as on hardware */
++            object_property_set_bool(cpuobj, "start-powered-off", true,
++                                     &error_fatal);
++        }
+ 
+         qdev_realize(DEVICE(cpuobj), NULL, &error_fatal);
+ 
+@@ -314,8 +321,9 @@
+ 
+     ddr_ctrl_init(0xF8006000);
+ 
+-    gem_init(0xE000B000, pic[54 - GIC_INTERNAL]);
+-    gem_init(0xE000C000, pic[77 - GIC_INTERNAL]);
++    /* the Web-888 has its RGMII PHY at MDIO address 1 */
++    gem_init(0xE000B000, pic[54 - GIC_INTERNAL], web888 ? 1 : 7);
++    gem_init(0xE000C000, pic[77 - GIC_INTERNAL], 7);
+ 
+     for (n = 0; n < 2; n++) {
+         int hci_irq = n ? 79 : 56;
+@@ -450,6 +458,10 @@
+     zynq_binfo.board_setup_addr = BOARD_SETUP_ADDR;
+     zynq_binfo.write_board_setup = zynq_write_board_setup;
+ 
++    if (web888) {
++        web888_board_init(machine, pic, slcr, &zynq_binfo);
++    }
++
+     arm_load_kernel(zynq_machine->cpu[0], machine, &zynq_binfo);
+ }
+ 
+diff -u a/hw/gpio/meson.build b/hw/gpio/meson.build
+--- a/hw/gpio/meson.build
++++ b/hw/gpio/meson.build
+@@ -4,6 +4,7 @@
+ system_ss.add(when: 'CONFIG_PCA9552', if_true: files('pca9552.c'))
+ system_ss.add(when: 'CONFIG_PCA9554', if_true: files('pca9554.c'))
+ system_ss.add(when: 'CONFIG_PL061', if_true: files('pl061.c'))
++system_ss.add(when: 'CONFIG_ZYNQ', if_true: files('zynq_gpio.c'))
+ system_ss.add(when: 'CONFIG_ZAURUS_SCOOP', if_true: files('zaurus.c'))
+ 
+ system_ss.add(when: 'CONFIG_IMX', if_true: files('imx_gpio.c'))
+diff -u a/hw/i2c/meson.build b/hw/i2c/meson.build
+--- a/hw/i2c/meson.build
++++ b/hw/i2c/meson.build
+@@ -1,5 +1,6 @@
+ i2c_ss = ss.source_set()
+ i2c_ss.add(when: 'CONFIG_I2C', if_true: files('core.c'))
++i2c_ss.add(when: 'CONFIG_ZYNQ', if_true: files('cadence_i2c.c'))
+ i2c_ss.add(when: 'CONFIG_SMBUS', if_true: files('smbus_slave.c', 'smbus_master.c'))
+ i2c_ss.add(when: 'CONFIG_ACPI_SMBUS', if_true: files('pm_smbus.c'))
+ i2c_ss.add(when: 'CONFIG_ACPI_ICH9', if_true: files('smbus_ich9.c'))
+diff -u a/hw/misc/meson.build b/hw/misc/meson.build
+--- a/hw/misc/meson.build
++++ b/hw/misc/meson.build
+@@ -96,7 +96,7 @@
+   'bcm2835_powermgt.c',
+ ))
+ system_ss.add(when: 'CONFIG_SLAVIO', if_true: files('slavio_misc.c'))
+-system_ss.add(when: 'CONFIG_ZYNQ', if_true: files('zynq_slcr.c'))
++system_ss.add(when: 'CONFIG_ZYNQ', if_true: files('zynq_slcr.c', 'web888_pl.c'))
+ system_ss.add(when: 'CONFIG_XLNX_ZYNQ_DDRC', if_true: files('xlnx-zynq-ddrc.c'))
+ system_ss.add(when: 'CONFIG_XLNX_ZYNQMP_ARM', if_true: files('xlnx-zynqmp-crf.c'))
+ system_ss.add(when: 'CONFIG_XLNX_ZYNQMP_ARM', if_true: files('xlnx-zynqmp-apu-ctrl.c'))
+diff -u a/hw/misc/zynq_slcr.c b/hw/misc/zynq_slcr.c
+--- a/hw/misc/zynq_slcr.c
++++ b/hw/misc/zynq_slcr.c
+@@ -18,6 +18,7 @@
+ #include "qemu/timer.h"
+ #include "system/runstate.h"
+ #include "hw/core/sysbus.h"
++#include "hw/core/irq.h"
+ #include "migration/vmstate.h"
+ #include "qemu/log.h"
+ #include "qemu/module.h"
+@@ -207,6 +208,7 @@
+     Clock *uart0_ref_clk;
+     Clock *uart1_ref_clk;
+     uint8_t boot_mode;
++    qemu_irq cpu_rst[2];    /* "cpu-reset": 1 = CPU n held in reset/stopped */
+ };
+ 
+ /*
+@@ -594,6 +596,12 @@
+     s->regs[offset] = val;
+ 
+     switch (offset) {
++    case R_A9_CPU_RST_CTRL:
++        /* A9_RSTn (bit n) or A9_CLKSTOPn (bit 4 + n) hold CPU n */
++        for (int n = 0; n < 2; n++) {
++            qemu_set_irq(s->cpu_rst[n], ((val >> n) | (val >> (4 + n))) & 1);
++        }
++        break;
+     case R_PSS_RST_CTRL:
+         if (FIELD_EX32(val, PSS_RST_CTRL, SOFT_RST)) {
+             qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+@@ -640,6 +648,7 @@
+     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->iomem);
+ 
+     qdev_init_clocks(DEVICE(obj), zynq_slcr_clocks);
++    qdev_init_gpio_out_named(DEVICE(obj), s->cpu_rst, "cpu-reset", 2);
+ }
+ 
+ static const VMStateDescription vmstate_zynq_slcr = {

@@ -1,9 +1,10 @@
 # web888-ng evaluation and optional web888d integration plan
 
-> Status: **planning only** (2026-10-31). No implementation is authorised by
-> this document. Phase 1 must produce useful driver and test improvements even
-> if Phase 2 never ships. Do not commit or publish user-facing packages without
-> the repository's required QEMU/hardware evidence and operator approval.
+> Status: **Phase 1 implementation in progress** (2026-10-31). Phase 2 is not
+> authorised. Phase 1 must produce useful driver and test improvements even if
+> Phase 2 never ships. Current implementation commits are local test milestones,
+> not releases; user-facing packages still require the repository's QEMU/hardware
+> evidence and operator approval.
 
 ## 1. Purpose and strategy
 
@@ -178,6 +179,19 @@ Target model-driven checks:
 - PPS and GPIO paths supported by the model;
 - deterministic IQ/signal assertions;
 - web888d as a userspace consumer where the model supports the full path.
+
+Implemented model harness (local milestone, 2026-10-31):
+
+- `resources/qemu-web888/` vendors the complete machine/PL model and bare-metal
+  test from web888-ng-hw v0.3.0 (commit
+  `767030740a2fdecfebdd383efd23330e6455ff1b`) without source modifications;
+  see its `PROVENANCE.md` for the tarball hash and licences.
+- `scripts/build-qemu-web888.sh` builds only `arm-softmmu` from pinned QEMU
+  11.1.2 into `work/qemu-web888/`; it never replaces the system QEMU.
+- `scripts/test-zynqsdr-qemu.sh --baremetal-only` passes all 13 model checks,
+  including signature, CFG, deterministic RX/WF DMA and PPS. The full system
+  mode boots our own Debian image and is a separate gate; a bare-metal pass is
+  not evidence that our kernel driver works.
 
 Simulation remains incapable of proving analogue clock state, real ADC quality,
 Vivado timing, physical AXI safety or hardware load behaviour.

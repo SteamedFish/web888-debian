@@ -1,0 +1,21 @@
+diff -u a/target/arm/tcg/op_helper.c b/target/arm/tcg/op_helper.c
+--- a/target/arm/tcg/op_helper.c
++++ b/target/arm/tcg/op_helper.c
+@@ -613,6 +613,17 @@
+     }
+ 
+     /*
++     * web888: with MTTCG, sleeping in WFE can miss the SEV of a spinlock
++     * release on the other vCPU (seen as a two-CPU deadlock in the Linux
++     * ticket spinlock). Treat WFE as a yield, as QEMU did before WFE
++     * sleeping was implemented for A-profile.
++     */
++    if (!arm_feature(env, ARM_FEATURE_M)) {
++        cs->exception_index = EXCP_YIELD;
++        cpu_loop_exit(cs);
++    }
++
++    /*
+      * If the CPU has entered the exclusive region we could sleep
+      * until the global monitor moves from Exclusive to Open Access.
+      * However it would be expensive for QEMU to fully model the
