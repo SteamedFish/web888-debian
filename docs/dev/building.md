@@ -126,40 +126,14 @@ writes by default and drives the guest over forwarded SSH. The machine starts wi
 timing, Si5351/ADC behaviour or hardware bus safety. Sources, exact versions and
 licences are in `resources/qemu-web888/PROVENANCE.md`.
 
-#### Optional web888d consumer check
-
-After the smoke and rearm tests, the system test can additionally run the
-pinned upstream `web888d` binary (jeskko/web888-ng) inside the guest as an
-independent stock-ABI consumer against our in-kernel `zynqsdr` driver:
-
-```sh
-WEB888D=work/upstream/web888-ng/target/armv7-unknown-linux-musleabihf/release/web888d \
-  scripts/test-zynqsdr-qemu.sh
-```
-
-`WEB888D` takes an absolute or repo-relative path; without it the test behaves
-exactly as before (`--baremetal-only` ignores all web888d settings). The script
-uses `scripts/hw-test/web888d-test-ui/` as a minimal HTTP fixture by default,
-so Node/pnpm and the upstream UI build are not validation prerequisites.
-`WEB888D_UI_DIR` can override that fixture with a real UI build when desired;
-it does not change the ABI or `/ws` assertions. The script copies the binary
-and fixture into a guest scratch dir, stops
-`web888-websdr.service`, starts `web888d serve --backend zynqsdr --bitstream
-none --no-hpsdr --no-tls --http 127.0.0.1:8073` (no `/dev/xdevcfg` write — the
-PL model is already loaded), polls the guest-local HTTP endpoint, requires the
-process to stay alive with no fatal log line, then proves real `/ws` data flow
-with the guest's own python3 stdlib (`scripts/hw-test/web888d-ws-check.py`
-piped to `python3 -` over ssh): RFC 6455 handshake on `/ws`, protocol-2 text
-control (hello proto2/backend zynqsdr/audio_rate 12000, state, lease granted)
-and binary little-endian audio frames (kind 1, n=240 @ 12 kHz, increasing
-seq) plus narrow waterfall frames (kind 2, 256 bins), with the deterministic
-QEMU model tone asserted (strongest narrow-view WF bin within 1 bin of the
-10 MHz centre, df=117.1875 Hz; stale/default full-view frames excluded). It then
-stops web888d. This validates that an independent, unmodified stock-ABI
-consumer can stream real data against the in-kernel driver under the model —
-it is **not** hardware verification and **not** a web888d product integration
-test (no service or package is installed; the image boots with snapshot
-writes).
+The full system gate then runs the project-owned, model-only
+`zynqsdr-datapath` tool. It checks real 12-channel I/Q framing and continuity
+across the RX ring wrap, short and consumer-sized reads, retuning while armed,
+continuous versus one-shot waterfalls, changing WF decimation while armed, and
+simultaneous RX/WF0/WF1 streaming. These assertions use the deterministic PL
+model; no external server binary, Node/pnpm, Rust toolchain or web888d protocol
+client is required. The model-only datapath tool is intentionally not a
+hardware RF test.
 
 ## Artifacts
 

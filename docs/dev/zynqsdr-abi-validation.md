@@ -11,11 +11,11 @@ hardware interoperability is not a commitment to product integration.
   `767030740a2fdecfebdd383efd23330e6455ff1b`; the unmodified
   `driver/web888_sdr.h` and its hashes are recorded in
   `resources/reference/web888-ng-hw/PROVENANCE.md`.
-- Independent userspace implementation: jeskko/web888-ng v0.6.0, commit
-  `48e9914aac80e3f20c39838fe9b33193b6b3fb36`. Its workspace tests pass and a
-  pinned armv7-musl `web888d` test binary builds and runs under qemu-user.
-  Interoperability against our in-kernel driver is verified under the QEMU
-  PL model and on hardware (HTTP + `/ws` audio/waterfall).
+- Independent userspace behavioural reference: jeskko/web888-ng v0.6.0, commit
+  `48e9914aac80e3f20c39838fe9b33193b6b3fb36`. Its stock-backend call sequences
+  informed the project-owned datapath assertions below. Earlier optional
+  web888d model/hardware interoperability runs passed, but the current gate
+  requires no external server binary, UI or protocol client.
 
 ## Static ABI matrix
 
@@ -52,12 +52,13 @@ ioctls into this stock-compatible public ABI.
 | Behaviour | Current evidence | Remaining gate |
 |---|---|---|
 | Single opener and concurrent-open exclusion | Model and hardware smoke passed | Phase 1 gate complete |
-| RX/WF ring geometry, wrap, reads and close/reopen | Model and hardware reads/rearm/close-reopen passed; driver wrap coverage remains limited | Optional additional wrap-specific case |
+| RX/WF ring geometry, wrap, reads and close/reopen | Project-owned model datapath drains beyond the complete RX ring and checks 12-channel I/Q framing across its non-frame-aligned wrap; hardware reads/rearm/close-reopen passed | Deterministic wrap assertion is model-only |
 | Successful RX/WF rearm resets consumer offset | **S1 fixed in driver**; fixed model positive and pre-S1 negative controls passed, and hardware rearm passed | Strict deterministic resync assertion is model-only; Phase 1 hardware gate complete |
 | Blocking, interruption, `-EINTR`, crash/close residue | Basic model/hardware I/O and concurrent reads passed | Optional interruption/crash cases |
-| NCO words, sample rates, signatures and channel counts | Model and hardware smoke/data-path checks passed | RF level/frequency accuracy not asserted (no antenna) |
-| PPS, GPIO, attenuator and DNA behaviour | Model and hardware ioctl smoke passed | Electrical/timing semantics remain hardware-specific follow-ups |
-| web888d as an independent consumer | Model and hardware HTTP + `/ws` data path passed against the in-kernel driver | Product integration remains a separate Phase 2 decision |
+| NCO words, sample rates, signatures and channel counts | Model checks strict per-channel DC/IQ statistics and armed-retune energy/sign changes; hardware smoke passed | RF level/frequency accuracy not asserted (no antenna) |
+| PPS, GPIO, attenuator and DNA behaviour | Model and hardware ioctl smoke passed; AD8370 0..255 accepted and 256 rejected; GET_STATS extension rejected without buffer writes | Electrical/timing semantics remain hardware-specific follow-ups |
+| WF modes and concurrent streams | Model checks continuous/one-shot polarity, armed decimation changes and interleaved RX/WF0/WF1 reads | RF/timing semantics remain model-specific |
+| Historical web888d interoperability | Optional model and hardware HTTP + `/ws` runs passed | Not a current dependency; product integration remains a Phase 2 decision |
 
 Deferred pending hardware evidence (do **not** change from source-level
 speculation): WF status polarity (`0x9E`), blank-PL open gating, and initial
@@ -65,16 +66,20 @@ GPIO output levels.
 
 ## Full-system model evidence (2026-10-31)
 
-The complete opt-in command below passed against the assembled Debian image:
-12 bare-metal checks, the full smoke corpus (including 50 arm/disarm cycles),
-RX/WF0/WF1 rearm, web888d HTTP readiness and the `/ws` data-path check. The
-last web888d run received 584 audio frames and 7 narrow waterfall lines,
-with pong and a 10000029 Hz model peak (`df=117.1875 Hz`, 0.25 bins from the
-requested centre). A separate snapshot-boot negative control loaded the
-pre-S1 module built from `78f91a7^`: RX rearm returned 131072 stale bytes and
-both WF channels returned 16384 instead of the fresh 32768-byte block, so the
-regression test rejected it with all three expected failures. The old module
-was only a gitignored test artifact (SHA256
+The complete current command below passed against the assembled Debian image:
+12 bare-metal checks, the full smoke corpus (including GET_STATS rejection,
+front-end boundaries and 50 arm/disarm cycles), RX/WF0/WF1 rearm, and the
+project-owned datapath tool. Datapath validated every RX channel's framing,
+I/Q layout and statistics, drained 530304 bytes across the 0x7fc00 ring wrap,
+retuned all channels while armed, changed WF decimation 1→2 with a fresh full
+block, and completed interleaved RX/WF0/WF1 reads. It consumed 636480 RX bytes
+in total. No web888d executable or protocol client participated.
+
+A separate snapshot-boot negative control loaded the pre-S1 module built from
+`78f91a7^`: RX rearm returned 131072 stale bytes and both WF channels returned
+16384 instead of the fresh 32768-byte block, so the regression test rejected it
+with all three expected failures. The old module was only a gitignored test
+artifact (SHA256
 `172aa292554c5a888ceee0ae82a4c064cb2b8b5fd56bbdfa6b47a6b8edf66e8a`);
 it was never committed or installed into the deliverable image.
 
@@ -89,13 +94,17 @@ Baseline and post-restart WebSDR `ws-e2e.py` checks both returned `E2E_OK`.
 With WebSDR stopped and the already-programmed PL left running:
 
 - `zynqsdr-smoke.armhf --hw` printed `ZYNQSDR_SMOKE_OK`, including the
-  single-opener, ioctl, concurrent-read and 50-cycle arm/disarm checks.
+  single-opener, ioctl, concurrent-read and 50-cycle arm/disarm checks. The
+  updated smoke also rejected `GET_STATS 0x80405a20` with ENOTTY/EINVAL and
+  an unchanged output sentinel, accepted AD8370 codes 0..255 while rejecting
+  256, and exercised MODE_SET(0).
 - `zynqsdr-rearm.armhf --hw` printed `ZYNQSDR_REARM_OK` for RX/WF0/WF1.
   Deterministic stale-offset assertions remain model-only as documented.
-- The pinned web888d used `--backend zynqsdr --bitstream none` (no devcfg
-  write). Its HTTP endpoint became ready and the unmodified
-  `web888d-ws-check.py` client received 174 audio frames and 7 narrow
-  waterfall lines with pong: `web888d WebSocket data path: PASS`.
+- In the earlier optional interoperability experiment, the pinned web888d used
+  `--backend zynqsdr --bitstream none` (no devcfg write). Its HTTP endpoint
+  became ready and the then-current, now-removed `/ws` test client received
+  174 audio frames and 7 narrow waterfall lines with pong. This is historical
+  evidence only; it is not part of the current gate.
 - Returning to WebSDR took 33 seconds and `ws-e2e.py` again returned `E2E_OK`.
 - One `web888-mode sdr_receiver` round trip returned 65536 bytes on TCP1001
   (73.105% nonzero, 256 distinct byte values, stdev 18976.35), then returned
@@ -115,41 +124,24 @@ bash scripts/ci/check-zynqsdr-abi.sh
 bash scripts/test-zynqsdr-qemu.sh --baremetal-only
 # After assembling the Debian image (fresh host/armhf tools are auto-built):
 bash scripts/test-zynqsdr-qemu.sh
-# Optional: additionally run the pinned upstream web888d binary in the
-# guest as an independent stock-ABI consumer (model only, opt-in):
-WEB888D=work/upstream/web888-ng/target/armv7-unknown-linux-musleabihf/release/web888d \
-  bash scripts/test-zynqsdr-qemu.sh
 ```
 
-The optional `WEB888D` step copies the fixed upstream `web888d` binary and the
-minimal `scripts/hw-test/web888d-test-ui/` HTTP fixture into the guest scratch
-dir. No Node/pnpm or upstream UI build is needed; `WEB888D_UI_DIR` remains an
-optional override for testing a real UI. The script stops
-`web888-websdr.service`, starts
-`web888d serve --backend zynqsdr --bitstream none --no-hpsdr --no-tls
---http 127.0.0.1:8073`, polls the guest-local HTTP endpoint until ready,
-requires the process to stay alive with no fatal log line, runs the `/ws`
-check below, then stops it. It validates that an unmodified stock-ABI
-consumer can stream against the
-in-kernel driver **under the QEMU model** — it is not hardware verification
-and not a web888d product-integration claim.
+The full model command automatically builds and runs fresh host and armhf
+smoke, rearm and `zynqsdr-datapath` tools. The libc-only datapath tool checks:
 
-The check does not stop at startup: `scripts/hw-test/web888d-ws-check.py`
-(fresh GPL-2.0-or-later implementation of the wire facts, attributed to the
-pinned web888-ng v0.6.0 `crates/web/src/proto.rs` and
-`crates/web/tests/session.rs`, cross-checked against the local checkout) runs
-on the guest's python3 stdlib and proves
-the data path: RFC 6455 101 handshake with `Sec-WebSocket-Accept` on `/ws`,
-masked client frames, protocol-2 text control (hello proto2 / backend
-zynqsdr / audio_rate 12000, state, lease granted) and binary streams —
-audio kind 1 (`<BBHII f` header, n=240 @ 12000 Hz, finite RSSI, increasing
-seq) and waterfall kind 2 (`<BBHI d d f f d` header, 256 bins). With
-`--check-model-tone` (set by the QEMU script) it additionally asserts the
-deterministic model tone: strongest narrow-view WF bin within 1 bin of the
-10 MHz centre at df=117.1875 Hz, skipping stale/default full-view frames.
-Without that flag the same client can smoke any web888d instance (e.g. the
-`sim` backend on the host, another port). Model-only evidence — hardware
-and product-integration claims remain out of scope.
+- 12-channel little-endian I/Q framing, per-channel energy/phase statistics,
+  short reads, consumer-sized windows and continuity beyond the complete
+  non-frame-aligned RX ring wrap;
+- RX_PARAM retuning while armed, including energy and sign-change checks;
+- continuous versus one-shot WF_START behaviour, changed versus unchanged
+  WF_PARAM decimation, and fresh full blocks after a real parameter change;
+- simultaneous RX/WF0/WF1 streaming with interleaved reads.
+
+It refuses hardware (`--emu` is required) because deterministic sample and
+timing assertions belong to the PL model. No web888d binary, `/ws` client,
+Node/pnpm or Rust toolchain is used. The tool is a focused
+GPL-2.0-or-later project implementation, with behavioural attribution to the
+pinned references above.
 
 The static gate compiles/runs the ABI lock on host and armhf/qemu-user and
 compiles all shared-header consumers for both targets. The GitHub

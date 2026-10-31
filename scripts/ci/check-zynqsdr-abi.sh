@@ -99,7 +99,7 @@ fi
 # header is an ABI fork and fails this gate). Each consumer must build
 # BOTH for armhf (guest payload) and for the host (the QEMU lane runs the
 # tools on the host: `TOOL --emu HOST SSH_PORT`).
-consumers=(scripts/hw-test/zynqsdr-smoke.c scripts/hw-test/zynqsdr-rearm-test.c)
+consumers=(scripts/hw-test/zynqsdr-smoke.c scripts/hw-test/zynqsdr-rearm-test.c scripts/hw-test/zynqsdr-datapath.c)
 for src in "${consumers[@]}"; do
     [[ -f $src ]] || { bad "consumer $src missing"; continue; }
     if grep -Eq "^[[:space:]]*#define[[:space:]]+[A-Z0-9_]+[[:space:]]+_IO(W|R|WR)\('Z'" "$src"; then

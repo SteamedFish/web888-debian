@@ -1,7 +1,7 @@
 # static-checks.yml — fast static gates for CI-facing scripts and the
 # hardware-test C sources. Runs on pushes/PRs touching the checked surface
 # plus manual dispatch; everything here is seconds-to-minutes, no hardware,
-# no QEMU, no web888d build.
+# no QEMU.
 #
 # Gates, in order:
 #   1. deb-trigger-paths drift check — scripts/ci/deb-trigger-paths.txt must
@@ -13,7 +13,7 @@
 #   4. Python syntax compile over every tracked .py under scripts/.
 #   5. Cross-compile of every host-built hw-test C/C++ source (static
 #      arm-linux-gnueabihf, into a temp dir) so a broken test tool fails
-#      here instead of at the hardware gate.
+#      here instead of at the QEMU/hardware gate.
 name: static-checks
 
 on:
@@ -85,6 +85,7 @@ jobs:
           trap 'rm -rf "$out"' EXIT
           cd scripts/hw-test
           arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/zynqsdr-smoke" zynqsdr-smoke.c
+          arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/zynqsdr-datapath" zynqsdr-datapath.c
           arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/sigdump" sigdump.c
           arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/pldump" pldump.c
           arm-linux-gnueabihf-gcc -static -O2 -L. -o "$out/mmap-test" mmap-test.c

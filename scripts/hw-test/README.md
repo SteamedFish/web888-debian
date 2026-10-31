@@ -7,7 +7,9 @@ Used by the Step-2 hardware gates (see `scripts/hw-gate-step2.sh` and `docs/dev/
 
 | Tool | Source | Purpose |
 |------|--------|---------|
-| `zynqsdr-smoke.c` | project-original | Full ABI gate: all 15 ioctls, GPIO/DSA bit-bang, RX/WF arm + reads, PPS, rmmod-EBUSY, 400 concurrent reads, 50x arm/disarm stress. Prints `ZYNQSDR_SMOKE_OK` on full pass. |
+| `zynqsdr-smoke.c` | project-original | Full ABI gate: all 15 ioctls, GPIO/DSA bit-bang, RX/WF arm + reads, PPS, rmmod-EBUSY, 400 concurrent reads, 50x arm/disarm stress, the real web888-ng `GET_STATS` extension (0x80405a20) refused as ENOTTY/EINVAL. Prints `ZYNQSDR_SMOKE_OK` on full pass. |
+| `zynqsdr-rearm-test.c` | project-original | S1 regression: RX_START/WF_START must re-sync the consumer offset to the ring head on every re-arm (QEMU model assertions deterministic; hardware run relaxes to the `readed>=0` contract). Prints `ZYNQSDR_REARM_OK`. |
+| `zynqsdr-datapath.c` | project-original | Model-only data-path validation: 96-byte RX frame/sample assertions (endianness/interleave/I-Q-swap detection without libm), RX_READ length 0/1/96/127 contract + tail sentinels, 0x7fc00 ring-wrap continuity, WF continuous vs one-shot semantics, WF_PARAM decimate-change reset pulse, interleaved RX+WF0+WF1, RX_PARAM retune-while-armed. **QEMU web888-pl model only — refuses hardware.** Prints `ZYNQSDR_DATAPATH_OK`. |
 | `sigdump.c` | project-original | GET_SIGNATURE + GET_DNA + GPIO mask dump (quick PL-alive check). |
 | `pldump.c` | project-original | Raw `/dev/mem` dump of config 0x40000000 / status 0x41000000 (cross-check driver vs raw PL). |
 | `mmap-test.c` | project-original | Per-region `/dev/mem` mmap probe (0x40000000/0x41000000/0x42000000) — diagnoses STRICT_DEVMEM/IO_STRICT_DEVMEM blocks vs the RP apps' raw-mmap needs. Build like `pldump`. |
@@ -46,10 +48,23 @@ Build all:
 ```sh
 cd scripts/hw-test
 arm-linux-gnueabihf-gcc -static -O2 -L. -o zynqsdr-smoke zynqsdr-smoke.c
+arm-linux-gnueabihf-gcc -static -O2 -L. -o zynqsdr-rearm zynqsdr-rearm-test.c
+arm-linux-gnueabihf-gcc -static -O2 -L. -o zynqsdr-datapath zynqsdr-datapath.c
 arm-linux-gnueabihf-gcc -static -O2 -L. -o sigdump sigdump.c
 arm-linux-gnueabihf-gcc -static -O2 -L. -o pldump pldump.c
 arm-linux-gnueabihf-g++ -static -O2 -L. -o si5351-init si5351/main.cpp si5351/si5351.cpp si5351/i2c.cpp
 ```
+
+## QEMU web888-pl model lane
+
+`scripts/test-zynqsdr-qemu.sh` builds fresh host + armhf copies of
+`zynqsdr-smoke`, `zynqsdr-rearm` and `zynqsdr-datapath` into
+`work/qemu-web888/tools/` and runs each inside the QEMU guest via
+`TOOL --emu HOST SSH_PORT` (the host binary uploads its adjacent `.armhf`
+payload over ssh and relays output/exit status; `ZYNQSDR_*` env vars can
+override the tool paths). `zynqsdr-datapath` is **model-only**: it verifies
+its expectations against the web888-pl signature and exits non-zero on real
+hardware.
 
 ## Run (on the device)
 

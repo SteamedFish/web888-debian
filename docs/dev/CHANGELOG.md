@@ -9,6 +9,19 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — Replace web888d runtime tests with focused driver checks
+
+### Changed
+- Replaced the optional web888d runtime dependency with the libc-only
+  `scripts/hw-test/zynqsdr-datapath.c` model gate: strict per-channel I/Q
+  framing and statistics, complete RX ring wrap, armed RX retune, continuous
+  and one-shot WF parameter changes, and simultaneous RX/WF0/WF1 streaming.
+  Extended portable hardware smoke with GET_STATS rejection and
+  AD8370/MODE_SET boundary coverage.
+- Removed the web888d `/ws` client and UI fixture from the normal gates. The
+  historical interoperability result remains documented, but current
+  local/CI validation needs no web888d binary, Node/pnpm, Rust or UI build.
+
 ## [2026-10-31] — Phase 1 hardware validation completed
 
 ### Added

@@ -193,16 +193,43 @@ int main(int argc, char **argv)
 		CHECK(mask2 == 0x155, "GPIO mask write/read back (emu model)");
 	if (mode == 2)
 		CHECK(mask2 == 0x155, "GPIO mask write/read back (hardware)");
+	if (mode == 1) {
+		/* round trips across the mask width on the PL model, then
+		 * restore the 0x155 value used by the rest of the gate */
+		static const uint32_t masks[] = { 0x000, 0x1c0, 0x3ff };
+		unsigned mi;
+
+		for (mi = 0; mi < sizeof(masks) / sizeof(masks[0]); mi++) {
+			uint32_t back = 0;
+
+			rc = ioctl(fd, ZYNQSDR_SET_GPIO_MASK, masks[mi]);
+			CHECK(rc == 0, "SET_GPIO_MASK round trip");
+			rc = ioctl(fd, ZYNQSDR_GET_GPIO_MASK, &back);
+			CHECK(rc == 0 && back == masks[mi],
+			      "GET_GPIO_MASK round trip (emu model)");
+		}
+		rc = ioctl(fd, ZYNQSDR_SET_GPIO_MASK, 0x155);
+		CHECK(rc == 0, "SET_GPIO_MASK restore 0x155");
+	}
 
 	rc = ioctl(fd, ZYNQSDR_AD8370_SET, 0);
 	CHECK(rc == 0, "AD8370_SET(0)");
 	rc = ioctl(fd, ZYNQSDR_AD8370_SET, 63);
 	CHECK(rc == 0, "AD8370_SET(63)");
+	/* stock shifts all 8 bits (PE4312 latches 6): 255 must be accepted;
+	 * web888-ng documents 0..63 — this is our documented <=0xff
+	 * deviation from the open driver's stricter range */
+	rc = ioctl(fd, ZYNQSDR_AD8370_SET, 255);
+	CHECK(rc == 0, "AD8370_SET(255) accepted (documented <=0xff deviation)");
 	rc = ioctl(fd, ZYNQSDR_AD8370_SET, 256);
 	CHECK(rc == -1 && errno == EINVAL, "AD8370_SET(256) -> EINVAL");
+	rc = ioctl(fd, ZYNQSDR_AD8370_SET, 0);
+	CHECK(rc == 0, "AD8370_SET(0) restore (full-scale gain)");
 
 	rc = ioctl(fd, ZYNQSDR_MODE_SET, 1);
 	CHECK(rc == 0, "MODE_SET(1)");
+	rc = ioctl(fd, ZYNQSDR_MODE_SET, 0);
+	CHECK(rc == 0, "MODE_SET(0) restore");
 	rc = ioctl(fd, ZYNQSDR_CLK_SET, 1);
 	CHECK(rc == 0, "CLK_SET(1)");
 
@@ -349,6 +376,22 @@ int main(int argc, char **argv)
 
 	rc = ioctl(fd, 0x1234, 0);
 	CHECK(rc == -1 && errno == ENOTTY, "unknown ioctl -> ENOTTY");
+	{
+		/* the real web888-ng extension, not just a synthetic number:
+		 * ZSDR_GET_STATS from the pinned upstream driver header is
+		 * _IOR('Z', 0x20, struct zsdr_stats) = 0x80405a20. It is a
+		 * web888-ng extension our stock-compatible driver does not
+		 * implement — it must fail cleanly, never touch the buffer */
+		unsigned char stats[64];
+
+		memset(stats, 0xa5, sizeof(stats));
+		errno = 0;
+		rc = ioctl(fd, 0x80405a20u, stats);
+		CHECK(rc == -1 && (errno == ENOTTY || errno == EINVAL),
+		      "web888-ng GET_STATS (0x80405a20) -> ENOTTY/EINVAL (unimplemented extension)");
+		CHECK(buf_all((const char *)stats, sizeof(stats), (char)0xa5),
+		      "GET_STATS leaves buffer untouched (sentinel)");
+	}
 
 	/* rmmod while this fd is open must fail cleanly (module in use),
 	 * and the open fd must keep working afterwards. */

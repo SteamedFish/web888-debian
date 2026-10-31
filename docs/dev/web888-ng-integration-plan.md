@@ -60,7 +60,8 @@ Relevant local facts:
 
 - An independent stock-ABI compatibility matrix.
 - Repeatable `zynqsdr` conformance tests.
-- web888d used as an external test workload only, not installed in images.
+- web888d used as a pinned behavioural reference, with project-owned runtime
+  tests and no external server binary required by the Phase 1 gate.
 - A time-bounded feasibility evaluation of `web888-ng-hw/emu/`, followed by
   full reuse or a narrowly scoped model adaptation if justified.
 - Driver fixes with regression tests and hardware evidence.
@@ -114,17 +115,15 @@ Method:
    single userspace binary or our current driver as the sole ABI oracle.
 3. Extend the existing `zynqsdr-smoke` path into automatically checkable
    conformance cases rather than creating an unrelated test framework.
-4. Run a fixed web888d build as a second, independent userspace consumer. It
-   remains a development test dependency, not a shipped service. Keep the
-   validation footprint minimal but complete: only the server binary is an
-   external workload; HTTP uses our tiny fixture and `/ws` uses our focused
-   client, so the upstream UI/Node toolchain is not imported or required.
-   Model-side implementation (2026-10-31): the opt-in `WEB888D` lane in
-   `scripts/test-zynqsdr-qemu.sh` starts the pinned binary in the guest and
-   `scripts/hw-test/web888d-ws-check.py` proves the `/ws` data path (proto2
-   control + binary audio/waterfall, deterministic model tone). The hardware
-   run subsequently passed with the same independent client (no RF-level
-   assertion because the board had no antenna), completing the Phase 1 gate.
+4. Use the pinned web888d stock-backend call sequences as behavioural evidence,
+   then implement the corresponding driver assertions in our own tools. The
+   current gate has no web888d binary, UI, `/ws` client, Rust or Node
+   dependency. `scripts/hw-test/zynqsdr-datapath.c` covers real I/Q framing,
+   ring-wrap continuity, short/consumer-sized reads, armed retuning, WF mode
+   polarity, changed decimation and simultaneous RX/WF streaming under the
+   deterministic model. Earlier optional web888d model/hardware interoperability
+   runs passed, but are historical evidence rather than a current test
+   prerequisite.
 5. Record observable inputs and outputs: ioctl results, byte counts, sample
    layout, signals/errors and reopen behaviour.
 
@@ -142,10 +141,8 @@ Deliverables:
 - Completed ABI matrix with explicit unknowns.
 - Repeatable conformance tests.
 - Driver fixes and regression evidence.
-- A web888d interoperability report distinguishing Web UI/HPSDR data-path
-  success from a mere process or port startup (the `/ws` data-path checker is
-  `scripts/hw-test/web888d-ws-check.py`; model and hardware results are in
-  `zynqsdr-abi-validation.md`).
+- A driver data-path report covering real samples and RX/WF sequences, with
+  model/hardware boundaries recorded in `zynqsdr-abi-validation.md`.
 
 ### 1B. Evaluate and adapt the QEMU FPGA model
 
@@ -187,8 +184,7 @@ Target model-driven checks:
 - single/multi-channel RX and supported WF modes;
 - ring wrap, overflow, stop/reset and reopen;
 - PPS and GPIO paths supported by the model;
-- deterministic IQ/signal assertions;
-- web888d as a userspace consumer where the model supports the full path.
+- deterministic IQ/signal assertions using the project-owned datapath tool.
 
 Implemented model harness (local milestone, 2026-10-31):
 
@@ -235,10 +231,8 @@ Proceed to product integration only when:
 - the ABI matrix is complete enough that every critical difference has a
   decision and test;
 - agreed conformance cases pass, including reopen/reset paths;
-- web888d has exercised our driver's real RX/WF data path successfully, or any
-  remaining blocker is explicitly understood and scoped (model-side `/ws`
-  evidence exists via the optional `WEB888D` lane and the subsequent
-  hardware run);
+- the project-owned datapath tool has exercised real RX/WF samples, ring wrap,
+  WF mode changes and concurrent streams under the model;
 - driver fixes have regression coverage and no stock WebSDR/RP regression;
 - hardware smoke passes;
 - the QEMU track either provides stable promised coverage or has a documented

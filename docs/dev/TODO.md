@@ -49,9 +49,9 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
 ## web888-ng evaluation and optional integration
 
 - [x] **Phase 1: validate and improve our own stack** — COMPLETE 2026-10-31:
-      independently verified the `zynqsdr` ABI with web888-ng evidence and
-      web888d as a second userspace consumer; reused the web888-ng-hw QEMU
-      model; fixed S1 with host/QEMU/hardware regression evidence. See
+      used web888-ng as behavioural/reference evidence, reused the
+      web888-ng-hw QEMU model, fixed S1, and replaced the temporary external
+      consumer experiment with focused project-owned runtime assertions. See
       `zynqsdr-abi-validation.md` and `web888-ng-integration-plan.md`.
   - [x] Pin and reuse the web888-ng-hw QEMU 11.1.2 machine/PL model with full
         provenance; bare-metal model gate passes all 12 checks.
@@ -61,16 +61,17 @@ in [`CHANGELOG.md`](CHANGELOG.md) (see AGENTS.md).
   - [x] Fix the evidence-backed S1 RX/WF rearm consumer-offset defect and add
         deterministic model regression tests; fixed-driver positive control
         and pre-S1 negative control both passed in the full-system model.
-  - [x] Boot our Debian kernel/rootfs on that model and run the shared
-        `zynqsdr` conformance/rearm corpus (full-system model gate passed).
-  - [x] Repeat the S1 rearm, shared smoke corpus and web888d consumer check on
-        hardware; all passed with the installed `6.12.111-2` kernel.
-  - [x] Optional opt-in `WEB888D` lane in `scripts/test-zynqsdr-qemu.sh`:
-        run the pinned upstream web888d in the guest and prove the `/ws`
-        data path (proto2 control + binary audio/waterfall,
-        `scripts/hw-test/web888d-ws-check.py`, deterministic 10 MHz model
-        tone asserted). The hardware `/ws` run also passed without RF-level
-        assertions (no antenna); product integration remains Phase 2.
+  - [x] Boot our Debian kernel/rootfs on that model and pass smoke, rearm and
+        the project-owned datapath tool: strict 12-channel I/Q framing and
+        statistics, full RX ring wrap, armed retune, WF mode/parameter changes,
+        and simultaneous RX/WF0/WF1 streaming. No external server is required.
+  - [x] Repeat the S1 rearm and expanded portable smoke corpus on hardware;
+        GET_STATS rejection, AD8370/MODE_SET boundaries, concurrent reads and
+        50 arm/disarm cycles passed with the installed `6.12.111-2` kernel.
+  - [x] Record the earlier optional web888d model/hardware interoperability
+        result as historical evidence only. Current validation uses no
+        web888d binary, `/ws` client, UI, Node/pnpm or Rust; product integration
+        remains Phase 2.
 - [ ] **Phase 2 (gated by Phase 1): optional web888d mode** — source-built
       experimental deb, default off, HF + stock bitstream only, with three-way
       WebSDR/RP/web888d switching and verified return to WebSDR. No open-FPGA,
