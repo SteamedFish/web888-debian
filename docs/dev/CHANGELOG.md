@@ -9,6 +9,29 @@ Format: `## [version/date] — title`, then grouped bullet entries
 behaviour-affecting change MUST add an entry here (see AGENTS.md —
 this is a hard project rule).
 
+## [2026-10-31] — chrony: NTP pool is no longer `offline` (no-RTC clocks never synced)
+
+### Fixed
+- `scripts/configure-rootfs.sh` wrote `pool pool.ntp.org iburst offline`,
+  inherited verbatim from the Red Pitaya stock config. chrony's `offline`
+  keyword is an *administrative* flag (same as `chronyc offline`), not a
+  "poll only when a route exists" hint — it is never cleared automatically, so
+  the pool never polled at all. On a board with no RTC and no GPS fix (no
+  antenna) that left the clock pinned to the image build epoch: observed on
+  the operator's board after a re-flash, clock read 2026-04-14 while Debian
+  signature checks reported `Not live until 2026-10-31T13:23:48Z`, breaking
+  `apt` and every TLS client. The pool is now unconditionally online; the
+  GPS/PPS refclocks keep winning on their own when the antenna has a fix.
+  chrony-wait is already disabled by `80-web888.preset`, so an unreachable
+  pool at cold start cannot delay boot — chronyd just retries with backoff.
+- Verified on device: after clearing the flag, `chronyc sources` selects an
+  NTP server (`^*`, sub-ms offset) within seconds. GPS state on the same board
+  at the time: `/dev/ttyPS1` produced 0 bytes, `/dev/pps0` assert frozen at one
+  edge, gpsd `TPV` mode 0 and KiwiSDR `/status` `gps=(0.000000, 0.000000)` —
+  i.e. no fix, so NTP is currently the only working source. (KiwiSDR's
+  `gps_good=19` / `fixes=8` counters are cumulative from an earlier session,
+  not evidence of a live fix.)
+
 ## [2026-10-31] — Replace web888d runtime tests with focused driver checks
 
 ### Changed

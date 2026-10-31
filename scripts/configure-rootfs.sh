@@ -355,9 +355,19 @@ refclock SHM 0 offset 0.5 delay 0.2 refid GPS precision 1e-6
 # refclock for early-locking in degraded-sky conditions).
 refclock PPS /dev/pps0 refid PPS
 
-# Network fallback (offline = only poll when routes exist; suits no-RTC cold
-# start where DNS may be up before the GPS has a fix).
-pool pool.ntp.org iburst offline
+# Network NTP, ON BY DEFAULT. `offline` was inherited from the Red Pitaya
+# stock config (docs/research/red-pitaya-firmware.md) and is a trap: chrony's
+# `offline` is an *administrative* "do not poll this source" flag — it does
+# NOT re-enable itself when a route appears, only `chronyc online` clears it.
+# So a pool marked offline never syncs, ever. With no RTC the clock then stays
+# at the image build epoch (observed 2026-10-31: clock 2026-04-14, apt/curl
+# TLS all broken) whenever the GPS has no fix — e.g. no antenna. Keep the pool
+# unconditionally online: when the antenna has a fix the GPS/PPS refclocks are
+# strictly better and win on their own, and when it does not, NTP is the only
+# thing keeping the clock sane. chrony-wait is disabled by the image preset
+# (see 80-web888.preset below), so unreachable NTP at cold start cannot block
+# boot; chronyd just retries with backoff.
+pool pool.ntp.org iburst
 makestep 1 -1
 rtcsync
 driftfile /var/lib/chrony/chrony.drift
