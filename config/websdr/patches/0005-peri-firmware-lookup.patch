@@ -2,15 +2,19 @@ diff --git a/zynq/peri.cpp b/zynq/peri.cpp
 index 583b8a5..443c9be 100644
 --- a/zynq/peri.cpp
 +++ b/zynq/peri.cpp
-@@ -75,7 +75,10 @@ void peri_init() {
+@@ -75,7 +75,14 @@ void peri_init() {
      bool use_13ch = (kiwi.airband) || (ADC_CLOCK_NOM < 100.0 * MHz);
  
      // load fpga bitstream
 -    int status = blocking_system("cat /media/mmcblk0p1/websdr_%s.bit > /dev/xdevcfg", use_13ch ? "vhf" : "hf");
-+    // Debian: prefer auto-updated copy in the state dir, fall back to factory copy
++    // Debian: a staged open HF snapshot (root-owned, /var/lib/web888-fpga,
++    // written only by web888-fpga-select after experimental consent) wins;
++    // then the auto-updated copy in the state dir, then the factory copy.
++    // VHF never matches the staged snapshot (only websdr_hf.bit is staged),
++    // so VHF auto selection is unchanged. "select stock" removes the snapshot.
 +    int status = blocking_system(
-+        "if [ -f " DIR_FIRMWARE "/websdr_%s.bit ]; then d=" DIR_FIRMWARE "; else d=" DIR_FACTORY_FIRMWARE "; fi; cat $d/websdr_%s.bit > /dev/xdevcfg",
-+        use_13ch ? "vhf" : "hf", use_13ch ? "vhf" : "hf");
++        "f=/var/lib/web888-fpga/websdr_%s.bit; if [ -f $f ] && [ ! -L $f ] && [ \"$(stat -c %%u $f)\" = 0 ]; then d=/var/lib/web888-fpga; elif [ -f " DIR_FIRMWARE "/websdr_%s.bit ]; then d=" DIR_FIRMWARE "; else d=" DIR_FACTORY_FIRMWARE "; fi; cat $d/websdr_%s.bit > /dev/xdevcfg",
++        use_13ch ? "vhf" : "hf", use_13ch ? "vhf" : "hf", use_13ch ? "vhf" : "hf");
      if (status != 0) {
          panic("Fail to load bitstram file");
      }

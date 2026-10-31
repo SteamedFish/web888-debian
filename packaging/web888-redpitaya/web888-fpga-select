@@ -1,0 +1,268 @@
+#!/usr/bin/env bash
+# web888-fpga-select — shared safe FPGA selector/loader for Web-888 runtime
+# stacks. Shipped in the web888-redpitaya deb as /usr/lib/web888/web888-fpga-select
+# (web888-redpitaya is the common runtime owner: it already owns web888-mode).
+#
+#   web888-fpga-select status
+#       Report the persisted selection and the currently active SDR service.
+#       The selection file is the authoritative state; the PL is NEVER
+#       inspected (prog_done only says "some bitstream loaded", never WHICH).
+#   web888-fpga-select select stock
+#       Persist 'stock' as the selection and remove any staged open HF
+#       snapshot. Never writes the PL.
+#   web888-fpga-select select web888-ng-hf --experimental [--check]
+#       Experimental consent gate — deliberately cumbersome, by design:
+#         1. /etc/web888/fpga-experimental (root-owned) must authorize the
+#            exact profile AND the exact SHA-256 of
+#            /usr/share/web888-ng/firmware/websdr_hf.bit (one line:
+#            "web888-ng-hf <sha256>"; '#' lines/comments ignored).
+#         2. The command line must carry --experimental.
+#       The open artifact is then digest-verified, snapshotted IMMUTABLY
+#       (regular file, root-owned, 0444 — never a symlink into /usr/share)
+#       into /var/lib/web888-fpga/, and the selection is persisted. Never
+#       writes the PL. If the package later updates the bitstream the digest
+#       check fails and the select is refused: consent is per-exact-artifact,
+#       so a future package digest is rejected until the admin re-acks.
+#       With --check the same consent/digest validation runs but NOTHING is
+#       persisted or snapshotted — used to pre-validate a pending selection
+#       before disrupting a running stack.
+#   web888-fpga-select load
+#       Serialize on a lock, refuse while a conflicting SDR service (WebSDR
+#       or any RP app) is active, read the persisted selection and program
+#       the PL via /dev/xdevcfg (stock factory HF, or the root-owned open
+#       snapshot), then poll prog_done with a timeout. Fail closed. This is
+#       the root ExecStartPre of web888-web888d.service; the daemon then
+#       runs with --bitstream none and no xdevcfg device access.
+#
+# Every external touchpoint is overridable via WEB888_FPGA_* / WEB888_RP_*
+# env vars so the host test harness (scripts/test-redpitaya-mode.sh) can
+# redirect them to a sandbox; defaults are the real runtime paths.
+
+set -eu
+
+STATE_DIR=${WEB888_FPGA_STATE_DIR:-/var/lib/web888-fpga}
+SEL_FILE=$STATE_DIR/selection
+SNAP=$STATE_DIR/websdr_hf.bit
+LOCK=${WEB888_FPGA_LOCK:-/run/lock/web888-fpga.lock}
+ACK=${WEB888_FPGA_ACK:-/etc/web888/fpga-experimental}
+ACK_UID=${WEB888_FPGA_ACK_UID:-0}            # required owner uid of the ack file
+SNAP_UID=${WEB888_FPGA_SNAP_UID:-0}          # required owner uid of the snapshot
+OPEN_SRC=${WEB888_FPGA_OPEN_SRC:-/usr/share/web888-ng/firmware/websdr_hf.bit}
+STOCK_SRC=${WEB888_FPGA_STOCK_SRC:-/usr/share/web888/firmware/websdr_hf.bit}
+XDEVCFG=${WEB888_FPGA_XDEVCFG:-/dev/xdevcfg}
+PROG_DONE=${WEB888_FPGA_PROG_DONE:-/sys/devices/soc0/axi/f8007000.devcfg/prog_done}
+SYSTEMCTL=${WEB888_FPGA_SYSTEMCTL:-systemctl}
+APPS_DIR=${WEB888_RP_APPS_DIR:-/usr/share/web888-redpitaya/apps}
+TIMEOUT=${WEB888_FPGA_TIMEOUT:-5}            # seconds
+INTERVAL=${WEB888_FPGA_INTERVAL:-0.1}        # poll interval
+
+die() { echo "web888-fpga-select: error: $*" >&2; exit 1; }
+
+need_root() { # select/load are root-only; status is world-readable
+    if [ "$(id -u)" != 0 ]; then
+        die "'$1' requires root (try sudo)"
+    fi
+}
+
+current_selection() { # prints the persisted profile; 'stock' when never selected
+    local sel
+    sel=$(sed -n '1p' "$SEL_FILE" 2>/dev/null || true)
+    case $sel in
+        ''|stock)   echo stock ;;
+        web888-ng-hf) echo web888-ng-hf ;;
+        *) die "corrupt selection file $SEL_FILE (want 'stock' or 'web888-ng-hf', got '$sel')" ;;
+    esac
+}
+
+active_service() { # name the active SDR service, else 'none' — never prog_done
+    local unit app
+    for unit in web888-websdr.service web888-web888d.service; do
+        if [ "$($SYSTEMCTL is-active "$unit" 2>/dev/null || true)" = active ]; then
+            echo "$unit"
+            return 0
+        fi
+    done
+    if [ -d "$APPS_DIR" ]; then
+        for app in "$APPS_DIR"/*/; do
+            [ -e "$app" ] || continue
+            app=$(basename "$app")
+            if [ "$($SYSTEMCTL is-active "web888-rpapp@$app.service" 2>/dev/null || true)" = active ]; then
+                echo "web888-rpapp@$app.service"
+                return 0
+            fi
+        done
+    fi
+    echo none
+}
+
+cmd_status() {
+    [ $# = 0 ] || die "status takes no arguments"
+    echo "selected fpga: $(current_selection)"
+    echo "active service: $(active_service)"
+}
+
+persist_selection() {
+    mkdir -p "$STATE_DIR"
+    local tmp=$SEL_FILE.tmp.$$
+    printf '%s\n' "$1" > "$tmp"
+    chmod 0644 "$tmp"
+    chown root:root "$tmp" 2>/dev/null || true   # cosmetic as non-root (tests)
+    mv -f -- "$tmp" "$SEL_FILE"
+}
+
+cmd_select() {
+    local profile=${1:-}
+    [ $# -ge 1 ] && shift || true
+    case $profile in
+        stock)
+            CHECK_ONLY=0
+            case ${1:-} in
+                '') ;;
+                --check) CHECK_ONLY=1; shift ;;
+                *) die "unexpected arguments: $*" ;;
+            esac
+            need_root "select stock"
+            # stock has no consent gate to validate; --check is a no-op
+            if [ "$CHECK_ONLY" = 1 ]; then
+                echo "select stock: validation ok (PL untouched)"
+                return 0
+            fi
+            persist_selection stock
+            rm -f -- "$SNAP"
+            echo "selected fpga: stock (open snapshot $SNAP removed, PL untouched)"
+            ;;
+        web888-ng-hf)
+            CHECK_ONLY=0
+            [ "${1:-}" = --experimental ] || die "select web888-ng-hf requires --experimental (consent file: $ACK)"
+            shift
+            case ${1:-} in
+                '') ;;
+                --check) CHECK_ONLY=1; shift ;;
+                *) die "unexpected arguments: $*" ;;
+            esac
+            [ $# = 0 ] || die "unexpected arguments: $*"
+            need_root "select web888-ng-hf"
+            select_experimental
+            ;;
+        ''|*)
+            die "unknown profile '$profile' (want: stock | web888-ng-hf)"
+            ;;
+    esac
+}
+
+select_experimental() {
+    [ -e "$ACK" ] || die "experimental consent missing: create root-owned $ACK with a line 'web888-ng-hf <sha256 of $OPEN_SRC>'"
+    [ ! -L "$ACK" ] || die "$ACK must be a regular file, not a symlink"
+    [ -f "$ACK" ] || die "$ACK is not a regular file"
+    [ "$(stat -c %u "$ACK")" = "$ACK_UID" ] || die "$ACK must be owned by uid $ACK_UID"
+
+    [ -e "$OPEN_SRC" ] || die "$OPEN_SRC not found (web888-ng firmware package missing?)"
+    [ ! -L "$OPEN_SRC" ] || die "$OPEN_SRC must be a regular file, not a symlink"
+
+    local ack_sha actual
+    ack_sha=$(awk '$1 == "web888-ng-hf" && $2 ~ /^[0-9a-f]+$/ && length($2) == 64 { print $2; exit }' "$ACK")
+    [ -n "$ack_sha" ] || die "$ACK does not authorize profile 'web888-ng-hf' with a 64-hex SHA-256"
+    actual=$(sha256sum "$OPEN_SRC" | awk '{print $1}')
+    if [ "$actual" != "$ack_sha" ]; then
+        die "SHA-256 mismatch: $OPEN_SRC is $actual but $ACK authorizes $ack_sha — package updated? refresh consent explicitly"
+    fi
+
+    # Snapshot the exact consented artifact, immutable: regular file,
+    # root-owned, 0444 — never a symlink into /usr/share, so a later package
+    # update can never silently change what the selection points at.
+    if [ "${CHECK_ONLY:-0}" = 1 ]; then
+        echo "select web888-ng-hf: validation ok (consent verified, sha256 $actual; PL untouched)"
+        return 0
+    fi
+    mkdir -p "$STATE_DIR"
+    local tmp=$SNAP.tmp.$$
+    cp -- "$OPEN_SRC" "$tmp"
+    chmod 0444 "$tmp"
+    chown root:root "$tmp" 2>/dev/null || true   # cosmetic as non-root (tests)
+    mv -f -- "$tmp" "$SNAP"
+    [ ! -L "$SNAP" ] || die "internal error: snapshot must never be a symlink"
+
+    persist_selection web888-ng-hf
+    echo "selected fpga: web888-ng-hf (snapshot $SNAP, sha256 $actual, PL untouched)"
+}
+
+conflicting_service() { # name an active conflicting SDR service, else ''
+    local unit app
+    for unit in web888-websdr.service; do
+        if [ "$($SYSTEMCTL is-active "$unit" 2>/dev/null || true)" = active ]; then
+            echo "$unit"
+            return 0
+        fi
+    done
+    if [ -d "$APPS_DIR" ]; then
+        for app in "$APPS_DIR"/*/; do
+            [ -e "$app" ] || continue
+            app=$(basename "$app")
+            if [ "$($SYSTEMCTL is-active "web888-rpapp@$app.service" 2>/dev/null || true)" = active ]; then
+                echo "web888-rpapp@$app.service"
+                return 0
+            fi
+        done
+    fi
+    echo ''
+}
+
+cmd_load() {
+    [ $# = 0 ] || die "load takes no arguments"
+    need_root load
+
+    # Serialize concurrent loaders (web888d pre-start vs manual invocation)
+    exec 9>"$LOCK"
+    flock -w 30 9 || die "could not acquire $LOCK within 30s"
+
+    local conflict
+    conflict=$(conflicting_service)
+    [ -z "$conflict" ] || die "refusing to program the PL while $conflict is active (stop it first)"
+
+    local sel src label
+    sel=$(current_selection)
+    case $sel in
+        stock)
+            src=$STOCK_SRC
+            label="stock factory HF"
+            ;;
+        web888-ng-hf)
+            src=$SNAP
+            label="open HF snapshot"
+            [ -f "$src" ] || die "selection is web888-ng-hf but $SNAP is missing — re-run 'select web888-ng-hf --experimental'"
+            [ ! -L "$src" ] || die "$SNAP is a symlink (refusing to program the PL from a symlink)"
+            [ "$(stat -c %u "$src")" = "$SNAP_UID" ] || die "$SNAP must be owned by uid $SNAP_UID"
+            ;;
+        *) die "unsupported selection '$sel'" ;;
+    esac
+    [ -e "$XDEVCFG" ] || die "$XDEVCFG missing (xilinx_devcfg not loaded?)"
+
+    echo "web888-fpga-select: loading $label ($sel): $src"
+    cat -- "$src" > "$XDEVCFG"
+
+    # poll for configuration completion; fail closed on timeout
+    local elapsed=0
+    while [ "$(cat "$PROG_DONE" 2>/dev/null || echo 0)" != 1 ]; do
+        elapsed=$(awk -v e="$elapsed" -v i="$INTERVAL" 'BEGIN{print e+i}')
+        if awk -v e="$elapsed" -v t="$TIMEOUT" 'BEGIN{exit !(e>=t)}'; then
+            die "prog_done timeout after ${TIMEOUT}s (PL did not configure)"
+        fi
+        sleep "$INTERVAL"
+    done
+
+    echo "web888-fpga-select: loaded $sel (prog_done=1)"
+}
+
+cmd=${1:-}
+[ $# -ge 1 ] && shift || true
+case $cmd in
+    -h|--help)
+        echo "usage: web888-fpga-select status | select stock [--check] | select web888-ng-hf --experimental [--check] | load"
+        exit 0
+        ;;
+    status)  cmd_status "$@" ;;
+    select)  cmd_select "$@" ;;
+    load)    cmd_load "$@" ;;
+    ''|*)    echo "usage: web888-fpga-select status | select stock [--check] | select web888-ng-hf --experimental [--check] | load" >&2
+             exit 2 ;;
+esac

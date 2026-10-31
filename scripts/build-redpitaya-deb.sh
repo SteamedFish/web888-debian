@@ -51,7 +51,7 @@ done
 # packaging metadata + payload (payload canonical in packaging/, staged under
 # debian/ so debian/install can reference it)
 cp -a packaging/web888-redpitaya/debian "$PKG"/
-for f in load-bitstream web888-mode switch.conf rpapp-hold 'web888-rpapp@.service' 50-redpitaya.conf; do
+for f in load-bitstream web888-fpga-select web888-mode switch.conf rpapp-hold 'web888-rpapp@.service' 50-redpitaya.conf; do
   cp "packaging/web888-redpitaya/$f" "$PKG"/debian/
 done
 chmod 0755 "$PKG"/debian/rules
@@ -83,6 +83,7 @@ for want in \
   'usr/lib/web888-redpitaya/bin/led_blinker-server$' \
   'usr/lib/web888-redpitaya/si5351-init$' \
   'usr/lib/web888-redpitaya/load-bitstream$' \
+  'usr/lib/web888/web888-fpga-select$' \
   'usr/sbin/web888-mode$' \
   'etc/web888-redpitaya/switch.conf$' \
   'web888-rpapp@.service$' \

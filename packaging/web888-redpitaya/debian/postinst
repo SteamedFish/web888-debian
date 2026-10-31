@@ -6,6 +6,18 @@ case "$1" in
     # units are never enabled/started by this package (user requirement 2);
     # just make systemd notice the new unit files
     systemctl daemon-reload >/dev/null 2>&1 || true
+
+    # Shared FPGA selector state dir (web888-fpga-select). Selection defaults
+    # to stock on FRESH installs only: upgrades must never change an existing
+    # selection or touch any service.
+    mkdir -p /var/lib/web888-fpga
+    chown root:root /var/lib/web888-fpga
+    chmod 0755 /var/lib/web888-fpga
+    if [ ! -f /var/lib/web888-fpga/selection ]; then
+      printf 'stock\n' > /var/lib/web888-fpga/selection
+      chown root:root /var/lib/web888-fpga/selection
+      chmod 0644 /var/lib/web888-fpga/selection
+    fi
     ;;
 esac
 

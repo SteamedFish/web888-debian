@@ -1,3 +1,18 @@
+web888-websdr (2026.1020-2) UNRELEASED; urgency=medium
+
+  * web888-ng Phase 2 lane B — open-FPGA coexistence:
+    - Patch 0005-peri-firmware-lookup: the firmware lookup now prefers an
+      explicitly staged root-owned open HF snapshot
+      (/var/lib/web888-fpga/websdr_hf.bit, written only by
+      web888-fpga-select with experimental consent) over the auto-updated
+      state copy and the factory copy; "select stock" removes the snapshot
+      restoring previous behavior. VHF auto selection is untouched (only
+      websdr_hf.bit is ever staged). WebSDR remains its own PL writer.
+    - Unit: + Conflicts=web888-web888d.service (PL exclusivity, both
+      directions; the web888d unit ships the reverse in its own package).
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sat, 01 Nov 2026 00:00:00 +0800
+
 web888-websdr (2026.1020-1) UNRELEASED; urgency=medium
 
   * Upstream pin bump: RaspSDR/server 4dfecc46 (2026-09-27) →

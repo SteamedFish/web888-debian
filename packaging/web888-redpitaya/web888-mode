@@ -1,30 +1,52 @@
 #!/usr/bin/env bash
-# web888-mode — switch the Web-888 between WebSDR mode and Red Pitaya apps.
-# Shipped in the web888-redpitaya deb as /usr/sbin/web888-mode.
+# web888-mode — switch the Web-888 between WebSDR mode, web888d and Red
+# Pitaya apps. Shipped in the web888-redpitaya deb as /usr/sbin/web888-mode.
 #
-#   web888-mode            show current mode
-#   web888-mode websdr     stop RP apps, start WebSDR (default mode)
-#   web888-mode <app>      stop WebSDR, start web888-rpapp@<app>
-#   web888-mode stop       stop everything (FPGA left as-is)
-#   web888-mode list       list available RP apps
+#   web888-mode                       show current mode + selected FPGA profile
+#   web888-mode websdr                stop everything, start WebSDR (own PL writer)
+#   web888-mode web888d               stop everything, start web888d (FPGA loaded
+#                                     by web888-fpga-select as root pre-start;
+#                                     the daemon runs with --bitstream none)
+#   web888-mode <app>                 stop everything, start web888-rpapp@<app>
+#                                     (RP apps load their own bitstream; --fpga
+#                                     is rejected for them)
+#   web888-mode stop                  stop everything (FPGA left as-is)
+#   web888-mode list                  list available RP apps + special modes
+#
+# FPGA selection (optional, default stock):
+#   web888-mode APP [--fpga stock|web888-ng-hf] [--experimental]
+#     --fpga stock          persist the stock selection, remove the staged
+#                           open HF snapshot (web888-fpga-select select stock)
+#     --fpga web888-ng-hf   requires --experimental AND a root-owned
+#                           /etc/web888/fpga-experimental consent file naming
+#                           the exact SHA-256 of the open HF bitstream
+#     (none)                the persisted selection is kept as-is
+#   Changing the FPGA stops ALL stacks before select/load/start, even when
+#   APP is unchanged; when the same mode+FPGA is already active nothing
+#   happens (no restart).
 #
 # Convenience/UX only — the systemd units are independently operable and the
 # Conflicts= declarations make bare `systemctl start` safe; this script adds
-# explicit ordering (stop the other side BEFORE touching the FPGA).
+# explicit ordering (stop the other stacks BEFORE touching the FPGA).
 #
-# Test hooks: WEB888_SYSTEMCTL and WEB888_RP_APPS_DIR redirect external
-# touchpoints for scripts/test-redpitaya-mode.sh.
+# Test hooks: WEB888_SYSTEMCTL, WEB888_RP_APPS_DIR, WEB888_FPGA_SELECT and
+# the WEB888_FPGA_* hooks of web888-fpga-select redirect external touchpoints
+# for scripts/test-redpitaya-mode.sh.
 
 set -eu
 
 SYSTEMCTL=${WEB888_SYSTEMCTL:-systemctl}
 APPS_DIR=${WEB888_RP_APPS_DIR:-/usr/share/web888-redpitaya/apps}
+FPGA_SELECT=${WEB888_FPGA_SELECT:-/usr/lib/web888/web888-fpga-select}
 WEBSDR_UNIT=web888-websdr.service
+WEB888D_UNIT=web888-web888d.service
 
 usage() {
-    echo "usage: web888-mode [websdr|<app>|stop|list]" >&2
+    echo "usage: web888-mode [status|list|stop|websdr|web888d|<app>] [--fpga stock|web888-ng-hf] [--experimental]" >&2
     exit "${1:-2}"
 }
+
+die() { echo "web888-mode: error: $*" >&2; exit 1; }
 
 list_apps() {
     [ -d "$APPS_DIR" ] || return 0
@@ -44,23 +66,30 @@ valid_app() {
     [ -f "$APPS_DIR/$1/$1.bit" ]
 }
 
-is_active() { # unit pattern -> 0 if systemctl says active
+is_active() { # unit -> 0 if systemctl says active
     [ "$($SYSTEMCTL is-active "$1" 2>/dev/null || true)" = active ]
+}
+
+current_fpga() { # persisted selection via the helper (never inferred from PL)
+    "$FPGA_SELECT" status | sed -n 's/^selected fpga: //p' | sed -n '1p'
 }
 
 show_status() {
     if is_active "$WEBSDR_UNIT"; then
         echo "current mode: websdr ($WEBSDR_UNIT active)"
-        return 0
+    elif is_active "$WEB888D_UNIT"; then
+        echo "current mode: web888d ($WEB888D_UNIT active)"
+    else
+        local app active=0
+        for app in $(list_apps); do
+            if is_active "web888-rpapp@$app.service"; then
+                echo "current mode: $app (web888-rpapp@$app.service active)"
+                active=1
+            fi
+        done
+        [ "$active" = 1 ] || echo "current mode: none (everything stopped)"
     fi
-    local app active=0
-    for app in $(list_apps); do
-        if is_active "web888-rpapp@$app.service"; then
-            echo "current mode: $app (web888-rpapp@$app.service active)"
-            active=1
-        fi
-    done
-    [ "$active" = 1 ] || echo "current mode: none (everything stopped)"
+    echo "selected fpga: $(current_fpga)"
 }
 
 need_root() { # switching subcommands are root-only
@@ -70,10 +99,101 @@ need_root() { # switching subcommands are root-only
     fi
 }
 
+stop_all() {
+    $SYSTEMCTL stop "$WEBSDR_UNIT" || true     # none running = fine
+    $SYSTEMCTL stop "$WEB888D_UNIT" || true
+    $SYSTEMCTL stop 'web888-rpapp@*' || true
+}
+
+target_active() { # websdr|web888d|<app> -> 0 if that stack is active
+    case $1 in
+        websdr)  is_active "$WEBSDR_UNIT" ;;
+        web888d) is_active "$WEB888D_UNIT" ;;
+        *)       is_active "web888-rpapp@$1.service" ;;
+    esac
+}
+
+switch_to() { # target fpga_req(''|stock|web888-ng-hf) experimental(0|1)
+    local target=$1 fpga_req=$2 experimental=$3
+
+    if [ -n "$fpga_req" ] && valid_app "$target"; then
+        die "--fpga is not supported for RP app '$target' (RP apps load their own bitstream)"
+    fi
+    if [ "$experimental" = 1 ] && [ "$fpga_req" != web888-ng-hf ]; then
+        die "--experimental is only valid together with --fpga web888-ng-hf"
+    fi
+    if [ "$fpga_req" = web888-ng-hf ] && [ "$experimental" != 1 ]; then
+        die "--fpga web888-ng-hf requires --experimental (consent file: /etc/web888/fpga-experimental)"
+    fi
+
+    local cur_fpga
+    cur_fpga=$(current_fpga) || die "could not read FPGA selection (is $FPGA_SELECT installed?)"
+
+    if target_active "$target" && { [ -z "$fpga_req" ] || [ "$fpga_req" = "$cur_fpga" ]; }; then
+        echo "web888-mode: '$target' already active (fpga: $cur_fpga) — no change"
+        return 0
+    fi
+
+    echo "web888-mode: switching to $target${fpga_req:+ (fpga: $fpga_req)}"
+    # Pre-validate consent/digest for a pending FPGA change BEFORE touching
+    # any running stack: `select --check` never writes the PL, persists
+    # nothing and snapshots nothing, so a missing/invalid ACK or a digest
+    # mismatch fails here with the previous stack still untouched.
+    if [ -n "$fpga_req" ] && [ "$fpga_req" != "$cur_fpga" ]; then
+        if [ "$fpga_req" = web888-ng-hf ]; then
+            "$FPGA_SELECT" select web888-ng-hf --experimental --check
+        else
+            "$FPGA_SELECT" select stock --check
+        fi
+    fi
+    # Always stop every stack first: the PL is exclusive and any FPGA change
+    # requires a clean select/load/start sequence even when APP is unchanged.
+    stop_all
+
+    if [ -n "$fpga_req" ] && [ "$fpga_req" != "$cur_fpga" ]; then
+        if [ "$fpga_req" = web888-ng-hf ]; then
+            [ "$experimental" = 1 ] || die "--fpga web888-ng-hf requires --experimental (consent file: /etc/web888/fpga-experimental)"
+            "$FPGA_SELECT" select web888-ng-hf --experimental
+        else
+            "$FPGA_SELECT" select stock
+        fi
+    fi
+
+    case $target in
+        websdr)  $SYSTEMCTL start "$WEBSDR_UNIT" ;;
+        web888d) $SYSTEMCTL start "$WEB888D_UNIT" ;;
+        *)       $SYSTEMCTL start "web888-rpapp@$target.service" ;;
+    esac
+}
+
+parse_fpga_opts() { # remaining args -> sets FPGA_REQ, EXPERIMENTAL
+    FPGA_REQ=
+    EXPERIMENTAL=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --fpga)
+                [ $# -ge 2 ] || die "--fpga requires a value (stock|web888-ng-hf)"
+                case $2 in
+                    stock|web888-ng-hf) FPGA_REQ=$2 ;;
+                    *) usage ;;   # bad profile value -> usage + exit 2
+                esac
+                shift 2
+                ;;
+            --experimental)
+                EXPERIMENTAL=1
+                shift
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    done
+}
+
 cmd=${1:-status}
 case $cmd in
     -h|--help)
-        echo "usage: web888-mode [websdr|<app>|stop|list]"
+        echo "usage: web888-mode [status|list|stop|websdr|web888d|<app>] [--fpga stock|web888-ng-hf] [--experimental]"
         exit 0
         ;;
     status|'')
@@ -82,19 +202,18 @@ case $cmd in
     list)
         echo "available RP apps:"
         list_apps | sed 's/^/  /'
-        echo "special modes: websdr, stop"
-        ;;
-    websdr)
-        need_root websdr
-        echo "web888-mode: switching to websdr"
-        $SYSTEMCTL stop 'web888-rpapp@*' || true   # none running = fine
-        $SYSTEMCTL start "$WEBSDR_UNIT"
+        echo "special modes: websdr, web888d, stop"
         ;;
     stop)
         need_root stop
         echo "web888-mode: stopping everything (FPGA left as-is)"
-        $SYSTEMCTL stop "$WEBSDR_UNIT" || true
-        $SYSTEMCTL stop 'web888-rpapp@*' || true
+        stop_all
+        ;;
+    websdr|web888d)
+        need_root "$cmd"
+        shift
+        parse_fpga_opts "$@"
+        switch_to "$cmd" "$FPGA_REQ" "$EXPERIMENTAL"
         ;;
     *)
         valid_app "$cmd" || {
@@ -103,8 +222,8 @@ case $cmd in
             usage
         }
         need_root "$cmd"
-        echo "web888-mode: switching to RP app '$cmd'"
-        $SYSTEMCTL stop "$WEBSDR_UNIT" || true
-        $SYSTEMCTL start "web888-rpapp@$cmd.service"
+        shift
+        parse_fpga_opts "$@"
+        switch_to "$cmd" "$FPGA_REQ" "$EXPERIMENTAL"
         ;;
 esac

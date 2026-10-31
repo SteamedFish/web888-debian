@@ -2,6 +2,10 @@
 Description=Web-888 WebSDR server
 After=network-online.target
 Wants=network-online.target
+# PL exclusivity: web888d's open FPGA load conflicts with WebSDR's own
+# bitstream write (both directions; the web888d unit declares the reverse
+# conflict in its own package).
+Conflicts=web888-web888d.service
 
 [Service]
 Type=simple

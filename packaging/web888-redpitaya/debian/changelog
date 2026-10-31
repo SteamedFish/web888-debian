@@ -1,3 +1,35 @@
+web888-redpitaya (2025.430-3) UNRELEASED; urgency=medium
+
+  * Shared safe FPGA selector/loader (web888-ng Phase 2 lane B):
+    - New /usr/lib/web888/web888-fpga-select (root-owned), the single owner
+      of the runtime FPGA selection: `status` (persisted profile reported
+      separately from the active service, never inferred from prog_done),
+      `select stock` (persist default, remove the staged open snapshot,
+      never writes the PL), `select web888-ng-hf --experimental`
+      (double consent gate: root-owned /etc/web888/fpga-experimental must
+      authorize the exact profile+SHA-256 of the open HF bitstream AND the
+      command needs --experimental; the verified artifact is snapshotted
+      immutably — root-owned regular file 0444, never a symlink — into
+      /var/lib/web888-fpga/, so a later package update cannot silently
+      change the consented contents), `load` (lock-serialized, refuses
+      while a conflicting SDR service is active, programs /dev/xdevcfg from
+      the persisted selection with a prog_done timeout, fail closed —
+      intended as the root ExecStartPre of web888-web888d.service, which
+      then runs --bitstream none).
+    - web888-mode: three-way websdr/web888d/<rp-app> switching with
+      optional --fpga stock|web888-ng-hf [--experimental]; no --fpga keeps
+      the persisted selection (initial default stock); an FPGA change stops
+      ALL stacks before select/load/start even when APP is unchanged; a
+      same mode+FPGA switch is a no-op; --fpga is rejected for RP apps.
+      stop/status/list handle web888d.
+    - web888-rpapp@.service + websdr drop-in 50-redpitaya.conf: add
+      Conflicts=web888-web888d.service.
+    - postinst: create /var/lib/web888-fpga (root:root 0755) and default the
+      selection to stock on fresh installs only; upgrades never change the
+      selection or touch services.
+
+ -- SteamedFish <steamedfish@hotmail.com>  Sat, 01 Nov 2026 00:00:00 +0800
+
 web888-redpitaya (2025.430-2) UNRELEASED; urgency=medium
 
   * Hardware-gate fix: patch 0001-peri-use-zynqsdr-ioctl —

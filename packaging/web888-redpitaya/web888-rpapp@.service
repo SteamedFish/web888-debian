@@ -2,10 +2,11 @@
 Description=Web-888 Red Pitaya app: %i
 After=network-online.target
 Wants=network-online.target
-# FPGA/PL exclusivity: starting an RP app stops WebSDR. The reverse
+# FPGA/PL exclusivity: starting an RP app stops WebSDR and web888d. The reverse
 # direction lives in 50-redpitaya.conf on the websdr unit (systemd cannot
-# glob template instances in Conflicts=).
-Conflicts=web888-websdr.service
+# glob template instances in Conflicts=); the websdr unit itself also
+# declares Conflicts=web888-web888d.service.
+Conflicts=web888-websdr.service web888-web888d.service
 # crash-loop guard ([Unit] keys, NOT [Service] — systemd 257 logs "unknown
 # key" and ignores them there): without a limit, a failing app reloads the
 # PL (ExecStartPre) every 3s forever — sustained devcfg churn observed
