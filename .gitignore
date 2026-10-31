@@ -11,6 +11,9 @@ scripts/hw-test/rx-dump
 scripts/hw-test/si5351-init
 scripts/hw-test/sigdump
 scripts/hw-test/zynqsdr-smoke
+scripts/hw-test/zynqsdr-smoke.armhf
+scripts/hw-test/zynqsdr-rearm
+scripts/hw-test/zynqsdr-rearm.armhf
 
 # local agent plan/session dirs (tracked only on the pre-cleanup archive branch)
 .sisyphus/
